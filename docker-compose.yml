@@ -1,0 +1,16 @@
+services:
+  kanban:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - kanban-data:/data
+    environment:
+      - DATABASE_PATH=/data/kanwise.db
+      - RUST_LOG=info
+      # IMPORTANT: Set this to your domain to avoid CORS errors.
+      # - KANBAN_ALLOWED_ORIGINS=https://kanwise.dev
+
+volumes:
+  kanban-data:

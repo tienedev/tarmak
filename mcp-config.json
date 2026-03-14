@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "optimized-kanban": {
+      "command": "optimized-kanban",
+      "args": ["--mcp"],
+      "env": {
+        "DATABASE_PATH": "./optimized-kanban.db"
+      }
+    }
+  }
+}

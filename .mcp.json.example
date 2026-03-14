@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kanwise": {
+      "command": "kanwise",
+      "args": ["--mcp"],
+      "env": {
+        "DATABASE_PATH": "./kanwise.db"
+      }
+    }
+  }
+}
