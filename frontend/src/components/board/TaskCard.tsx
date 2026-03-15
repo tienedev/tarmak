@@ -82,7 +82,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
             <span
               key={label.id}
               className={cn(
-                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium shadow-sm',
+                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.65rem] font-medium shadow-sm',
                 isLightColor(label.color) ? 'text-gray-900' : 'text-white',
               )}
               style={{ backgroundColor: label.color }}
@@ -91,7 +91,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
             </span>
           ))}
           {task.labels.length > 3 && (
-            <span className="text-[0.6rem] text-muted-foreground">
+            <span className="text-[0.65rem] text-muted-foreground">
               +{task.labels.length - 3}
             </span>
           )}
@@ -131,7 +131,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
         {/* Due date */}
         {task.due_date && (
           <span className={cn(
-            'text-[0.6rem] font-medium',
+            'text-[0.65rem] font-medium',
             new Date(task.due_date) < new Date() ? 'text-red-500' :
             new Date(task.due_date).getTime() - Date.now() < 2 * 86400000 ? 'text-orange-500' :
             'text-muted-foreground',
@@ -142,7 +142,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
 
         {/* Assignee avatar */}
         {task.assignee && (
-          <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.6rem] font-semibold text-primary">
+          <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.65rem] font-semibold text-primary">
             {task.assignee.slice(0, 2).toUpperCase()}
           </div>
         )}

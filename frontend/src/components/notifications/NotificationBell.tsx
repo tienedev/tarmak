@@ -37,7 +37,7 @@ export function NotificationBell() {
       >
         <Bell className="size-3.5" />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-red-500 text-[0.5rem] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-red-500 text-[0.6rem] font-bold text-white">
             {count > 9 ? '9+' : count}
           </span>
         )}
@@ -49,7 +49,7 @@ export function NotificationBell() {
             <Button
               variant="ghost"
               size="xs"
-              className="h-5 gap-1 text-[0.6rem] text-muted-foreground"
+              className="h-5 gap-1 text-[0.65rem] text-muted-foreground"
               onClick={markAllRead}
             >
               <Check className="size-3" />
@@ -81,7 +81,7 @@ export function NotificationBell() {
                     <p className="text-sm leading-snug text-foreground">
                       {notif.message}
                     </p>
-                    <span className="text-[0.6rem] text-muted-foreground">
+                    <span className="text-[0.65rem] text-muted-foreground">
                       {formatTimeAgo(notif.timestamp)}
                     </span>
                   </div>
