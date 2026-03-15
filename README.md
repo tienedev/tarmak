@@ -106,24 +106,66 @@ Open http://localhost:3001 and create your account.
 
 ## MCP Integration
 
-Kanwise includes a built-in MCP server. The fastest way to get started with Claude Code is the automated setup script:
+Kanwise includes a built-in MCP server that lets Claude (or any MCP-compatible agent) manage your boards directly. The setup script handles everything — pick the mode that fits your setup:
 
-### Automated Setup (Claude Code)
+### With Docker (recommended)
+
+No Rust, no Node — just Docker.
+
+```bash
+./scripts/setup-claude.sh --docker
+```
+
+This pulls the Docker image, configures the MCP server in `~/.claude/.mcp.json`, and installs the kanban-tracking skill. That's it.
+
+**Requires:** Docker installed and running.
+
+### From source
+
+If you have Rust and Node.js installed, or you're contributing to Kanwise:
 
 ```bash
 ./scripts/setup-claude.sh
 ```
 
-This script handles everything in one step:
+This builds the binary, installs it to `~/.local/bin/`, configures MCP, and installs the skill.
 
-1. Builds the kanwise binary (release mode)
-2. Installs it to `~/.local/bin/`
-3. Configures the MCP server in `~/.claude/.mcp.json`
-4. Installs the **kanban-tracking** skill (see [below](#kanban-tracking-skill))
+**Requires:** Rust toolchain, Node.js.
 
-### Manual Setup
+### What the script does
 
-Add Kanwise to your Claude Desktop or Claude Code MCP config:
+Both modes configure the same two things:
+
+| File | Purpose |
+|------|---------|
+| `~/.claude/.mcp.json` | Registers Kanwise as an MCP server for Claude Code |
+| `~/.claude/skills/kanban-tracking/SKILL.md` | Installs the [kanban-tracking skill](#kanban-tracking-skill) |
+
+Run `./scripts/setup-claude.sh --help` for all options.
+
+### Manual setup
+
+If you prefer to configure MCP yourself, add this to your Claude Desktop or Claude Code config:
+
+<details>
+<summary>Docker</summary>
+
+```json
+{
+  "mcpServers": {
+    "kanwise": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-v", "kanwise-data:/data",
+               "ghcr.io/tienedev/kanwise:latest", "--mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>Local binary</summary>
 
 ```json
 {
@@ -132,12 +174,14 @@ Add Kanwise to your Claude Desktop or Claude Code MCP config:
       "command": "kanwise",
       "args": ["--mcp"],
       "env": {
-        "DATABASE_PATH": "./kanwise.db"
+        "DATABASE_PATH": "~/.kanwise/kanwise.db"
       }
     }
   }
 }
 ```
+
+</details>
 
 Then talk to your boards in natural language:
 
