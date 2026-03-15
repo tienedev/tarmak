@@ -310,6 +310,8 @@ async fn sse_handler(
 
     // Create handler and spawn the rmcp service
     let handler = McpSseHandler::new(app.db.clone(), user.id.clone());
+    let txs_cleanup = app.txs.clone();
+    let session_cleanup = session.clone();
     tokio::spawn(async move {
         match handler.serve(transport).await {
             Ok(running) => {
@@ -320,6 +322,8 @@ async fn sse_handler(
                 tracing::error!(error = %e, "mcp sse: service error");
             }
         }
+        // Clean up session entry on disconnect (regardless of how it ended)
+        txs_cleanup.write().await.remove(&session_cleanup);
     });
 
     // Build the SSE event stream

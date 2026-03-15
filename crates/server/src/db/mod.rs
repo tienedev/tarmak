@@ -15,6 +15,9 @@ impl Db {
     /// Open (or create) a database at the given file path and run migrations.
     pub fn new(path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(path)?;
+        // Enable WAL mode for better concurrent read performance
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "busy_timeout", 5000)?;
         migrations::run_migrations(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),

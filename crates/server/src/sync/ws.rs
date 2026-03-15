@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
@@ -15,6 +16,9 @@ use yrs::updates::decoder::Decode;
 use super::doc::BoardDocManager;
 use crate::db::Db;
 
+/// Minimum interval between CRDT state persistence writes per board.
+const PERSIST_DEBOUNCE: Duration = Duration::from_secs(1);
+
 /// Shared state for the sync subsystem.
 ///
 /// Holds the CRDT document manager and per-board broadcast channels that
@@ -23,6 +27,7 @@ pub struct SyncState {
     pub doc_manager: BoardDocManager,
     pub db: Db,
     channels: RwLock<HashMap<String, broadcast::Sender<Vec<u8>>>>,
+    last_persist: RwLock<HashMap<String, Instant>>,
 }
 
 impl SyncState {
@@ -31,7 +36,19 @@ impl SyncState {
             doc_manager: BoardDocManager::new(),
             db,
             channels: RwLock::new(HashMap::new()),
+            last_persist: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Check if enough time has elapsed since the last persist for this board.
+    async fn should_persist(&self, board_id: &str) -> bool {
+        let last = self.last_persist.read().await;
+        !matches!(last.get(board_id), Some(t) if t.elapsed() < PERSIST_DEBOUNCE)
+    }
+
+    /// Record that we just persisted state for this board.
+    async fn mark_persisted(&self, board_id: &str) {
+        self.last_persist.write().await.insert(board_id.to_string(), Instant::now());
     }
 
     /// Get (or create) the broadcast channel for a given board.
@@ -143,32 +160,44 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
     while let Some(Ok(msg)) = ws_rx.next().await {
         match msg {
             Message::Binary(data) => {
-                // Decode and apply the CRDT update.
-                match Update::decode_v1(&data) {
+                // Decode and apply the CRDT update (all !Send yrs types scoped here).
+                let applied = match Update::decode_v1(&data) {
                     Ok(update) => {
                         let mut txn = doc.transact_mut();
                         if let Err(e) = txn.apply_update(update) {
                             tracing::warn!("Bad CRDT update from client: {e}");
                         }
-                        drop(txn);
+                        true
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to decode CRDT update: {e}");
+                        false
+                    }
+                };
 
-                        // Persist CRDT state to database
+                if applied {
+                    // Debounced persistence: at most once per PERSIST_DEBOUNCE interval
+                    if state.should_persist(&board_id).await {
                         let state_bytes = BoardDocManager::encode_full_state(&doc);
                         if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes) {
                             tracing::warn!("Failed to persist CRDT state for board {board_id}: {e}");
                         }
+                        state.mark_persisted(&board_id).await;
+                    }
 
-                        // Relay to other connected clients.
-                        let _ = tx.send(data.to_vec());
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to decode CRDT update: {e}");
-                    }
+                    // Relay to other connected clients.
+                    let _ = tx.send(data.to_vec());
                 }
             }
             Message::Close(_) => break,
             _ => {} // ignore text/ping/pong
         }
+    }
+
+    // Final persist on disconnect to ensure no updates are lost
+    let state_bytes = BoardDocManager::encode_full_state(&doc);
+    if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes) {
+        tracing::warn!("Failed to persist final CRDT state for board {board_id}: {e}");
     }
 
     // Clean up: abort the sender task.
