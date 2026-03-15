@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod api_keys;
+pub mod archive;
 pub mod auth;
 pub mod boards;
 pub mod columns;
@@ -35,7 +36,9 @@ pub fn router(db: Db) -> Router {
 
     let columns = Router::new()
         .route("/", get(columns::list).post(columns::create))
-        .route("/{cid}", put(columns::update).delete(columns::delete));
+        .route("/{cid}", put(columns::update).delete(columns::delete))
+        .route("/{cid}/archive", post(archive::archive_column))
+        .route("/{cid}/unarchive", post(archive::unarchive_column));
 
     let task_fields = Router::new()
         .route("/", get(custom_fields::get_values))
@@ -52,6 +55,8 @@ pub fn router(db: Db) -> Router {
     let task_item = Router::new()
         .route("/", get(tasks::get).put(tasks::update).delete(tasks::delete))
         .route("/move", patch(tasks::move_task))
+        .route("/archive", post(archive::archive_task))
+        .route("/unarchive", post(archive::unarchive_task))
         .nest("/fields", task_fields)
         .route("/comments", get(comments::list).post(comments::create))
         .nest("/labels", task_labels)
@@ -73,6 +78,7 @@ pub fn router(db: Db) -> Router {
         .route("/members", get(boards::members))
         .route("/activity", get(activity::list))
         .route("/search", get(search::search))
+        .route("/archive", get(archive::list_archived))
         .nest("/columns", columns)
         .nest("/tasks", board_tasks)
         .nest("/labels", board_labels)

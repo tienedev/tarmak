@@ -14,6 +14,7 @@ use super::permissions;
 pub struct SearchParams {
     pub q: String,
     pub limit: Option<i64>,
+    pub include_archived: Option<bool>,
 }
 
 pub async fn search(
@@ -28,6 +29,7 @@ pub async fn search(
     if q.is_empty() {
         return Ok(Json(vec![]));
     }
-    let results = db.search_board(&board_id, q, limit, false)?;
+    let include_archived = params.include_archived.unwrap_or(false);
+    let results = db.search_board(&board_id, q, limit, include_archived)?;
     Ok(Json(results))
 }
