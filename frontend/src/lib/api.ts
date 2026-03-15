@@ -195,8 +195,10 @@ export const api = {
     }),
 
   // Search
-  searchBoard: (boardId: string, q: string, limit = 20) =>
-    request<SearchResult[]>(`/boards/${boardId}/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  searchBoard: (boardId: string, q: string, limit = 20, includeArchived = false) =>
+    request<SearchResult[]>(
+      `/boards/${boardId}/search?q=${encodeURIComponent(q)}&limit=${limit}${includeArchived ? '&include_archived=true' : ''}`,
+    ),
 
   // Subtasks
   listSubtasks: (boardId: string, taskId: string) =>
@@ -220,6 +222,56 @@ export const api = {
     request<void>(`/boards/${boardId}/tasks/${taskId}/subtasks/${subtaskId}`, {
       method: 'DELETE',
     }),
+
+  // Archive
+  archiveTask: (boardId: string, taskId: string) =>
+    request<{ archived: boolean }>(`/boards/${boardId}/tasks/${taskId}/archive`, { method: 'POST' }),
+  unarchiveTask: (boardId: string, taskId: string) =>
+    request<{ unarchived: boolean }>(`/boards/${boardId}/tasks/${taskId}/unarchive`, { method: 'POST' }),
+  archiveColumn: (boardId: string, columnId: string) =>
+    request<{ archived: boolean; task_count: number }>(`/boards/${boardId}/columns/${columnId}/archive`, {
+      method: 'POST',
+    }),
+  unarchiveColumn: (boardId: string, columnId: string) =>
+    request<{ unarchived: boolean; task_count: number }>(`/boards/${boardId}/columns/${columnId}/unarchive`, {
+      method: 'POST',
+    }),
+  listArchived: (boardId: string) =>
+    request<{ tasks: Task[]; columns: Column[] }>(`/boards/${boardId}/archive`),
+
+  // Attachments
+  listAttachments: (boardId: string, taskId: string) =>
+    request<Attachment[]>(`/boards/${boardId}/tasks/${taskId}/attachments`),
+  uploadAttachment: async (boardId: string, taskId: string, file: File): Promise<Attachment> => {
+    const token = localStorage.getItem('token')
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/boards/${boardId}/tasks/${taskId}/attachments`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error(err.error || res.statusText)
+    }
+    return res.json()
+  },
+  deleteAttachment: (boardId: string, taskId: string, attachmentId: string) =>
+    request<{ deleted: boolean }>(`/boards/${boardId}/tasks/${taskId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    }),
+
+  // Column update
+  updateColumn: (
+    boardId: string,
+    columnId: string,
+    data: { name?: string; wip_limit?: number | null; color?: string | null },
+  ) =>
+    request<{ updated: boolean }>(`/boards/${boardId}/columns/${columnId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 }
 
 // Types
@@ -238,6 +290,7 @@ export interface Column {
   position: number
   wip_limit?: number
   color?: string
+  archived?: boolean
 }
 
 export interface Task {
@@ -254,6 +307,8 @@ export interface Task {
   position: number
   created_at: string
   updated_at: string
+  archived?: boolean
+  attachment_count?: number
 }
 
 export interface Label {
@@ -352,4 +407,17 @@ export interface SearchResult {
   task_id: string
   snippet: string
   rank: number
+  archived?: boolean
+}
+
+export interface Attachment {
+  id: string
+  task_id: string
+  board_id: string
+  filename: string
+  mime_type: string
+  size_bytes: number
+  storage_key: string
+  uploaded_by?: string
+  created_at: string
 }
