@@ -24,7 +24,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
-import { ArrowLeft, History, Loader2, MoreHorizontal, Settings2 } from 'lucide-react'
+import { ArrowLeft, History, MoreHorizontal, Settings2 } from 'lucide-react'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash

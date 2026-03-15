@@ -76,10 +76,10 @@ pub async fn update(
     if existing.board_id != board_id {
         return Err(ApiError::NotFound("label not found".into()));
     }
-    if let Some(ref c) = body.color {
-        if !is_valid_color(c) {
-            return Err(ApiError::BadRequest("color must be #RRGGBB hex format".into()));
-        }
+    if let Some(ref c) = body.color
+        && !is_valid_color(c)
+    {
+        return Err(ApiError::BadRequest("color must be #RRGGBB hex format".into()));
     }
     db.update_label(&label_id, body.name.as_deref(), body.color.as_deref())?;
     let _ = db.log_activity(
