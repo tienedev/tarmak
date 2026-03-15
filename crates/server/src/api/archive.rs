@@ -62,16 +62,16 @@ pub async fn archive_column(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
     let columns = db.list_columns(&board_id)?;
-    if !columns.iter().any(|c| c.id == cid) {
-        return Err(ApiError::NotFound("column not found".into()));
-    }
+    let col = columns.iter().find(|c| c.id == cid)
+        .ok_or_else(|| ApiError::NotFound("column not found".into()))?;
+    let col_name = col.name.clone();
     let task_count = db.archive_column(&cid)?;
     let _ = db.log_activity(
         &board_id,
         None,
         &user.id,
         "column_archived",
-        Some(&serde_json::json!({"column_id": &cid, "task_count": task_count}).to_string()),
+        Some(&serde_json::json!({"column_name": &col_name, "task_count": task_count}).to_string()),
     );
     Ok(Json(serde_json::json!({ "archived": true, "task_count": task_count })))
 }
@@ -83,16 +83,16 @@ pub async fn unarchive_column(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
     let (_, archived_cols) = db.list_archived(&board_id)?;
-    if !archived_cols.iter().any(|c| c.id == cid) {
-        return Err(ApiError::NotFound("archived column not found".into()));
-    }
+    let col = archived_cols.iter().find(|c| c.id == cid)
+        .ok_or_else(|| ApiError::NotFound("archived column not found".into()))?;
+    let col_name = col.name.clone();
     let task_count = db.unarchive_column(&cid)?;
     let _ = db.log_activity(
         &board_id,
         None,
         &user.id,
         "column_unarchived",
-        Some(&serde_json::json!({"column_id": &cid, "task_count": task_count}).to_string()),
+        Some(&serde_json::json!({"column_name": &col_name, "task_count": task_count}).to_string()),
     );
     Ok(Json(serde_json::json!({ "unarchived": true, "task_count": task_count })))
 }

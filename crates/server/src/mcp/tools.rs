@@ -465,27 +465,38 @@ impl KanbanMcpServer {
             }
             "archive_column" => {
                 let column_id = json_str(data, "column_id")?;
+                let columns = self.db.list_columns(board_id)?;
+                let col = columns.iter().find(|c| c.id == column_id)
+                    .ok_or_else(|| anyhow::anyhow!("column {column_id} not found in board {board_id}"))?;
+                let col_name = col.name.clone();
                 let count = self.db.archive_column(column_id)?;
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
                 let _ = self.db.log_activity(board_id, None, user_id, "column_archived",
-                    Some(&serde_json::json!({"column_id": column_id, "task_count": count}).to_string()));
+                    Some(&serde_json::json!({"column_name": col_name, "task_count": count}).to_string()));
                 Ok(format!("archived column {column_id} ({count} tasks)"))
             }
             "unarchive_column" => {
                 let column_id = json_str(data, "column_id")?;
+                let (_, archived_cols) = self.db.list_archived(board_id)?;
+                let col = archived_cols.iter().find(|c| c.id == column_id)
+                    .ok_or_else(|| anyhow::anyhow!("archived column {column_id} not found in board {board_id}"))?;
+                let col_name = col.name.clone();
                 let count = self.db.unarchive_column(column_id)?;
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
                 let _ = self.db.log_activity(board_id, None, user_id, "column_unarchived",
-                    Some(&serde_json::json!({"column_id": column_id, "task_count": count}).to_string()));
+                    Some(&serde_json::json!({"column_name": col_name, "task_count": count}).to_string()));
                 Ok(format!("unarchived column {column_id} ({count} tasks)"))
             }
             // ----- Attachments -----
             "delete_attachment" => {
                 let attachment_id = json_str(data, "attachment_id")?;
-                let deleted = self.db.delete_attachment(attachment_id)?;
-                if !deleted {
-                    bail!("attachment not found: {attachment_id}");
-                }
+                let att = self.db.get_attachment(attachment_id)?
+                    .ok_or_else(|| anyhow::anyhow!("attachment not found: {attachment_id}"))?;
+                self.db.delete_attachment(attachment_id)?;
+                let uploads_dir = std::path::PathBuf::from(
+                    std::env::var("KANBAN_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()),
+                );
+                let _ = std::fs::remove_file(uploads_dir.join(&att.storage_key));
                 Ok(format!("deleted attachment {attachment_id}"))
             }
             // ----- Subtasks -----

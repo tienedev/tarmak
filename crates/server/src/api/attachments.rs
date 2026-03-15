@@ -44,7 +44,11 @@ pub async fn upload(
         .map_err(|e| ApiError::BadRequest(format!("multipart error: {e}")))?
         .ok_or_else(|| ApiError::BadRequest("no file field".into()))?;
 
-    let filename = field.file_name().unwrap_or("unnamed").to_string();
+    let filename = field
+        .file_name()
+        .unwrap_or("unnamed")
+        .replace(['/', '\\', '\0'], "_")
+        .replace("..", "_");
     let mime_type = field
         .content_type()
         .unwrap_or("application/octet-stream")
@@ -137,7 +141,10 @@ pub async fn download(
         .header(header::CONTENT_TYPE, &att.mime_type)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{}\"", att.filename),
+            format!(
+                "inline; filename=\"{}\"",
+                att.filename.replace('\"', "\\\"").replace(['\\', '\n', '\r'], "_")
+            ),
         )
         .body(Body::from(data))
         .unwrap())

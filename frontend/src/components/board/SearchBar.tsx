@@ -79,7 +79,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
   // Re-search when includeArchived changes
   useEffect(() => {
     if (query.trim()) doSearch(query)
-  }, [includeArchived])
+  }, [includeArchived, doSearch, query])
 
   // Close on Escape
   useEffect(() => {
@@ -148,7 +148,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
           size="icon-xs"
           onClick={() => setIncludeArchived((prev) => !prev)}
           className={cn('text-muted-foreground', includeArchived && 'text-foreground bg-muted')}
-          title={includeArchived ? 'Excluding archives' : 'Include archives'}
+          title={includeArchived ? 'Including archives' : 'Include archives'}
         >
           <Archive className="size-3.5" />
         </Button>
