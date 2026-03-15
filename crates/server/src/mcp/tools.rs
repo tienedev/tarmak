@@ -170,6 +170,11 @@ impl KanbanMcpServer {
             }
             "update_task" => {
                 let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
                 let title = data.get("title").and_then(Value::as_str);
                 let description = data
                     .get("description")
@@ -190,6 +195,11 @@ impl KanbanMcpServer {
             }
             "move_task" => {
                 let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
                 let column_id = json_str(data, "column_id")?;
                 let position = data
                     .get("position")
@@ -204,6 +214,11 @@ impl KanbanMcpServer {
             }
             "delete_task" => {
                 let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
                 let deleted = self.db.delete_task(task_id)?;
                 if !deleted {
                     bail!("task not found: {task_id}");
@@ -270,6 +285,11 @@ impl KanbanMcpServer {
             }
             "set_field_value" => {
                 let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
                 let field_id = json_str(data, "field_id")?;
                 let value = json_str(data, "value")?;
 
@@ -288,6 +308,11 @@ impl KanbanMcpServer {
             }
             "add_comment" => {
                 let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
                 let user_id = json_str(data, "user_id")?;
                 let content = json_str(data, "content")?;
 
@@ -340,6 +365,11 @@ impl KanbanMcpServer {
                     self.apply_create(board_id, &row)?;
                 }
                 kbf::Delta::Delete { id } => {
+                    let existing = self.db.get_task(&id)?
+                        .ok_or_else(|| anyhow::anyhow!("task not found: {id}"))?;
+                    if existing.board_id != board_id {
+                        bail!("task {id} does not belong to board {board_id}");
+                    }
                     self.db
                         .delete_task(&id)
                         .context("delete task via delta")?;
@@ -353,11 +383,16 @@ impl KanbanMcpServer {
     /// Apply a field-level update delta to a task.
     fn apply_field_update(
         &self,
-        _board_id: &str,
+        board_id: &str,
         task_id: &str,
         field: &str,
         value: &str,
     ) -> Result<()> {
+        let existing = self.db.get_task(task_id)?
+            .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+        if existing.board_id != board_id {
+            bail!("task {task_id} does not belong to board {board_id}");
+        }
         match field {
             "title" => {
                 self.db

@@ -104,6 +104,8 @@ async fn run_http_server() -> anyhow::Result<()> {
 }
 
 async fn run_mcp_stdio() -> anyhow::Result<()> {
+    eprintln!("WARNING: MCP stdio mode has no authentication. Intended for local single-user use only.");
+
     let db_path =
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
     let db = db::Db::new(&db_path)?;

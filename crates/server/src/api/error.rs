@@ -19,6 +19,18 @@ pub enum ApiError {
     Internal(anyhow::Error),
 }
 
+impl std::fmt::Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiError::NotFound(msg) => write!(f, "{msg}"),
+            ApiError::Forbidden(msg) => write!(f, "{msg}"),
+            ApiError::Conflict(msg) => write!(f, "{msg}"),
+            ApiError::BadRequest(msg) => write!(f, "{msg}"),
+            ApiError::Internal(err) => write!(f, "{err}"),
+        }
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match self {

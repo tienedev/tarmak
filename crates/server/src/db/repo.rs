@@ -84,19 +84,33 @@ impl Db {
         description: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Board>> {
         self.with_conn(|conn| {
-            let now = now_iso();
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
             if let Some(n) = name {
-                conn.execute(
-                    "UPDATE boards SET name = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![n, now, id],
-                )?;
+                sets.push("name = ?");
+                values.push(Box::new(n.to_string()));
             }
             if let Some(d) = description {
-                conn.execute(
-                    "UPDATE boards SET description = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![d, now, id],
-                )?;
+                sets.push("description = ?");
+                values.push(Box::new(d.map(|s| s.to_string())));
             }
+
+            if !sets.is_empty() {
+                let now = now_iso();
+                sets.push("updated_at = ?");
+                values.push(Box::new(now));
+                values.push(Box::new(id.to_string()));
+
+                let sql = format!(
+                    "UPDATE boards SET {} WHERE id = ?",
+                    sets.join(", ")
+                );
+                let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                    values.iter().map(|v| v.as_ref()).collect();
+                conn.execute(&sql, param_refs.as_slice())?;
+            }
+
             get_board_inner(conn, id)
         })
     }
@@ -321,31 +335,41 @@ impl Db {
         assignee: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Task>> {
         self.with_conn(|conn| {
-            let now = now_iso();
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
             if let Some(t) = title {
-                conn.execute(
-                    "UPDATE tasks SET title = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![t, now, id],
-                )?;
+                sets.push("title = ?");
+                values.push(Box::new(t.to_string()));
             }
             if let Some(d) = description {
-                conn.execute(
-                    "UPDATE tasks SET description = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![d, now, id],
-                )?;
+                sets.push("description = ?");
+                values.push(Box::new(d.map(|s| s.to_string())));
             }
             if let Some(p) = priority {
-                conn.execute(
-                    "UPDATE tasks SET priority = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![p.as_str(), now, id],
-                )?;
+                sets.push("priority = ?");
+                values.push(Box::new(p.as_str().to_string()));
             }
             if let Some(a) = assignee {
-                conn.execute(
-                    "UPDATE tasks SET assignee = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![a, now, id],
-                )?;
+                sets.push("assignee = ?");
+                values.push(Box::new(a.map(|s| s.to_string())));
             }
+
+            if !sets.is_empty() {
+                let now = now_iso();
+                sets.push("updated_at = ?");
+                values.push(Box::new(now));
+                values.push(Box::new(id.to_string()));
+
+                let sql = format!(
+                    "UPDATE tasks SET {} WHERE id = ?",
+                    sets.join(", ")
+                );
+                let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                    values.iter().map(|v| v.as_ref()).collect();
+                conn.execute(&sql, param_refs.as_slice())?;
+            }
+
             get_task_inner(conn, id)
         })
     }

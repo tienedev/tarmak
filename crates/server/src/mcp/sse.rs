@@ -38,7 +38,10 @@ use rmcp::{
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
+use crate::api::middleware::AuthUser;
+use crate::api::permissions;
 use crate::db::Db;
+use crate::db::models::Role;
 use super::KanbanMcpServer;
 
 // ---------------------------------------------------------------------------
@@ -94,16 +97,20 @@ fn tool_definitions() -> Vec<Tool> {
 // ---------------------------------------------------------------------------
 
 /// MCP server handler for SSE connections.
-/// Each SSE session gets its own handler instance (cloned from the Db).
+/// Each SSE session gets its own handler instance bound to an authenticated user.
 #[derive(Clone)]
 pub struct McpSseHandler {
     server: Arc<KanbanMcpServer>,
+    db: Db,
+    user_id: String,
 }
 
 impl McpSseHandler {
-    fn new(db: Db) -> Self {
+    fn new(db: Db, user_id: String) -> Self {
         Self {
-            server: Arc::new(KanbanMcpServer::new(db)),
+            server: Arc::new(KanbanMcpServer::new(db.clone())),
+            db,
+            user_id,
         }
     }
 }
@@ -140,31 +147,72 @@ impl ServerHandler for McpSseHandler {
         _context: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<CallToolResult, rmcp::Error>> + Send + '_ {
         let server = self.server.clone();
+        let db = self.db.clone();
+        let user_id = self.user_id.clone();
         async move {
             let args = request.arguments.unwrap_or_default();
             let args_value = serde_json::Value::Object(args);
 
-            let result = match request.name.as_ref() {
+            let result: Result<String, String> = match request.name.as_ref() {
                 "board_query" => {
-                    let params: super::BoardQueryParams =
-                        serde_json::from_value(args_value).map_err(|e| {
-                            rmcp::Error::invalid_params(e.to_string(), None)
-                        })?;
-                    server.handle_query(params).map_err(|e| e.to_string())
+                    match serde_json::from_value::<super::BoardQueryParams>(args_value) {
+                        Err(e) => Err(format!("invalid params: {e}")),
+                        Ok(params) => {
+                            if params.board_id == "list" {
+                                db.list_user_boards(&user_id)
+                                    .and_then(|b| Ok(serde_json::to_string(&b)?))
+                                    .map_err(|e| e.to_string())
+                            } else {
+                                permissions::require_role(
+                                    &db, &params.board_id, &user_id, Role::Viewer,
+                                )
+                                .map_err(|e| e.to_string())
+                                .and_then(|_| server.handle_query(params).map_err(|e| e.to_string()))
+                            }
+                        }
+                    }
                 }
                 "board_mutate" => {
-                    let params: super::BoardMutateParams =
-                        serde_json::from_value(args_value).map_err(|e| {
-                            rmcp::Error::invalid_params(e.to_string(), None)
-                        })?;
-                    server.handle_mutate(params).map_err(|e| e.to_string())
+                    match serde_json::from_value::<super::BoardMutateParams>(args_value) {
+                        Err(e) => Err(format!("invalid params: {e}")),
+                        Ok(params) => {
+                            if params.action == "create_board" {
+                                (|| -> Result<String, String> {
+                                    let name = params.data.get("name")
+                                        .and_then(|v| v.as_str())
+                                        .ok_or_else(|| "missing required field: name".to_string())?;
+                                    let description = params.data.get("description").and_then(|v| v.as_str());
+                                    let board = db.create_board(name, description).map_err(|e| e.to_string())?;
+                                    db.add_board_member(&board.id, &user_id, Role::Owner)
+                                        .map_err(|e| e.to_string())?;
+                                    Ok(format!("created board {}", board.id))
+                                })()
+                            } else {
+                                let min_role = if params.action == "delete_board" {
+                                    Role::Owner
+                                } else {
+                                    Role::Member
+                                };
+                                permissions::require_role(
+                                    &db, &params.board_id, &user_id, min_role,
+                                )
+                                .map_err(|e| e.to_string())
+                                .and_then(|_| server.handle_mutate(params).map_err(|e| e.to_string()))
+                            }
+                        }
+                    }
                 }
                 "board_sync" => {
-                    let params: super::BoardSyncParams =
-                        serde_json::from_value(args_value).map_err(|e| {
-                            rmcp::Error::invalid_params(e.to_string(), None)
-                        })?;
-                    server.handle_sync(params).map_err(|e| e.to_string())
+                    match serde_json::from_value::<super::BoardSyncParams>(args_value) {
+                        Err(e) => Err(format!("invalid params: {e}")),
+                        Ok(params) => {
+                            permissions::require_role(
+                                &db, &params.board_id, &user_id, Role::Member,
+                            )
+                            .map_err(|e| e.to_string())
+                            .and_then(|_| server.handle_sync(params).map_err(|e| e.to_string()))
+                        }
+                    }
                 }
                 other => Err(format!("Unknown tool: {other}")),
             };
@@ -232,6 +280,7 @@ async fn post_event_handler(
 /// 5. Stream server messages back as SSE events
 async fn sse_handler(
     State(app): State<SseAppState>,
+    AuthUser(user): AuthUser,
 ) -> Result<Sse<impl Stream<Item = Result<Event, std::io::Error>>>, Response<String>> {
     let session = new_session_id();
     tracing::info!(%session, "mcp sse: new connection");
@@ -260,7 +309,7 @@ async fn sse_handler(
     };
 
     // Create handler and spawn the rmcp service
-    let handler = McpSseHandler::new(app.db.clone());
+    let handler = McpSseHandler::new(app.db.clone(), user.id.clone());
     tokio::spawn(async move {
         match handler.serve(transport).await {
             Ok(running) => {
@@ -391,8 +440,9 @@ pub fn sse_router(db: Db) -> Router<Db> {
 /// GET handler wrapper that extracts SseAppState from Extension.
 async fn sse_handler_ext(
     axum::Extension(app): axum::Extension<SseAppState>,
+    user: AuthUser,
 ) -> Result<Sse<impl Stream<Item = Result<Event, std::io::Error>>>, Response<String>> {
-    sse_handler(State(app)).await
+    sse_handler(State(app), user).await
 }
 
 /// POST handler wrapper that extracts SseAppState from Extension.

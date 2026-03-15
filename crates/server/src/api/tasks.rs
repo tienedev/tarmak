@@ -84,6 +84,9 @@ pub async fn get(
     let task = db
         .get_task(&tid)?
         .ok_or_else(|| anyhow::anyhow!("task not found"))?;
+    if task.board_id != board_id {
+        return Err(anyhow::anyhow!("task not found").into());
+    }
     Ok(Json(task))
 }
 
@@ -94,6 +97,10 @@ pub async fn update(
     Json(body): Json<UpdateTask>,
 ) -> Result<Json<Task>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    let existing = db.get_task(&tid)?.ok_or_else(|| anyhow::anyhow!("task not found"))?;
+    if existing.board_id != board_id {
+        return Err(anyhow::anyhow!("task not found").into());
+    }
     let description = body.description.as_ref().map(|d| d.as_deref());
     let assignee = body.assignee.as_ref().map(|a| a.as_deref());
     let task = db
@@ -122,6 +129,10 @@ pub async fn move_task(
     Json(body): Json<MoveTask>,
 ) -> Result<Json<Task>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    let existing = db.get_task(&tid)?.ok_or_else(|| anyhow::anyhow!("task not found"))?;
+    if existing.board_id != board_id {
+        return Err(anyhow::anyhow!("task not found").into());
+    }
     let task = db
         .move_task(&tid, &body.column_id, body.position)?
         .ok_or_else(|| anyhow::anyhow!("task not found"))?;
@@ -141,7 +152,10 @@ pub async fn delete(
     Path((board_id, tid)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let task_title = db.get_task(&tid)?.map(|t| t.title).unwrap_or_default();
+    let existing = db.get_task(&tid)?.ok_or_else(|| anyhow::anyhow!("task not found"))?;
+    if existing.board_id != board_id {
+        return Err(anyhow::anyhow!("task not found").into());
+    }
     let deleted = db.delete_task(&tid)?;
     if !deleted {
         return Err(anyhow::anyhow!("task not found").into());
@@ -151,7 +165,7 @@ pub async fn delete(
         Some(&tid),
         &user.id,
         "task_deleted",
-        Some(&serde_json::json!({"title": &task_title}).to_string()),
+        Some(&serde_json::json!({"title": &existing.title}).to_string()),
     );
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
