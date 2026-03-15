@@ -442,6 +442,170 @@ fn collect_rows(
 }
 
 // ---------------------------------------------------------------------------
+// Labels
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub fn create_label(&self, board_id: &str, name: &str, color: &str) -> anyhow::Result<Label> {
+        self.with_conn(|conn| {
+            let id = new_id();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO labels (id, board_id, name, color, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, board_id, name, color, now],
+            ).context("insert label")?;
+            Ok(Label {
+                id,
+                board_id: board_id.to_string(),
+                name: name.to_string(),
+                color: color.to_string(),
+                created_at: Utc::now(),
+            })
+        })
+    }
+
+    pub fn list_labels(&self, board_id: &str) -> anyhow::Result<Vec<Label>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, name, color, created_at FROM labels WHERE board_id = ?1 ORDER BY created_at",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                Ok(Label {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    color: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+
+    pub fn get_label(&self, id: &str) -> anyhow::Result<Option<Label>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, name, color, created_at FROM labels WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![id], |row| {
+                Ok(Label {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    color: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn update_label(&self, id: &str, name: Option<&str>, color: Option<&str>) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            if let Some(n) = name {
+                sets.push("name = ?");
+                values.push(Box::new(n.to_string()));
+            }
+            if let Some(c) = color {
+                sets.push("color = ?");
+                values.push(Box::new(c.to_string()));
+            }
+            if sets.is_empty() { return Ok(false); }
+            values.push(Box::new(id.to_string()));
+            let sql = format!("UPDATE labels SET {} WHERE id = ?", sets.join(", "));
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+            let affected = conn.execute(&sql, param_refs.as_slice())?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn delete_label(&self, id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute("DELETE FROM labels WHERE id = ?1", params![id])?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn add_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                params![task_id, label_id],
+            ).context("add task label")?;
+            Ok(())
+        })
+    }
+
+    pub fn remove_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute(
+                "DELETE FROM task_labels WHERE task_id = ?1 AND label_id = ?2",
+                params![task_id, label_id],
+            )?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn get_task_labels(&self, task_id: &str) -> anyhow::Result<Vec<Label>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT l.id, l.board_id, l.name, l.color, l.created_at
+                 FROM labels l
+                 INNER JOIN task_labels tl ON tl.label_id = l.id
+                 WHERE tl.task_id = ?1
+                 ORDER BY l.name",
+            )?;
+            let rows = stmt.query_map(params![task_id], |row| {
+                Ok(Label {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    color: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+
+    /// Batch load labels for all tasks in a board (avoids N+1).
+    pub fn get_labels_for_board_tasks(&self, board_id: &str) -> anyhow::Result<Vec<(String, Label)>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT tl.task_id, l.id, l.board_id, l.name, l.color, l.created_at
+                 FROM task_labels tl
+                 INNER JOIN labels l ON l.id = tl.label_id
+                 WHERE l.board_id = ?1
+                 ORDER BY l.name",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                let task_id: String = row.get(0)?;
+                let label = Label {
+                    id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    name: row.get(3)?,
+                    color: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                };
+                Ok((task_id, label))
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Custom Fields
 // ---------------------------------------------------------------------------
 
