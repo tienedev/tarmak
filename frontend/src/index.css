@@ -273,6 +273,11 @@
     border: 1px solid var(--glass-border);
 }
 
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.5 0 0 / 15%) transparent;
+}
+
 /* ===================================================================
    Base Layer
    =================================================================== */
