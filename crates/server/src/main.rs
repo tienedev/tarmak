@@ -219,6 +219,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .get("format")
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
+                            task_id: args
+                                .get("task_id")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
                         };
                         server.handle_query(qp).map_err(|e| e.to_string())
                     }
