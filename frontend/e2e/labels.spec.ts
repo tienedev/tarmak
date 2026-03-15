@@ -4,7 +4,7 @@ import { registerAndLogin, createBoard, createColumn, main } from './helpers'
 /** Open the Board Settings panel and navigate to the Labels tab */
 async function openLabelsSettings(page: import('@playwright/test').Page) {
   await main(page).getByRole('button', { name: /board settings/i }).click()
-  await expect(page.getByText('Board Settings')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Board Settings' })).toBeVisible()
   await page.getByRole('button', { name: 'Labels' }).click()
 }
 
