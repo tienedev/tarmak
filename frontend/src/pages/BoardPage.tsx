@@ -5,30 +5,22 @@ import { useAuthStore } from '@/stores/auth'
 import { KanbanBoard } from '@/components/board/KanbanBoard'
 import { ListView } from '@/components/board/ListView'
 import { TimelineView } from '@/components/board/TimelineView'
-import { ViewSwitcher, type ViewMode } from '@/components/board/ViewSwitcher'
+import type { ViewMode } from '@/components/board/ViewSwitcher'
 import { PresenceAvatars } from '@/components/presence/PresenceAvatars'
 import { TaskDialog } from '@/components/board/TaskDialog'
-import { SharePopover } from '@/components/board/SharePopover'
-import { FilterBar } from '@/components/filters/FilterBar'
-import { FieldManager } from '@/components/fields/FieldManager'
+import { BoardSubNav } from '@/components/board/BoardSubNav'
+import { BoardSettingsPanel } from '@/components/board/BoardSettingsPanel'
 import { useFilteredTasks } from '@/hooks/useFilters'
 import { useSync } from '@/hooks/useSync'
 import { usePresence } from '@/hooks/usePresence'
 import type { Task } from '@/lib/api'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
 import { ArchivePanel } from '@/components/board/ArchivePanel'
-import { LabelManager } from '@/components/board/LabelManager'
 import { SearchBar } from '@/components/board/SearchBar'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { useHotkeys } from '@/hooks/useHotkeys'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
-import { Archive, ArrowLeft, History, MoreHorizontal, Settings2 } from 'lucide-react'
+import { Archive, ArrowLeft, History, Settings2 } from 'lucide-react'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash
@@ -48,7 +40,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [view, setView] = useState<ViewMode>(getInitialView)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
-  const [fieldsOpen, setFieldsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -199,36 +191,34 @@ export function BoardPage({ boardId }: BoardPageProps) {
 
         <SearchBar boardId={boardId} onSelectResult={handleSearchSelect} />
 
-        <ViewSwitcher value={view} onChange={handleViewChange} />
+        <Button
+          variant="ghost"
+          size="xs"
+          className="gap-1.5 text-xs text-muted-foreground"
+          onClick={() => setActivityOpen(true)}
+        >
+          <History className="size-3.5" />
+          Activity
+        </Button>
 
-        <SharePopover boardId={boardId} />
+        <Button
+          variant="ghost"
+          size="xs"
+          className="gap-1.5 text-xs text-muted-foreground"
+          onClick={() => setArchiveOpen(true)}
+        >
+          <Archive className="size-3.5" />
+          Archives
+        </Button>
 
-        <LabelManager />
-
-        {/* Overflow menu — secondary actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="icon-xs" aria-label="More actions" />
-            }
-          >
-            <MoreHorizontal className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setActivityOpen(true)}>
-              <History className="size-3.5" />
-              Activity
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setArchiveOpen(true)}>
-              <Archive className="size-3.5" />
-              Archives
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setFieldsOpen(true)}>
-              <Settings2 className="size-3.5" />
-              Fields
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="gap-1.5 text-xs text-muted-foreground"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings2 className="size-3.5" />
+        </Button>
 
         {/* Presence avatars */}
         <div className="ml-2">
@@ -236,8 +226,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
         </div>
       </header>
 
-      {/* Filter bar */}
-      <FilterBar />
+      {/* Sub-nav: view switcher + filters */}
+      <BoardSubNav view={view} onViewChange={handleViewChange} />
 
       {/* View content */}
       <div className="flex-1 overflow-hidden">
@@ -270,8 +260,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
         onClose={handleDetailClose}
       />
 
-      {/* Field manager dialog */}
-      <FieldManager open={fieldsOpen} onClose={() => setFieldsOpen(false)} />
+      {/* Board settings panel */}
+      <BoardSettingsPanel boardId={boardId} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <ActivityPanel
         boardId={boardId}
