@@ -110,21 +110,23 @@ Kanwise includes a built-in MCP server that lets Claude (or any MCP-compatible a
 
 ### With Docker (recommended)
 
-No Rust, no Node — just Docker.
+No Rust, no Node, no git clone — just Docker.
 
 ```bash
-./scripts/setup-claude.sh --docker
+curl -fsSL https://raw.githubusercontent.com/tienedev/kanwise/main/scripts/setup-claude.sh | bash -s -- --docker
 ```
 
-This pulls the Docker image, configures the MCP server in `~/.claude/.mcp.json`, and installs the kanban-tracking skill. That's it.
+This pulls the Docker image, configures the MCP server in `~/.claude/.mcp.json`, and installs the kanban-tracking skill. One command, done.
 
-**Requires:** Docker installed and running.
+**Requires:** Docker installed and running, `curl`, `python3`.
 
 ### From source
 
 If you have Rust and Node.js installed, or you're contributing to Kanwise:
 
 ```bash
+git clone https://github.com/tienedev/kanwise.git
+cd kanwise
 ./scripts/setup-claude.sh
 ```
 
