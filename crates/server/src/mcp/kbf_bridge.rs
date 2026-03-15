@@ -85,6 +85,21 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
         .list_custom_fields(board_id)
         .context("list custom fields for KBF encoding")?;
 
+    // Batch load all custom field values for this board (avoids N+1)
+    let all_cf_values = if !custom_fields.is_empty() {
+        db.get_custom_field_values_for_board(board_id)
+            .context("batch load custom field values")?
+    } else {
+        Vec::new()
+    };
+
+    // Group by task_id
+    let mut cf_by_task: HashMap<&str, Vec<&crate::db::models::TaskCustomFieldValue>> =
+        HashMap::new();
+    for v in &all_cf_values {
+        cf_by_task.entry(&v.task_id).or_default().push(v);
+    }
+
     let mut rows: Vec<kbf::Row> = Vec::with_capacity(tasks.len());
 
     for task in &tasks {
@@ -100,13 +115,14 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
 
         // Append custom field values in the same order as the schema fields.
         if !custom_fields.is_empty() {
-            let cf_values = db
-                .get_custom_field_values(&task.id)
-                .context("get custom field values")?;
-            let val_map: HashMap<&str, &str> = cf_values
-                .iter()
-                .map(|v| (v.field_id.as_str(), v.value.as_str()))
-                .collect();
+            let task_vals = cf_by_task.get(task.id.as_str());
+            let val_map: HashMap<&str, &str> = task_vals
+                .map(|vals| {
+                    vals.iter()
+                        .map(|v| (v.field_id.as_str(), v.value.as_str()))
+                        .collect()
+                })
+                .unwrap_or_default();
 
             for cf in &custom_fields {
                 row.push(

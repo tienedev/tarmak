@@ -152,6 +152,12 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
                         }
                         drop(txn);
 
+                        // Persist CRDT state to database
+                        let state_bytes = BoardDocManager::encode_full_state(&doc);
+                        if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes) {
+                            tracing::warn!("Failed to persist CRDT state for board {board_id}: {e}");
+                        }
+
                         // Relay to other connected clients.
                         let _ = tx.send(data.to_vec());
                     }

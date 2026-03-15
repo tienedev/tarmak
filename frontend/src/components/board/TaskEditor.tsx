@@ -169,7 +169,6 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     setSubmittingComment(true)
     try {
       const comment = await api.createComment(currentBoard.id, task.id, {
-        user_id: user.id,
         content: newComment.trim(),
       })
       setComments((prev) => [...prev, comment])

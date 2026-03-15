@@ -14,7 +14,6 @@ use super::permissions;
 
 #[derive(Deserialize)]
 pub struct CreateComment {
-    pub user_id: String,
     pub content: String,
 }
 
@@ -37,7 +36,7 @@ pub async fn create(
     Json(body): Json<CreateComment>,
 ) -> Result<Json<Comment>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let comment = db.create_comment(&tid, &body.user_id, &body.content)?;
+    let comment = db.create_comment(&tid, &user.id, &body.content)?;
     let _ = db.log_activity(&board_id, Some(&tid), &user.id, "comment_added",
         Some(&serde_json::json!({"task_id": &tid}).to_string()));
     Ok(Json(comment))

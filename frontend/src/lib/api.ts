@@ -105,7 +105,7 @@ export const api = {
   createComment: (
     boardId: string,
     taskId: string,
-    data: { user_id: string; content: string },
+    data: { content: string },
   ) =>
     request<Comment>(`/boards/${boardId}/tasks/${taskId}/comments`, {
       method: 'POST',
@@ -140,7 +140,7 @@ export const api = {
     request<BoardMember[]>(`/boards/${boardId}/members`),
 
   // Invitations
-  createInvite: (data: { board_id: string; role: string; user_id: string }) =>
+  createInvite: (data: { board_id: string; role: string }) =>
     request<{ invite_url: string }>('/auth/invite', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -174,7 +174,7 @@ export const api = {
 export interface Board {
   id: string
   name: string
-  description: string
+  description: string | null
   created_at: string
   updated_at: string
 }

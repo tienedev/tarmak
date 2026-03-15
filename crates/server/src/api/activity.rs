@@ -25,12 +25,14 @@ pub async fn list(
     Query(params): Query<ListActivityParams>,
 ) -> Result<Json<Vec<ActivityEntry>>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0).max(0);
     let entries = db.list_activity(
         &board_id,
         params.action.as_deref(),
         params.user_id.as_deref(),
-        params.limit.unwrap_or(50),
-        params.offset.unwrap_or(0),
+        limit,
+        offset,
     )?;
     Ok(Json(entries))
 }

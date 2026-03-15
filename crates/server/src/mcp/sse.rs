@@ -116,7 +116,7 @@ impl ServerHandler for McpSseHandler {
                 .enable_tools()
                 .build(),
             server_info: Implementation {
-                name: "optimized-kanban".to_string(),
+                name: "kanwise".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
             instructions: None,

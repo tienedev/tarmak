@@ -45,7 +45,6 @@ export function SharePopover({ boardId }: SharePopoverProps) {
       const res = await api.createInvite({
         board_id: boardId,
         role,
-        user_id: user.id,
       })
       const fullUrl = `${window.location.origin}${window.location.pathname}#/invite${res.invite_url.replace('/invite', '')}`
       setGeneratedLink(fullUrl)

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use yrs::{Doc, Map, ReadTxn, Transact, WriteTxn};
+use yrs::{Doc, Map, ReadTxn, Transact, Update, WriteTxn};
+use yrs::updates::decoder::Decode;
 
 use crate::db::Db;
 
@@ -42,12 +43,26 @@ impl BoardDocManager {
 
     /// Populate a board's Y.Doc from current database state.
     ///
+    /// If a persisted CRDT state blob exists, it is applied directly.
+    /// Otherwise, columns and tasks are loaded from the relational tables.
+    ///
     /// This is idempotent -- calling it on a doc that already has data will
     /// overwrite keys with the latest DB values (which is fine because
     /// the DB is the source of truth at init time).
     pub async fn init_from_db(&self, board_id: &str, db: &Db) -> anyhow::Result<Arc<Doc>> {
         let doc = self.get_or_create(board_id).await;
 
+        // Try loading persisted CRDT state first
+        if let Some(state_bytes) = db.load_crdt_state(board_id)? {
+            if let Ok(update) = Update::decode_v1(&state_bytes) {
+                let mut txn = doc.transact_mut();
+                let _ = txn.apply_update(update);
+                drop(txn);
+                return Ok(doc);
+            }
+        }
+
+        // Fall back to building from database rows
         let columns = db.list_columns(board_id)?;
         let tasks = db.list_tasks(board_id)?;
 

@@ -5,36 +5,62 @@ use axum::{
 };
 use serde_json::json;
 
-/// Unified API error that converts any `anyhow::Error` into an HTTP response.
-pub struct ApiError(pub anyhow::Error);
+/// Typed API error with explicit status codes.
+pub enum ApiError {
+    /// 404 Not Found
+    NotFound(String),
+    /// 403 Forbidden
+    Forbidden(String),
+    /// 409 Conflict
+    Conflict(String),
+    /// 400 Bad Request
+    BadRequest(String),
+    /// 500 Internal Server Error
+    Internal(anyhow::Error),
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let msg = self.0.to_string();
+        let (status, message) = match self {
+            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            ApiError::Internal(err) => {
+                tracing::error!("internal error: {err:#}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal server error".to_string(),
+                )
+            }
+        };
 
-        let status = if msg.contains("not found") || msg.contains("no rows") {
-            StatusCode::NOT_FOUND
+        (status, Json(json!({ "error": message }))).into_response()
+    }
+}
+
+impl<E: Into<anyhow::Error>> From<E> for ApiError {
+    fn from(err: E) -> Self {
+        let err = err.into();
+        let msg = err.to_string();
+
+        // Map known error patterns to appropriate status codes
+        if msg.contains("not found") || msg.contains("no rows") {
+            ApiError::NotFound(msg)
         } else if msg.contains("not a member") || msg.contains("insufficient permissions") {
-            StatusCode::FORBIDDEN
+            ApiError::Forbidden(msg)
         } else if msg.contains("already exists") {
-            StatusCode::CONFLICT
+            ApiError::Conflict(msg)
         } else if msg.contains("invalid")
             || msg.contains("required")
             || msg.contains("must be")
             || msg.contains("too short")
             || msg.contains("too long")
         {
-            StatusCode::BAD_REQUEST
+            ApiError::BadRequest(msg)
         } else {
-            StatusCode::INTERNAL_SERVER_ERROR
-        };
-
-        (status, Json(json!({ "error": msg }))).into_response()
-    }
-}
-
-impl<E: Into<anyhow::Error>> From<E> for ApiError {
-    fn from(err: E) -> Self {
-        Self(err.into())
+            // Hide internal error details from clients
+            ApiError::Internal(err)
+        }
     }
 }
