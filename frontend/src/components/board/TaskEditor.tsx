@@ -23,6 +23,8 @@ import {
   ChevronRight,
   User as UserIcon,
 } from 'lucide-react'
+import { LabelPicker } from '@/components/board/LabelPicker'
+import { SubtaskList } from '@/components/board/SubtaskList'
 
 const priorityOptions = [
   { value: 'none', label: 'None' },
@@ -320,6 +322,26 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
           </Select>
         </div>
 
+        {/* Labels */}
+        <span className="text-muted-foreground">Labels</span>
+        <div>
+          <LabelPicker taskId={task.id} taskLabels={task.labels ?? []} />
+        </div>
+
+        {/* Due date */}
+        <span className="text-muted-foreground">Due date</span>
+        <div>
+          <input
+            type="date"
+            value={task.due_date ?? ''}
+            onChange={(e) => {
+              const val = e.target.value || null
+              saveField({ due_date: val } as Partial<Omit<Task, 'id' | 'board_id' | 'created_at' | 'updated_at'>>)
+            }}
+            className="h-7 rounded border-0 bg-transparent px-1 text-sm shadow-none focus:ring-0"
+          />
+        </div>
+
         {/* Created */}
         <span className="text-muted-foreground">Created</span>
         <span className="text-muted-foreground/70">{formatTimestamp(task.created_at)}</span>
@@ -356,6 +378,8 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
           onChange={handleDescriptionChange}
         />
       </div>
+
+      <SubtaskList taskId={task.id} />
 
       <Separator className="mb-4" />
 
