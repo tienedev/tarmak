@@ -141,7 +141,7 @@ export function BoardsListPage() {
               <a
                 key={board.id}
                 href={`#/boards/${board.id}`}
-                className="block transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                className="block rounded-2xl transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/20 focus-visible:outline-none"
               >
                 <Card className="h-full cursor-pointer glass glass-border transition-shadow hover:shadow-[inset_0_1px_0_oklch(1_0_0/25%),0_4px_16px_oklch(0_0_0/8%)]">
                   <CardHeader>
