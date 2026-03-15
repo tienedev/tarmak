@@ -33,9 +33,9 @@ build:
 
 # Install frontend dependencies
 install:
-	cd frontend && npm install
+	cd frontend && npm install --legacy-peer-deps
 
 # Clean build artifacts
 clean:
 	$(CARGO) clean
-	rm -rf frontend/dist
+	rm -rf frontend/dist frontend/node_modules
