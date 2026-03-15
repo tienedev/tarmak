@@ -21,14 +21,16 @@ use super::kbf_bridge;
 pub struct BoardQueryParams {
     /// Board ID, or "list" to list all boards.
     pub board_id: String,
-    /// "info" | "tasks" | "columns" | "labels" | "subtasks" | "search" | "all" (default: "all")
+    /// "info" | "tasks" | "columns" | "labels" | "subtasks" | "search" | "attachments" | "all" (default: "all")
     pub scope: Option<String>,
     /// "kbf" | "json" (default: "kbf")
     pub format: Option<String>,
-    /// Task ID, required when scope = "subtasks"
+    /// Task ID, required when scope = "subtasks" or "attachments"
     pub task_id: Option<String>,
     /// Search query, required when scope = "search"
     pub query: Option<String>,
+    /// Include archived tasks/columns in results (default: false)
+    pub include_archived: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -128,6 +130,12 @@ impl KanbanMcpServer {
                     .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
                 kbf_bridge::encode_search_results(&self.db, board_id, query)
             }
+            "attachments" => {
+                let task_id = params.task_id.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("task_id required for attachments scope"))?;
+                let attachments = self.db.list_attachments(task_id)?;
+                Ok(serde_json::to_string(&attachments)?)
+            }
             "all" => kbf_bridge::encode_board_all(&self.db, board_id),
             other => bail!("unsupported scope: {other}"),
         }
@@ -170,6 +178,12 @@ impl KanbanMcpServer {
                     .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
                 let results = self.db.search_board(board_id, query, 20, false)?;
                 Ok(serde_json::to_string(&results)?)
+            }
+            "attachments" => {
+                let task_id = params.task_id.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("task_id required for attachments scope"))?;
+                let attachments = self.db.list_attachments(task_id)?;
+                Ok(serde_json::to_string(&attachments)?)
             }
             "all" => {
                 let board = self
@@ -424,6 +438,56 @@ impl KanbanMcpServer {
                 self.db.remove_task_label(task_id, label_id)?;
                 Ok(format!("removed label {label_id} from task {task_id}"))
             }
+            // ----- Archive -----
+            "archive_task" => {
+                let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                self.db.archive_task(task_id)?;
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let _ = self.db.log_activity(board_id, Some(task_id), user_id, "task_archived", None);
+                Ok(format!("archived task {task_id}"))
+            }
+            "unarchive_task" => {
+                let task_id = json_str(data, "task_id")?;
+                let existing = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                self.db.unarchive_task(task_id)?;
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let _ = self.db.log_activity(board_id, Some(task_id), user_id, "task_unarchived", None);
+                Ok(format!("unarchived task {task_id}"))
+            }
+            "archive_column" => {
+                let column_id = json_str(data, "column_id")?;
+                let count = self.db.archive_column(column_id)?;
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let _ = self.db.log_activity(board_id, None, user_id, "column_archived",
+                    Some(&serde_json::json!({"column_id": column_id, "task_count": count}).to_string()));
+                Ok(format!("archived column {column_id} ({count} tasks)"))
+            }
+            "unarchive_column" => {
+                let column_id = json_str(data, "column_id")?;
+                let count = self.db.unarchive_column(column_id)?;
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let _ = self.db.log_activity(board_id, None, user_id, "column_unarchived",
+                    Some(&serde_json::json!({"column_id": column_id, "task_count": count}).to_string()));
+                Ok(format!("unarchived column {column_id} ({count} tasks)"))
+            }
+            // ----- Attachments -----
+            "delete_attachment" => {
+                let attachment_id = json_str(data, "attachment_id")?;
+                let deleted = self.db.delete_attachment(attachment_id)?;
+                if !deleted {
+                    bail!("attachment not found: {attachment_id}");
+                }
+                Ok(format!("deleted attachment {attachment_id}"))
+            }
             // ----- Subtasks -----
             "create_subtask" => {
                 let task_id = json_str(data, "task_id")?;
@@ -489,6 +553,7 @@ impl KanbanMcpServer {
             format: params.format,
             task_id: None,
             query: None,
+            include_archived: None,
         })
     }
 
@@ -763,6 +828,7 @@ mod tests {
                 format: None, // defaults to kbf
                 task_id: None,
                 query: None,
+                include_archived: None,
             })
             .unwrap();
 
@@ -784,6 +850,7 @@ mod tests {
                 format: Some("json".into()),
                 task_id: None,
                 query: None,
+                include_archived: None,
             })
             .unwrap();
 
@@ -808,6 +875,7 @@ mod tests {
                 format: None,
                 task_id: None,
                 query: None,
+                include_archived: None,
             })
             .unwrap();
 
@@ -832,6 +900,7 @@ mod tests {
                 format: Some("kbf".into()),
                 task_id: None,
                 query: None,
+                include_archived: None,
             })
             .unwrap();
 
@@ -857,6 +926,7 @@ mod tests {
                 format: Some("json".into()),
                 task_id: None,
                 query: None,
+                include_archived: None,
             })
             .unwrap();
 
@@ -880,6 +950,7 @@ mod tests {
                 format: Some("json".into()),
                 task_id: None,
                 query: None,
+                include_archived: None,
             })
             .unwrap();
 
@@ -899,6 +970,7 @@ mod tests {
             format: Some("xml".into()),
             task_id: None,
             query: None,
+            include_archived: None,
         });
 
         assert!(result.is_err());

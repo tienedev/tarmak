@@ -165,22 +165,23 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                             "type": "object",
                             "properties": {
                                 "board_id": { "type": "string", "description": "Board ID to query, or 'list' for all boards" },
-                                "scope": { "type": "string", "enum": ["info", "tasks", "columns", "labels", "subtasks", "search", "all"], "default": "all" },
+                                "scope": { "type": "string", "enum": ["info", "tasks", "columns", "labels", "subtasks", "search", "attachments", "all"], "default": "all" },
                                 "format": { "type": "string", "enum": ["kbf", "json"], "default": "kbf" },
-                                "task_id": { "type": "string", "description": "Task ID, required when scope = subtasks" },
-                                "query": { "type": "string", "description": "Search query, required when scope = search" }
+                                "task_id": { "type": "string", "description": "Task ID, required when scope = subtasks or attachments" },
+                                "query": { "type": "string", "description": "Search query, required when scope = search" },
+                                "include_archived": { "type": "boolean", "description": "Include archived tasks/columns in results", "default": false }
                             },
                             "required": ["board_id"]
                         }
                     },
                     {
                         "name": "board_mutate",
-                        "description": "Create, update, move, or delete board entities (boards, columns, tasks, fields, comments).",
+                        "description": "Create, update, move, delete, or archive board entities (boards, columns, tasks, fields, comments, labels, subtasks, attachments).",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
                                 "board_id": { "type": "string", "description": "Board ID" },
-                                "action": { "type": "string", "enum": ["create_task","update_task","move_task","delete_task","create_column","update_column","delete_column","create_board","update_board","delete_board","set_field_value","create_field","add_comment"] },
+                                "action": { "type": "string", "enum": ["create_task","update_task","move_task","delete_task","create_column","update_column","delete_column","create_board","update_board","delete_board","set_field_value","create_field","add_comment","create_label","update_label","delete_label","add_label","remove_label","create_subtask","update_subtask","delete_subtask","archive_task","unarchive_task","archive_column","unarchive_column","delete_attachment"] },
                                 "data": { "type": "object", "description": "Action-specific data" }
                             },
                             "required": ["board_id", "action", "data"]
@@ -201,7 +202,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                     },
                     {
                         "name": "board_ask",
-                        "description": "Ask a natural language question about a board. Supports: overdue tasks, due this week/today, unassigned, no labels, stale/blocked, stats/summary, high priority, no due date. Falls back to full-text search.",
+                        "description": "Ask a natural language question about a board. Supports: overdue tasks, due this week/today, unassigned, no labels, stale/blocked, stats/summary, high priority, no due date, archived items. Falls back to full-text search.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -242,6 +243,9 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .get("query")
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
+                            include_archived: args
+                                .get("include_archived")
+                                .and_then(|v| v.as_bool()),
                         };
                         server.handle_query(qp).map_err(|e| e.to_string())
                     }
