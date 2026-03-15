@@ -45,25 +45,27 @@ export function LabelPicker({ taskId, taskLabels }: LabelPickerProps) {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex flex-wrap items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50"
-        >
-          {taskLabels.length > 0 ? (
-            taskLabels.map((l) => (
-              <span
-                key={l.id}
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white"
-                style={{ backgroundColor: l.color }}
-              >
-                {l.name}
-              </span>
-            ))
-          ) : (
-            <span className="text-sm text-muted-foreground">Add labels...</span>
-          )}
-        </button>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className="flex flex-wrap items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/50"
+          />
+        }
+      >
+        {taskLabels.length > 0 ? (
+          taskLabels.map((l) => (
+            <span
+              key={l.id}
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white"
+              style={{ backgroundColor: l.color }}
+            >
+              {l.name}
+            </span>
+          ))
+        ) : (
+          <span className="text-sm text-muted-foreground">Add labels...</span>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" align="start">
         <div className="flex flex-col gap-1">

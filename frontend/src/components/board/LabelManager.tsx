@@ -54,10 +54,12 @@ export function LabelManager() {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-xs" className="size-8">
-          <Tag className="size-4" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button variant="ghost" size="icon-xs" className="size-8" />
+        }
+      >
+        <Tag className="size-4" />
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3" align="end">
         <h3 className="mb-2 text-sm font-medium">Board Labels</h3>
