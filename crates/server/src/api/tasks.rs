@@ -4,8 +4,10 @@ use axum::{
 };
 use serde::Deserialize;
 
+use std::collections::HashMap;
+
 use crate::db::Db;
-use crate::db::models::{Priority, Role, Task};
+use crate::db::models::{Priority, Role, SubtaskCount, Task, TaskWithRelations};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
@@ -53,12 +55,35 @@ pub async fn list(
     AuthUser(user): AuthUser,
     Path(board_id): Path<String>,
     Query(params): Query<ListTasksParams>,
-) -> Result<Json<Vec<Task>>, ApiError> {
+) -> Result<Json<Vec<TaskWithRelations>>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
     let limit = params.limit.unwrap_or(100).min(500);
     let offset = params.offset.unwrap_or(0).max(0);
     let tasks = db.list_tasks(&board_id, limit, offset)?;
-    Ok(Json(tasks))
+
+    // Batch load labels and subtask counts
+    let label_pairs = db.get_labels_for_board_tasks(&board_id)?;
+    let mut labels_by_task: HashMap<String, Vec<_>> = HashMap::new();
+    for (task_id, label) in label_pairs {
+        labels_by_task.entry(task_id).or_default().push(label);
+    }
+
+    let subtask_counts = db.get_subtask_counts_for_board(&board_id)?;
+    let mut counts_by_task: HashMap<String, SubtaskCount> = HashMap::new();
+    for (task_id, count) in subtask_counts {
+        counts_by_task.insert(task_id, count);
+    }
+
+    let result: Vec<TaskWithRelations> = tasks
+        .into_iter()
+        .map(|task| {
+            let labels = labels_by_task.remove(&task.id).unwrap_or_default();
+            let subtask_count = counts_by_task.remove(&task.id).unwrap_or(SubtaskCount { completed: 0, total: 0 });
+            TaskWithRelations { task, labels, subtask_count }
+        })
+        .collect();
+
+    Ok(Json(result))
 }
 
 pub async fn create(
@@ -91,7 +116,7 @@ pub async fn get(
     State(db): State<Db>,
     AuthUser(user): AuthUser,
     Path((board_id, tid)): Path<(String, String)>,
-) -> Result<Json<Task>, ApiError> {
+) -> Result<Json<TaskWithRelations>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
     let task = db
         .get_task(&tid)?
@@ -99,7 +124,13 @@ pub async fn get(
     if task.board_id != board_id {
         return Err(ApiError::NotFound("task not found".into()));
     }
-    Ok(Json(task))
+    let labels = db.get_task_labels(&tid)?;
+    let subtasks = db.list_subtasks(&tid)?;
+    let subtask_count = SubtaskCount {
+        completed: subtasks.iter().filter(|s| s.completed).count() as i32,
+        total: subtasks.len() as i32,
+    };
+    Ok(Json(TaskWithRelations { task, labels, subtask_count }))
 }
 
 pub async fn update(
@@ -133,6 +164,16 @@ pub async fn update(
         "task_updated",
         Some(&serde_json::json!({"title": &task.title}).to_string()),
     );
+    // Log due_date changes
+    if body.due_date.is_some() {
+        let action = if task.due_date.is_some() { "due_date_set" } else { "due_date_removed" };
+        let details = if let Some(ref d) = task.due_date {
+            serde_json::json!({"task_title": &task.title, "due_date": d})
+        } else {
+            serde_json::json!({"task_title": &task.title})
+        };
+        let _ = db.log_activity(&board_id, Some(&tid), &user.id, action, Some(&details.to_string()));
+    }
     Ok(Json(task))
 }
 
