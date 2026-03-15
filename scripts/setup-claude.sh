@@ -21,7 +21,7 @@ SKILL_DST="$HOME/.claude/skills/kanban-tracking"
 DB_PATH="$HOME/.kanwise/kanwise.db"
 DOCKER_IMAGE="ghcr.io/tienedev/kanwise:latest"
 DOCKER_VOLUME="kanwise-data"
-SKILL_URL="https://raw.githubusercontent.com/tienedev/kanwise/main/skills/kanban-tracking/SKILL.md"
+SKILL_BASE_URL="https://raw.githubusercontent.com/tienedev/kanwise/main/skills/kanban-tracking"
 
 MODE="source"
 
@@ -58,7 +58,7 @@ Examples:
 
 What gets configured:
   MCP config    ~/.claude/.mcp.json      (adds "kanwise" MCP server)
-  Skill         ~/.claude/skills/kanban-tracking/SKILL.md
+  Skill         ~/.claude/skills/kanban-tracking/  (SKILL.md + references/)
   Database      ~/.kanwise/kanwise.db    (source mode only — Docker uses a volume)
 EOF
     exit 0
@@ -208,21 +208,27 @@ fi
 # ── Install kanban-tracking skill (both modes) ──────────────────────────────
 step "$SKILL_STEP" "Installing kanban-tracking skill..."
 
-mkdir -p "$SKILL_DST"
+mkdir -p "$SKILL_DST/references"
 
-SKILL_SRC="$REPO_DIR/skills/kanban-tracking/SKILL.md"
+SKILL_SRC="$REPO_DIR/skills/kanban-tracking"
 
-if [ -f "$SKILL_SRC" ]; then
-    # Running from the repo — copy the local file
-    cp "$SKILL_SRC" "$SKILL_DST/SKILL.md"
+if [ -f "$SKILL_SRC/SKILL.md" ]; then
+    # Running from the repo — copy all skill files
+    cp "$SKILL_SRC/SKILL.md" "$SKILL_DST/SKILL.md"
+    cp "$SKILL_SRC/references/"*.md "$SKILL_DST/references/" 2>/dev/null
     ok "Skill installed from local repo"
 else
     # Running standalone (e.g. Docker mode without the repo) — download from GitHub
-    if curl -fsSL "$SKILL_URL" -o "$SKILL_DST/SKILL.md" 2>/dev/null; then
+    FAIL=0
+    curl -fsSL "$SKILL_BASE_URL/SKILL.md" -o "$SKILL_DST/SKILL.md" 2>/dev/null || FAIL=1
+    curl -fsSL "$SKILL_BASE_URL/references/mcp-tools.md" -o "$SKILL_DST/references/mcp-tools.md" 2>/dev/null || true
+    curl -fsSL "$SKILL_BASE_URL/references/memory-schema.md" -o "$SKILL_DST/references/memory-schema.md" 2>/dev/null || true
+
+    if [ "$FAIL" -eq 0 ]; then
         ok "Skill downloaded from GitHub"
     else
-        warn "Could not download skill from $SKILL_URL"
-        warn "You can manually copy skills/kanban-tracking/SKILL.md to $SKILL_DST/"
+        warn "Could not download skill from $SKILL_BASE_URL"
+        warn "You can manually copy skills/kanban-tracking/ to $SKILL_DST/"
     fi
 fi
 
@@ -240,7 +246,7 @@ else
 fi
 
 echo "  MCP:       $MCP_CONFIG"
-echo "  Skill:     $SKILL_DST/SKILL.md"
+echo "  Skill:     $SKILL_DST/"
 echo ""
 echo "Next steps:"
 echo "  1. Restart Claude Code to pick up the new MCP server"

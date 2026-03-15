@@ -1,13 +1,13 @@
 ---
 name: kanban-tracking
-description: Use when a design document or spec is produced, an implementation plan is written, a task or plan step is completed, work on a branch is wrapping up, or when user invokes /kanban-sync. Requires Kanwise MCP server configured. Tracks project work on a kanban board automatically at workflow transitions.
+description: Tracks project work on a Kanwise kanban board. Use when a spec or design doc is produced, an implementation plan is written, a task or plan step is completed, work on a branch is wrapping up, or when user says "sync my board", "show my tasks", "update the board", or invokes /kanban-sync. Do NOT use for general project questions, code reviews, or discussions that don't produce trackable deliverables. Requires Kanwise MCP server.
 ---
 
 # Kanban Tracking
 
-Project tracking via Kanwise MCP. Triggers automatically at generic workflow transitions, manually via `/kanban-sync`.
+Project tracking via Kanwise MCP. Triggers automatically at workflow transitions, manually via `/kanban-sync`.
 
-This skill is **framework-agnostic** — it reacts to workflow events (a spec was written, a plan was created, a step was completed), not to specific skill names. It works with any skill framework (Superpowers, BMAD, custom workflows, or no framework at all).
+This skill is **framework-agnostic** — it reacts to workflow events (a spec was written, a plan was created, a step was completed), not to specific skill names. It works with any skill framework or no framework at all.
 
 ## Pre-requisites
 
@@ -34,15 +34,7 @@ digraph board_resolution {
 }
 ```
 
-**Column mapping** — infer from names:
-
-| Pattern (case-insensitive) | Stage |
-|---|---|
-| `backlog`, `to do`, `todo`, `a faire` | BACKLOG |
-| `in progress`, `doing`, `en cours` | IN_PROGRESS |
-| `done`, `complete`, `termine`, `fait` | DONE |
-
-If a column name doesn't match, ask once and save to project memory.
+For column name matching and memory format, consult `references/memory-schema.md`.
 
 ## Automatic Triggers
 
@@ -99,6 +91,56 @@ When the user invokes `/kanban-sync`:
    - Just checking the board (no action)
 5. Execute the requested mutations via `board_mutate`
 
+## Examples
+
+### Example 1: After brainstorming a new feature
+
+User finishes a brainstorming session that produces a design spec with 4 components.
+
+Actions:
+1. Resolve board → found in project memory
+2. Parse spec → extract: Auth module, API routes, DB schema, UI components
+3. Propose: "I found 4 deliverables. Create these as backlog tasks?"
+4. User approves → create 4 tasks in BACKLOG
+
+Result: 4 tasks created, one-line confirmation.
+
+### Example 2: Completing a plan step
+
+User says: "Step 3 is done, tests pass."
+
+Actions:
+1. Resolve board
+2. Query tasks → find task matching step 3 by title
+3. Move task to DONE
+
+Result: "Moved 'Implement API routes' to Done."
+
+### Example 3: Manual sync
+
+User invokes `/kanban-sync`.
+
+Actions:
+1. Display board: 2 in Backlog, 1 In Progress, 3 Done
+2. User says "move 'DB schema' to done"
+3. Execute move
+
+Result: Board updated, new state shown.
+
+## Error Handling
+
+### MCP server not available
+If `board_query` or `board_mutate` tools are not found, say: "Kanwise MCP is not connected. Skipping board tracking." Continue the conversation normally.
+
+### Board not found
+If the stored `board_id` returns an error, clear the project memory entry and re-run board resolution from scratch.
+
+### Task not found for matching
+If no task matches the completed work by title similarity, ask the user: "I couldn't find a matching task on the board. Which task should I update?" Show the current task list.
+
+### Mutation fails
+If `board_mutate` returns an error, report the error to the user and suggest retrying. Do not silently swallow errors.
+
 ## Key Rules
 
 - **Never create tasks without user confirmation.** Always propose first, then execute.
@@ -107,31 +149,7 @@ When the user invokes `/kanban-sync`:
 - **Graceful degradation.** If MCP is not available, say so once and continue without tracking.
 - **Board per project.** Each working directory maps to one board via project memory.
 
-## MCP Tool Reference
+## References
 
-```
-board_query:   { board_id, scope?: "info"|"tasks"|"columns"|"all", format?: "kbf"|"json" }
-board_mutate:  { board_id, action, data }
-  actions:     create_task, update_task, move_task, delete_task,
-               create_column, create_board
-board_sync:    { board_id, delta?, format? }
-```
-
-## Memory Schema
-
-Save to project memory as `kanban_board.md`:
-
-```markdown
----
-name: kanban-board-mapping
-description: Kanwise board mapping for this project
-type: project
----
-
-Board ID: <uuid>
-Board name: <name>
-Column mapping:
-  BACKLOG: <column_id>
-  IN_PROGRESS: <column_id>
-  DONE: <column_id>
-```
+For MCP tool signatures and parameters, consult `references/mcp-tools.md`.
+For memory schema and column mapping patterns, consult `references/memory-schema.md`.

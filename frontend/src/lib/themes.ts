@@ -3,15 +3,15 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 export interface AccentTheme {
   name: string
   label: string
-  preview: string // color swatch for the picker
+  preview: string
   cssClass: string
 }
 
 export const accentThemes: AccentTheme[] = [
-  { name: 'zinc', label: 'Zinc', preview: '#71717a', cssClass: '' },
-  { name: 'slate', label: 'Slate', preview: '#64748b', cssClass: 'theme-slate' },
-  { name: 'blue', label: 'Blue', preview: '#3b82f6', cssClass: 'theme-blue' },
-  { name: 'green', label: 'Green', preview: '#22c55e', cssClass: 'theme-green' },
+  { name: 'amethyst', label: 'Amethyst', preview: '#7c3aed', cssClass: '' },
+  { name: 'ocean', label: 'Ocean', preview: '#0891b2', cssClass: 'theme-ocean' },
+  { name: 'rose', label: 'Rose', preview: '#e11d48', cssClass: 'theme-rose' },
+  { name: 'sage', label: 'Sage', preview: '#059669', cssClass: 'theme-sage' },
 ]
 
 const THEME_MODE_KEY = 'theme-mode'
@@ -24,7 +24,14 @@ export function getStoredMode(): ThemeMode {
 }
 
 export function getStoredAccent(): string {
-  return localStorage.getItem(THEME_ACCENT_KEY) ?? 'zinc'
+  const stored = localStorage.getItem(THEME_ACCENT_KEY)
+  // Migrate old theme names
+  if (stored === 'zinc' || stored === 'slate' || stored === 'blue' || stored === 'green') {
+    const migrated = stored === 'blue' ? 'ocean' : stored === 'green' ? 'sage' : 'amethyst'
+    localStorage.setItem(THEME_ACCENT_KEY, migrated)
+    return migrated
+  }
+  return stored ?? 'amethyst'
 }
 
 export function storeMode(mode: ThemeMode) {
@@ -49,13 +56,11 @@ export function applyThemeMode(mode: ThemeMode) {
 
 export function applyAccentTheme(accent: string) {
   const root = document.documentElement
-  // Remove all accent classes
   for (const theme of accentThemes) {
     if (theme.cssClass) {
       root.classList.remove(theme.cssClass)
     }
   }
-  // Apply new one
   const found = accentThemes.find((t) => t.name === accent)
   if (found?.cssClass) {
     root.classList.add(found.cssClass)
@@ -68,7 +73,6 @@ export function initTheme() {
   applyThemeMode(mode)
   applyAccentTheme(accent)
 
-  // Listen for system theme changes
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (getStoredMode() === 'system') {
       applyThemeMode('system')
