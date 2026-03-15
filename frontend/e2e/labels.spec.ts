@@ -1,13 +1,19 @@
 import { test, expect } from '@playwright/test'
 import { registerAndLogin, createBoard, createColumn, main } from './helpers'
 
+/** Open the Board Settings panel and navigate to the Labels tab */
+async function openLabelsSettings(page: import('@playwright/test').Page) {
+  await main(page).getByRole('button', { name: /board settings/i }).click()
+  await expect(page.getByText('Board Settings')).toBeVisible()
+  await page.getByRole('button', { name: 'Labels' }).click()
+}
+
 test.describe('Labels', () => {
   test('can create a board label', async ({ page }) => {
     await registerAndLogin(page, 'labels-create')
     await createBoard(page, 'Labels Board')
 
-    await main(page).getByLabel('Labels').click()
-    await expect(page.getByText('Board Labels')).toBeVisible()
+    await openLabelsSettings(page)
 
     await page.getByPlaceholder('New label...').fill('Bug')
     await page.locator('button[style*="background-color"]').nth(1).click()
@@ -28,10 +34,9 @@ test.describe('Labels', () => {
       headers: { Authorization: `Bearer ${token}` },
     })
 
-    // Reload so the UI picks up the API-created label, then open popover
+    // Reload so the UI picks up the API-created label, then open settings
     await page.reload()
-    await main(page).getByLabel('Labels').click()
-    await expect(page.getByText('Board Labels')).toBeVisible()
+    await openLabelsSettings(page)
     await expect(page.getByText('Feature')).toBeVisible()
 
     // Hover and click edit
@@ -62,8 +67,7 @@ test.describe('Labels', () => {
     })
 
     await page.reload()
-    await main(page).getByLabel('Labels').click()
-    await expect(page.getByText('Board Labels')).toBeVisible()
+    await openLabelsSettings(page)
     await expect(page.getByText('ToDelete')).toBeVisible()
 
     const labelRow = page.locator('.group').filter({ hasText: 'ToDelete' })

@@ -215,6 +215,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
           variant="ghost"
           size="xs"
           className="gap-1.5 text-xs text-muted-foreground"
+          aria-label="Board settings"
           onClick={() => setSettingsOpen(true)}
         >
           <Settings2 className="size-3.5" />
