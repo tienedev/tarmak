@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Task } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { isLightColor } from '@/lib/color'
+import { GripVertical } from 'lucide-react'
 
 const priorityColors: Record<string, string> = {
   urgent: 'bg-red-500',
@@ -47,22 +48,32 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
       onClick={onClick}
       className={cn(
-        'group/card cursor-grab rounded-xl glass-border p-3 transition-all',
-        'bg-card backdrop-blur-md',
+        'group/card cursor-pointer rounded-xl glass-border p-3 transition-all',
+        'bg-card backdrop-blur-md glass-hover',
         'shadow-[inset_0_1px_0_oklch(1_0_0/20%),0_1px_3px_oklch(0_0_0/4%)]',
         'hover:shadow-[inset_0_1px_0_oklch(1_0_0/25%),0_2px_8px_oklch(0_0_0/8%)]',
-        'active:cursor-grabbing',
         isDragging && 'opacity-40',
         overlay && 'rotate-[2deg] shadow-[inset_0_1px_0_oklch(1_0_0/20%),0_8px_24px_oklch(0_0_0/12%)]',
       )}
     >
-      {/* Title */}
-      <p className="text-sm font-medium leading-snug text-foreground">
-        {task.title}
-      </p>
+      {/* Drag handle + Title */}
+      <div className="flex items-start gap-1.5">
+        <span
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          className="mt-0.5 cursor-grab shrink-0 text-muted-foreground/0 transition-colors group-hover/card:text-muted-foreground/40 active:cursor-grabbing"
+          aria-label="Drag to reorder"
+          role="button"
+          tabIndex={0}
+        >
+          <GripVertical className="size-3.5" />
+        </span>
+        <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
+          {task.title}
+        </p>
+      </div>
 
       {/* Labels */}
       {task.labels && task.labels.length > 0 && (
