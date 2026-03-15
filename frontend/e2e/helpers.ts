@@ -11,21 +11,26 @@ interface AuthResult {
 export async function registerAndLogin(page: Page, prefix: string) {
   const user = {
     name: `E2E ${prefix}`,
-    email: `e2e-${prefix}-${Date.now()}@test.com`,
+    email: `e2e-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@test.com`,
     password: 'testpassword123',
   }
 
-  // Register directly via API (much faster than going through UI)
-  const res = await page.request.post(`${API}/auth/register`, {
-    data: user,
-  })
-  const auth: AuthResult = await res.json()
+  // Retry registration if rate-limited (10 req/60s per IP)
+  let res: Awaited<ReturnType<typeof page.request.post>>
+  for (let attempt = 0; attempt < 40; attempt++) {
+    res = await page.request.post(`${API}/auth/register`, { data: user })
+    if (res.ok()) break
+    await page.waitForTimeout(2000)
+  }
+  if (!res!.ok()) {
+    throw new Error(`Registration failed after retries: ${res!.status()} ${await res!.text()}`)
+  }
+  const auth: AuthResult = await res!.json()
 
-  // Inject the token and navigate to boards list
   await page.goto('/')
   await page.evaluate((token) => localStorage.setItem('token', token), auth.token)
   await page.reload()
-  await expect(page.getByText('All Boards')).toBeVisible()
+  await expect(page.getByRole('main').getByText('All Boards')).toBeVisible()
 
   return user
 }
@@ -40,9 +45,8 @@ export async function createBoard(page: Page, name: string, description?: string
   })
   const board: { id: string } = await res.json()
 
-  // Navigate to the board
   await page.goto(`/#/boards/${board.id}`)
-  await expect(page.getByText(name)).toBeVisible()
+  await expect(page.getByRole('main').getByRole('heading', { name })).toBeVisible()
 
   return board
 }
@@ -56,4 +60,9 @@ export async function createColumn(page: Page, boardId: string, name: string, co
     },
   })
   return (await res.json()) as { id: string }
+}
+
+/** Scope selector helper — returns the main content area. */
+export function main(page: Page) {
+  return page.getByRole('main')
 }

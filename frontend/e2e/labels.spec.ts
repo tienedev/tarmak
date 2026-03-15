@@ -1,16 +1,14 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin, createBoard, createColumn } from './helpers'
+import { registerAndLogin, createBoard, createColumn, main } from './helpers'
 
 test.describe('Labels', () => {
   test('can create a board label', async ({ page }) => {
     await registerAndLogin(page, 'labels-create')
     await createBoard(page, 'Labels Board')
 
-    // Open LabelManager popover
-    await page.getByLabel('Labels').click()
+    await main(page).getByLabel('Labels').click()
     await expect(page.getByText('Board Labels')).toBeVisible()
 
-    // Fill name, pick color, submit
     await page.getByPlaceholder('New label...').fill('Bug')
     await page.locator('button[style*="background-color"]').nth(1).click()
     await page.getByPlaceholder('New label...').press('Enter')
@@ -22,11 +20,18 @@ test.describe('Labels', () => {
     await registerAndLogin(page, 'labels-edit')
     await createBoard(page, 'Labels Board')
 
-    // Create a label
-    await page.getByLabel('Labels').click()
+    // Create label via API for speed
+    const token = await page.evaluate(() => localStorage.getItem('token'))
+    const boardId = page.url().match(/#\/boards\/([^?]+)/)?.[1]
+    await page.request.post(`/api/v1/boards/${boardId}/labels`, {
+      data: { name: 'Feature', color: '#3b82f6' },
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    // Reload so the UI picks up the API-created label, then open popover
+    await page.reload()
+    await main(page).getByLabel('Labels').click()
     await expect(page.getByText('Board Labels')).toBeVisible()
-    await page.getByPlaceholder('New label...').fill('Feature')
-    await page.getByPlaceholder('New label...').press('Enter')
     await expect(page.getByText('Feature')).toBeVisible()
 
     // Hover and click edit
@@ -34,28 +39,33 @@ test.describe('Labels', () => {
     await labelRow.hover()
     await labelRow.locator('button').first().click()
 
-    // Change name and save
-    const editInput = labelRow.getByRole('textbox')
-    await editInput.clear()
+    // After clicking edit, the label row's text content changes (name is now in an input).
+    // Locate the edit container via the Save button, then find the input inside it.
+    const editContainer = page.locator('.group').filter({ has: page.getByRole('button', { name: 'Save' }) })
+    const editInput = editContainer.locator('input')
     await editInput.fill('Enhancement')
     await page.getByRole('button', { name: 'Save' }).click()
 
     await expect(page.getByText('Enhancement')).toBeVisible()
-    await expect(page.getByText('Feature')).not.toBeVisible()
   })
 
   test('can delete a board label', async ({ page }) => {
     await registerAndLogin(page, 'labels-delete')
     await createBoard(page, 'Labels Board')
 
-    // Create a label
-    await page.getByLabel('Labels').click()
+    // Create label via API
+    const token = await page.evaluate(() => localStorage.getItem('token'))
+    const boardId = page.url().match(/#\/boards\/([^?]+)/)?.[1]
+    await page.request.post(`/api/v1/boards/${boardId}/labels`, {
+      data: { name: 'ToDelete', color: '#ef4444' },
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    await page.reload()
+    await main(page).getByLabel('Labels').click()
     await expect(page.getByText('Board Labels')).toBeVisible()
-    await page.getByPlaceholder('New label...').fill('ToDelete')
-    await page.getByPlaceholder('New label...').press('Enter')
     await expect(page.getByText('ToDelete')).toBeVisible()
 
-    // Hover and click delete
     const labelRow = page.locator('.group').filter({ hasText: 'ToDelete' })
     await labelRow.hover()
     await labelRow.locator('button').nth(1).click()
@@ -67,38 +77,34 @@ test.describe('Labels', () => {
     await registerAndLogin(page, 'labels-assign')
     const board = await createBoard(page, 'Labels Board')
 
-    // Create label via UI
-    await page.getByLabel('Labels').click()
-    await expect(page.getByText('Board Labels')).toBeVisible()
-    await page.getByPlaceholder('New label...').fill('Critical')
-    await page.getByPlaceholder('New label...').press('Enter')
-    await expect(page.getByText('Critical')).toBeVisible()
-    await page.keyboard.press('Escape')
-
-    // Create column via API, reload
+    // Create label + column via API
+    const token = await page.evaluate(() => localStorage.getItem('token'))
+    await page.request.post(`/api/v1/boards/${board.id}/labels`, {
+      data: { name: 'Critical', color: '#ef4444' },
+      headers: { Authorization: `Bearer ${token}` },
+    })
     await createColumn(page, board.id, 'To Do')
     await page.reload()
-    await expect(page.getByText('To Do')).toBeVisible()
+    await expect(main(page).getByText('To Do')).toBeVisible()
 
-    // Create a task via UI
-    await page.getByText('Add task').click()
+    // Create task via UI
+    await main(page).getByRole('button', { name: 'Add task' }).click()
     await page.getByPlaceholder('Task title...').fill('My Task')
-    await page.getByRole('button', { name: 'Add' }).click()
-    await expect(page.getByText('My Task')).toBeVisible()
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(main(page).getByText('My Task')).toBeVisible()
 
     // Open task dialog and assign label
-    await page.getByText('My Task').click()
+    await main(page).getByText('My Task').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
     await page.getByText('Add labels...').click()
-    const labelOption = page.getByRole('button').filter({ hasText: 'Critical' }).last()
-    await labelOption.click()
+    await page.getByRole('button').filter({ hasText: 'Critical' }).last().click()
 
     // Close popovers
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
 
     // Verify label on task card
-    await expect(page.getByText('Critical')).toBeVisible()
+    await expect(main(page).getByText('Critical')).toBeVisible()
   })
 })

@@ -29,7 +29,7 @@ test.describe('Login flow', () => {
     await page.getByRole('button', { name: 'Create account' }).click()
 
     // Wait for boards list to appear (confirms registration succeeded)
-    await expect(page.getByText('All Boards')).toBeVisible()
+    await expect(page.getByRole('main').getByText('All Boards')).toBeVisible()
 
     // Logout by clearing localStorage and reloading
     await page.evaluate(() => localStorage.removeItem('token'))
