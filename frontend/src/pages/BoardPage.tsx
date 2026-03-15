@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { useBoardStore } from '@/stores/board'
 import { useAuthStore } from '@/stores/auth'
@@ -18,6 +18,9 @@ import type { Task } from '@/lib/api'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
 import { LabelManager } from '@/components/board/LabelManager'
 import { SearchBar } from '@/components/board/SearchBar'
+import { CommandPalette } from '@/components/CommandPalette'
+import { ShortcutsDialog } from '@/components/ShortcutsDialog'
+import { useHotkeys } from '@/hooks/useHotkeys'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -46,6 +49,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [fieldsOpen, setFieldsOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   // Real-time sync and presence
   const { provider } = useSync(boardId)
@@ -101,6 +106,31 @@ export function BoardPage({ boardId }: BoardPageProps) {
     },
     [tasks],
   )
+
+  const hotkeyActions = useMemo(() => [
+    { key: 'k', meta: true, handler: () => setPaletteOpen(true), allowInInput: true },
+    { key: 'n', handler: () => { /* TODO: focus first column's add task */ } },
+    { key: '/', handler: () => { /* TODO: trigger search focus */ } },
+    { key: '1', handler: () => handleViewChange('kanban') },
+    { key: '2', handler: () => handleViewChange('list') },
+    { key: '3', handler: () => handleViewChange('timeline') },
+    { key: 'a', handler: () => setActivityOpen(true) },
+    { key: '?', handler: () => setShortcutsOpen(true) },
+  ], [])
+
+  useHotkeys(hotkeyActions)
+
+  const handlePaletteAction = useCallback((action: string) => {
+    switch (action) {
+      case 'create-task': break // TODO
+      case 'search': break // TODO
+      case 'view-kanban': handleViewChange('kanban'); break
+      case 'view-list': handleViewChange('list'); break
+      case 'view-timeline': handleViewChange('timeline'); break
+      case 'activity': setActivityOpen(true); break
+      case 'shortcuts': setShortcutsOpen(true); break
+    }
+  }, [])
 
   if (loading && !currentBoard) {
     return (
@@ -243,6 +273,9 @@ export function BoardPage({ boardId }: BoardPageProps) {
         onClose={() => setActivityOpen(false)}
         members={members}
       />
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onAction={handlePaletteAction} />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   )
 }
