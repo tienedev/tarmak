@@ -18,7 +18,13 @@ import type { Task } from '@/lib/api'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
 import { LabelManager } from '@/components/board/LabelManager'
 import { SearchBar } from '@/components/board/SearchBar'
-import { ArrowLeft, History, Loader2, Settings2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
+import { ArrowLeft, History, Loader2, MoreHorizontal, Settings2 } from 'lucide-react'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash
@@ -167,26 +173,26 @@ export function BoardPage({ boardId }: BoardPageProps) {
 
         <LabelManager />
 
-        <Button
-          variant="ghost"
-          size="xs"
-          className="gap-1.5 text-xs text-muted-foreground"
-          onClick={() => setActivityOpen(true)}
-        >
-          <History className="size-3.5" />
-          Activity
-        </Button>
-
-        {/* Fields button */}
-        <Button
-          variant="ghost"
-          size="xs"
-          className="gap-1 text-xs text-muted-foreground"
-          onClick={() => setFieldsOpen(true)}
-        >
-          <Settings2 className="size-3.5" />
-          Fields
-        </Button>
+        {/* Overflow menu — secondary actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="ghost" size="icon-xs" aria-label="More actions" />
+            }
+          >
+            <MoreHorizontal className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setActivityOpen(true)}>
+              <History className="size-3.5" />
+              Activity
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFieldsOpen(true)}>
+              <Settings2 className="size-3.5" />
+              Fields
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Presence avatars */}
         <div className="ml-2">
