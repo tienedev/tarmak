@@ -34,6 +34,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v2(conn).context("applying migration v2")?;
     }
 
+    if current < 3 {
+        v3(conn).context("applying migration v3")?;
+    }
+
     Ok(())
 }
 
@@ -42,7 +46,8 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v1(conn: &Connection) -> anyhow::Result<()> {
-    conn.execute_batch(
+    let tx = conn.unchecked_transaction().context("begin v1 transaction")?;
+    tx.execute_batch(
         "
         -- Boards
         CREATE TABLE IF NOT EXISTS boards (
@@ -168,6 +173,7 @@ fn v1(conn: &Connection) -> anyhow::Result<()> {
         ",
     )
     .context("v1 migration")?;
+    tx.commit().context("commit v1 migration")?;
 
     Ok(())
 }
@@ -177,7 +183,8 @@ fn v1(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v2(conn: &Connection) -> anyhow::Result<()> {
-    conn.execute_batch(
+    let tx = conn.unchecked_transaction().context("begin v2 transaction")?;
+    tx.execute_batch(
         "
         -- Add password_hash to users (nullable for existing users)
         ALTER TABLE users ADD COLUMN password_hash TEXT;
@@ -207,6 +214,31 @@ fn v2(conn: &Connection) -> anyhow::Result<()> {
         ",
     )
     .context("v2 migration")?;
+    tx.commit().context("commit v2 migration")?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// V3 -- CRDT state persistence
+// ---------------------------------------------------------------------------
+
+fn v3(conn: &Connection) -> anyhow::Result<()> {
+    let tx = conn.unchecked_transaction().context("begin v3 transaction")?;
+    tx.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS board_crdt_state (
+            board_id   TEXT PRIMARY KEY REFERENCES boards(id) ON DELETE CASCADE,
+            state      BLOB NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- Record migration
+        INSERT INTO schema_version (version) VALUES (3);
+        ",
+    )
+    .context("v3 migration")?;
+    tx.commit().context("commit v3 migration")?;
 
     Ok(())
 }
@@ -228,7 +260,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 2);
+        assert_eq!(ver, 3);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -247,6 +279,8 @@ mod tests {
             .unwrap();
         conn.execute_batch("SELECT 1 FROM sessions LIMIT 0")
             .unwrap();
+        conn.execute_batch("SELECT 1 FROM board_crdt_state LIMIT 0")
+            .unwrap();
     }
 
     #[test]
@@ -259,7 +293,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 2);
+        assert_eq!(ver, 3);
     }
 
     #[test]
@@ -270,11 +304,13 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 2);
+        assert_eq!(ver, 3);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();
         // Verify new table exists
         conn.execute_batch("SELECT 1 FROM api_keys LIMIT 0").unwrap();
+        // Verify CRDT state table exists
+        conn.execute_batch("SELECT 1 FROM board_crdt_state LIMIT 0").unwrap();
     }
 }

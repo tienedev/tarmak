@@ -82,17 +82,29 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   },
 
   createBoard: async (name: string, description?: string) => {
-    const board = await api.createBoard({ name, description })
-    set({ boards: [...get().boards, board] })
-    notify(`Board "${name}" created`)
-    return board
+    try {
+      const board = await api.createBoard({ name, description })
+      set({ boards: [...get().boards, board] })
+      notify(`Board "${name}" created`)
+      return board
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create board'
+      set({ error: message })
+      throw err
+    }
   },
 
   deleteBoard: async (id: string) => {
     const board = get().boards.find((b) => b.id === id)
-    await api.deleteBoard(id)
-    set({ boards: get().boards.filter((b) => b.id !== id) })
-    if (board) notify(`Board "${board.name}" deleted`)
+    try {
+      await api.deleteBoard(id)
+      set({ boards: get().boards.filter((b) => b.id !== id) })
+      if (board) notify(`Board "${board.name}" deleted`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete board'
+      set({ error: message })
+      throw err
+    }
   },
 
   createColumn: async (boardId: string, name: string, color?: string) => {
@@ -108,14 +120,20 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     title: string,
     priority?: string,
   ) => {
-    const task = await api.createTask(boardId, {
-      column_id: columnId,
-      title,
-      priority,
-    })
-    set({ tasks: [...get().tasks, task] })
-    notify(`Task "${title}" created`)
-    return task
+    try {
+      const task = await api.createTask(boardId, {
+        column_id: columnId,
+        title,
+        priority,
+      })
+      set({ tasks: [...get().tasks, task] })
+      notify(`Task "${title}" created`)
+      return task
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create task'
+      set({ error: message })
+      throw err
+    }
   },
 
   moveTask: async (
@@ -145,8 +163,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   },
 
   deleteTask: async (boardId: string, taskId: string) => {
-    await api.deleteTask(boardId, taskId)
-    set({ tasks: get().tasks.filter((t) => t.id !== taskId) })
+    try {
+      await api.deleteTask(boardId, taskId)
+      set({ tasks: get().tasks.filter((t) => t.id !== taskId) })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete task'
+      set({ error: message })
+      throw err
+    }
   },
 
   clearCurrentBoard: () => {

@@ -34,12 +34,19 @@ impl RateLimiter {
         let timestamps = map.entry(ip.to_string()).or_default();
         timestamps.retain(|t| now.duration_since(*t) < window);
 
-        if timestamps.len() >= self.max_requests {
+        let allowed = if timestamps.len() >= self.max_requests {
             false
         } else {
             timestamps.push(now);
             true
+        };
+
+        // Probabilistic cleanup of stale entries (~1 in 256 calls)
+        if rand::random::<u8>() == 0 {
+            map.retain(|_, v| !v.is_empty());
         }
+
+        allowed
     }
 }
 

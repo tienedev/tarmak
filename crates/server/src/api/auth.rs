@@ -32,7 +32,6 @@ pub struct LoginRequest {
 pub struct InviteRequest {
     pub board_id: String,
     pub role: String,
-    pub user_id: String,
 }
 
 #[derive(Deserialize)]
@@ -97,13 +96,23 @@ pub async fn login(
     Ok(Json(AuthResponse { token, user }))
 }
 
-/// Create an invite link for a board (protected endpoint).
+/// Create an invite link for a board (protected endpoint, requires Owner role).
 pub async fn invite(
     State(db): State<Db>,
+    AuthUser(user): AuthUser,
     Json(body): Json<InviteRequest>,
 ) -> Result<Json<InviteResponse>, ApiError> {
+    // Only owners can create invites
+    permissions::require_role(&db, &body.board_id, &user.id, crate::db::models::Role::Owner)?;
+
+    // Validate role
+    let valid_roles = ["owner", "member", "viewer"];
+    if !valid_roles.contains(&body.role.as_str()) {
+        return Err(anyhow::anyhow!("invalid role: must be owner, member, or viewer").into());
+    }
+
     let invite_token =
-        auth::create_invite_link(&db, &body.board_id, &body.role, &body.user_id)?;
+        auth::create_invite_link(&db, &body.board_id, &body.role, &user.id)?;
 
     let invite_url = format!("/invite/{invite_token}");
     Ok(Json(InviteResponse { invite_url }))
@@ -118,7 +127,7 @@ pub async fn accept(
     let board_id = db.with_conn(|conn| {
         conn.query_row(
             "SELECT board_id FROM invite_links WHERE token = ?1",
-            rusqlite::params![body.invite_token],
+            rusqlite::params![crate::auth::hash_token(&body.invite_token)],
             |row| row.get::<_, String>(0),
         ).map_err(|e| anyhow::anyhow!("invite lookup: {e}"))
     }).ok();
@@ -172,11 +181,12 @@ pub async fn list_invites(
              ORDER BY expires_at DESC",
         )?;
         let rows = stmt.query_map(rusqlite::params![board_id, now], |row| {
+            let raw_hash: String = row.get(3)?;
             Ok(InviteLinkInfo {
                 id: row.get(0)?,
                 board_id: row.get(1)?,
                 role: row.get(2)?,
-                token: row.get(3)?,
+                token: format!("{}...", &raw_hash[..8.min(raw_hash.len())]),
                 expires_at: row.get(4)?,
                 created_by: row.get(5)?,
             })

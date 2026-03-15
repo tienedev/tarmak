@@ -145,6 +145,7 @@ pub fn cleanup_expired_sessions(db: &Db) -> anyhow::Result<usize> {
 // ---------------------------------------------------------------------------
 
 /// Create an invite link for a board. Returns the raw invite token.
+/// The token is hashed before storage; the raw value is returned to the caller.
 pub fn create_invite_link(
     db: &Db,
     board_id: &str,
@@ -152,6 +153,7 @@ pub fn create_invite_link(
     created_by: &str,
 ) -> anyhow::Result<String> {
     let raw_token = generate_token();
+    let token_hash = hash_token(&raw_token);
     let id = Uuid::new_v4().to_string();
     let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
 
@@ -159,7 +161,7 @@ pub fn create_invite_link(
         conn.execute(
             "INSERT INTO invite_links (id, board_id, token, role, expires_at, created_by)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, board_id, raw_token, role, expires_at, created_by],
+            params![id, board_id, token_hash, role, expires_at, created_by],
         )
         .context("insert invite link")?;
         Ok(())
@@ -168,9 +170,10 @@ pub fn create_invite_link(
     Ok(raw_token)
 }
 
-/// Accept an invite link: look up the invite, verify it hasn't expired,
-/// then add the user as a board member with the specified role.
+/// Accept an invite link: hash the incoming token, look up the invite,
+/// verify it hasn't expired, then add the user as a board member with the specified role.
 pub fn accept_invite(db: &Db, invite_token: &str, user_id: &str) -> anyhow::Result<()> {
+    let token_hash = hash_token(invite_token);
     let now = Utc::now().to_rfc3339();
 
     db.with_conn(|conn| {
@@ -178,7 +181,7 @@ pub fn accept_invite(db: &Db, invite_token: &str, user_id: &str) -> anyhow::Resu
             "SELECT board_id, role FROM invite_links
              WHERE token = ?1 AND (expires_at IS NULL OR expires_at > ?2)",
         )?;
-        let mut rows = stmt.query_map(params![invite_token, now], |row| {
+        let mut rows = stmt.query_map(params![token_hash, now], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
 

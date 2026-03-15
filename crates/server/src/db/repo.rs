@@ -21,7 +21,10 @@ fn new_id() -> String {
 fn parse_dt(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
+        .unwrap_or_else(|e| {
+            tracing::warn!("failed to parse datetime '{s}': {e}, using current time");
+            Utc::now()
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -515,6 +518,33 @@ impl Db {
                 out.push(r?);
             }
             Ok(out)
+        })
+    }
+
+    /// Batch-load all custom field values for every task in a board (avoids N+1).
+    pub fn get_custom_field_values_for_board(
+        &self,
+        board_id: &str,
+    ) -> anyhow::Result<Vec<TaskCustomFieldValue>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT tcfv.task_id, tcfv.field_id, tcfv.value
+                 FROM task_custom_field_values tcfv
+                 JOIN tasks t ON t.id = tcfv.task_id
+                 WHERE t.board_id = ?1",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                Ok(TaskCustomFieldValue {
+                    task_id: row.get(0)?,
+                    field_id: row.get(1)?,
+                    value: row.get(2)?,
+                })
+            })?;
+            let mut result = Vec::new();
+            for r in rows {
+                result.push(r?);
+            }
+            Ok(result)
         })
     }
 }
@@ -1043,6 +1073,42 @@ impl Db {
                 params![user_id],
             )?;
             Ok(affected)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CRDT state persistence
+// ---------------------------------------------------------------------------
+
+impl Db {
+    /// Save the encoded Y.Doc state for a board.
+    pub fn save_crdt_state(&self, board_id: &str, state: &[u8]) -> anyhow::Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO board_crdt_state (board_id, state, updated_at)
+                 VALUES (?1, ?2, ?3)
+                 ON CONFLICT(board_id) DO UPDATE SET state = ?2, updated_at = ?3",
+                params![board_id, state, now_iso()],
+            )
+            .context("save crdt state")?;
+            Ok(())
+        })
+    }
+
+    /// Load the stored Y.Doc state for a board, if any.
+    pub fn load_crdt_state(&self, board_id: &str) -> anyhow::Result<Option<Vec<u8>>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT state FROM board_crdt_state WHERE board_id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![board_id], |row| {
+                row.get::<_, Vec<u8>>(0)
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
         })
     }
 }
