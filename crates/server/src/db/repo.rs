@@ -1590,6 +1590,7 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
+    #[allow(clippy::too_many_arguments)]
     pub fn create_attachment(&self, id: &str, task_id: &str, board_id: &str,
         filename: &str, mime_type: &str, size_bytes: i64, storage_key: &str,
         uploaded_by: Option<&str>) -> anyhow::Result<Attachment> {
