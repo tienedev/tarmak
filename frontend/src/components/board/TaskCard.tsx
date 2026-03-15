@@ -10,6 +10,7 @@ import {
   ArrowUp,
   Minus,
   ArrowDown,
+  Calendar,
 } from 'lucide-react'
 
 const priorityConfig: Record<string, { icon: LucideIcon; color: string; label: string }> = {
@@ -124,14 +125,15 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
 
         {/* Due date */}
         {task.due_date && (
-          <span className={cn(
-            'text-[0.65rem] font-medium',
+          <div className={cn(
+            'flex items-center gap-1 text-[0.65rem] font-medium',
             new Date(task.due_date) < new Date() ? 'text-red-500' :
             new Date(task.due_date).getTime() - Date.now() < 2 * 86400000 ? 'text-orange-500' :
             'text-muted-foreground',
           )}>
+            <Calendar className="size-3" />
             {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </span>
+          </div>
         )}
 
         {/* Assignee avatar */}
