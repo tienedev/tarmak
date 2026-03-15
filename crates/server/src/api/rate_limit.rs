@@ -46,6 +46,7 @@ impl RateLimiter {
 fn extract_client_ip(req: &Request<Body>) -> String {
     req.headers()
         .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
         .map(|s| s.split(',').next().unwrap_or("unknown").trim().to_string())
         .unwrap_or_else(|| "unknown".to_string())
 }
