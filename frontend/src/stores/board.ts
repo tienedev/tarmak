@@ -159,7 +159,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       position,
     })
     set({
-      tasks: get().tasks.map((t) => (t.id === taskId ? updated : t)),
+      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
     })
   },
 
@@ -170,7 +170,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   ) => {
     const updated = await api.updateTask(boardId, taskId, data)
     set({
-      tasks: get().tasks.map((t) => (t.id === taskId ? updated : t)),
+      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
     })
   },
 

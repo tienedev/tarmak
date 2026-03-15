@@ -76,10 +76,11 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
     setShowDropdown(false)
   }
 
-  // Re-search when includeArchived changes
+  // Re-search when includeArchived changes (doSearch dep captures includeArchived)
   useEffect(() => {
     if (query.trim()) doSearch(query)
-  }, [includeArchived, doSearch, query])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-trigger on toggle, not on query change (debounced separately)
+  }, [includeArchived])
 
   // Close on Escape
   useEffect(() => {

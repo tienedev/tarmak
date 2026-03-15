@@ -65,6 +65,18 @@ pub async fn set_value(
     Json(body): Json<SetFieldValue>,
 ) -> Result<Json<TaskCustomFieldValue>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    // Verify task belongs to this board
+    let task = db
+        .get_task(&tid)?
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if task.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
+    // Verify field belongs to this board
+    let fields = db.list_custom_fields(&board_id)?;
+    if !fields.iter().any(|f| f.id == fid) {
+        return Err(ApiError::NotFound("field not found".into()));
+    }
     let value = db.set_custom_field_value(&tid, &fid, &body.value)?;
     let _ = db.log_activity(&board_id, Some(&tid), &user.id, "field_value_set",
         Some(&serde_json::json!({"field_id": &fid, "value": &body.value}).to_string()));

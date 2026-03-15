@@ -1442,7 +1442,7 @@ impl Db {
                     entity_id: row.get(1)?,
                     board_id: row.get(2)?,
                     task_id: row.get(3)?,
-                    snippet: row.get(4)?,
+                    snippet: sanitize_snippet(&row.get::<_, String>(4)?),
                     rank: row.get(5)?,
                     archived: row.get::<_, i64>(6)? != 0,
                 })
@@ -1454,6 +1454,23 @@ impl Db {
             Ok(result)
         })
     }
+}
+
+/// Sanitize an FTS5 snippet: escape all HTML except `<mark>` and `</mark>`.
+fn sanitize_snippet(raw: &str) -> String {
+    // 1. Replace our known markers with placeholders
+    let s = raw
+        .replace("<mark>", "\x00MARK_OPEN\x00")
+        .replace("</mark>", "\x00MARK_CLOSE\x00");
+    // 2. Escape all remaining HTML
+    let s = s
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;");
+    // 3. Restore markers
+    s.replace("\x00MARK_OPEN\x00", "<mark>")
+        .replace("\x00MARK_CLOSE\x00", "</mark>")
 }
 
 // ---------------------------------------------------------------------------
