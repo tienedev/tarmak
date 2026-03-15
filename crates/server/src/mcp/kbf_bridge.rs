@@ -20,6 +20,9 @@ pub fn task_schema(db: &Db, board_id: &str) -> Result<kbf::Schema> {
         "pri".to_string(),
         "who".to_string(),
         "pos".to_string(),
+        "due".to_string(),
+        "labels".to_string(),
+        "subtasks".to_string(),
     ];
 
     let custom_fields = db
@@ -31,7 +34,19 @@ pub fn task_schema(db: &Db, board_id: &str) -> Result<kbf::Schema> {
         fields.push(cf.name.clone());
     }
 
-    Ok(kbf::Schema::new("task", fields))
+    let mut schema = kbf::Schema::new("task", fields);
+    schema.version = 2;
+    Ok(schema)
+}
+
+/// Build a KBF schema for labels.
+pub fn label_schema() -> kbf::Schema {
+    kbf::Schema::new("label", vec!["id", "name", "color"])
+}
+
+/// Build a KBF schema for subtasks.
+pub fn subtask_schema() -> kbf::Schema {
+    kbf::Schema::new("subtask", vec!["id", "task_id", "title", "done", "pos"])
 }
 
 /// Build a KBF schema for columns.
@@ -100,9 +115,33 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
         cf_by_task.entry(&v.task_id).or_default().push(v);
     }
 
+    // Batch load labels per task
+    let label_pairs = db.get_labels_for_board_tasks(board_id).context("batch load labels")?;
+    let mut labels_by_task: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (task_id, label) in &label_pairs {
+        labels_by_task.entry(task_id.as_str()).or_default().push(label.id.as_str());
+    }
+
+    // Batch load subtask counts
+    let subtask_counts = db.get_subtask_counts_for_board(board_id).context("batch load subtask counts")?;
+    let mut counts_by_task: HashMap<&str, &crate::db::models::SubtaskCount> = HashMap::new();
+    for (task_id, count) in &subtask_counts {
+        counts_by_task.insert(task_id.as_str(), count);
+    }
+
     let mut rows: Vec<kbf::Row> = Vec::with_capacity(tasks.len());
 
     for task in &tasks {
+        let label_ids = labels_by_task
+            .get(task.id.as_str())
+            .map(|ids| ids.join(","))
+            .unwrap_or_default();
+
+        let subtask_str = counts_by_task
+            .get(task.id.as_str())
+            .map(|c| format!("{}/{}", c.completed, c.total))
+            .unwrap_or_default();
+
         let mut row = vec![
             task.id.clone(),
             task.column_id.clone(),
@@ -111,6 +150,9 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
             task.priority.short().to_string(),
             task.assignee.clone().unwrap_or_default(),
             task.position.to_string(),
+            task.due_date.clone().unwrap_or_default(),
+            label_ids,
+            subtask_str,
         ];
 
         // Append custom field values in the same order as the schema fields.
@@ -137,6 +179,36 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
         rows.push(row);
     }
 
+    Ok(kbf::encode_full(&schema, &rows))
+}
+
+/// Encode all labels for a board in KBF format.
+pub fn encode_board_labels(db: &Db, board_id: &str) -> Result<String> {
+    let schema = label_schema();
+    let labels = db.list_labels(board_id).context("list labels for KBF encoding")?;
+    let rows: Vec<kbf::Row> = labels
+        .iter()
+        .map(|l| vec![l.id.clone(), l.name.clone(), l.color.clone()])
+        .collect();
+    Ok(kbf::encode_full(&schema, &rows))
+}
+
+/// Encode all subtasks for a specific task in KBF format.
+pub fn encode_task_subtasks(db: &Db, task_id: &str) -> Result<String> {
+    let schema = subtask_schema();
+    let subtasks = db.list_subtasks(task_id).context("list subtasks for KBF encoding")?;
+    let rows: Vec<kbf::Row> = subtasks
+        .iter()
+        .map(|s| {
+            vec![
+                s.id.clone(),
+                s.task_id.clone(),
+                s.title.clone(),
+                if s.completed { "1".to_string() } else { "0".to_string() },
+                s.position.to_string(),
+            ]
+        })
+        .collect();
     Ok(kbf::encode_full(&schema, &rows))
 }
 
@@ -179,9 +251,10 @@ pub fn encode_boards_list(db: &Db) -> Result<String> {
 pub fn encode_board_all(db: &Db, board_id: &str) -> Result<String> {
     let info = encode_board_info(db, board_id)?;
     let cols = encode_board_columns(db, board_id)?;
+    let labels = encode_board_labels(db, board_id)?;
     let tasks = encode_board_tasks(db, board_id)?;
 
-    Ok(format!("{}\n\n{}\n\n{}", info, cols, tasks))
+    Ok(format!("{}\n\n{}\n\n{}\n\n{}", info, cols, labels, tasks))
 }
 
 /// Convert a Priority from its short code for use in mutations.
@@ -213,10 +286,10 @@ mod tests {
 
         let schema = task_schema(&db, &board_id).unwrap();
         assert_eq!(schema.entity, "task");
-        assert_eq!(schema.version, 1);
+        assert_eq!(schema.version, 2);
         assert_eq!(
             schema.fields,
-            vec!["id", "col", "title", "desc", "pri", "who", "pos"]
+            vec!["id", "col", "title", "desc", "pri", "who", "pos", "due", "labels", "subtasks"]
         );
     }
 
@@ -233,7 +306,7 @@ mod tests {
         let schema = task_schema(&db, &board_id).unwrap();
         assert_eq!(
             schema.fields,
-            vec!["id", "col", "title", "desc", "pri", "who", "pos", "points", "sprint"]
+            vec!["id", "col", "title", "desc", "pri", "who", "pos", "due", "labels", "subtasks", "points", "sprint"]
         );
     }
 
@@ -253,7 +326,7 @@ mod tests {
         let lines: Vec<&str> = encoded.lines().collect();
 
         // First line is the schema header
-        assert_eq!(lines[0], "#task@v1:id,col,title,desc,pri,who,pos");
+        assert_eq!(lines[0], "#task@v2:id,col,title,desc,pri,who,pos,due,labels,subtasks");
 
         // Second line is first task
         assert!(lines[1].starts_with(&t1.id));
@@ -284,7 +357,7 @@ mod tests {
         let encoded = encode_board_tasks(&db, &board_id).unwrap();
         let lines: Vec<&str> = encoded.lines().collect();
 
-        assert_eq!(lines[0], "#task@v1:id,col,title,desc,pri,who,pos,points");
+        assert_eq!(lines[0], "#task@v2:id,col,title,desc,pri,who,pos,due,labels,subtasks,points");
         // The task row should end with "|5" for the points value
         assert!(lines[1].ends_with("|5"), "Expected row to end with |5, got: {}", lines[1]);
     }
@@ -351,10 +424,11 @@ mod tests {
 
         let encoded = encode_board_all(&db, &board_id).unwrap();
 
-        // Should contain all three section headers separated by blank lines
+        // Should contain all four section headers separated by blank lines
         assert!(encoded.contains("#board@v1:"));
         assert!(encoded.contains("#col@v1:"));
-        assert!(encoded.contains("#task@v1:"));
+        assert!(encoded.contains("#label@v1:"));
+        assert!(encoded.contains("#task@v2:"));
         // Sections separated by double newlines
         assert!(encoded.contains("\n\n"));
     }
@@ -366,7 +440,7 @@ mod tests {
 
         let tasks = encode_board_tasks(&db, &board.id).unwrap();
         // Should just be the schema header, no data rows
-        assert_eq!(tasks, "#task@v1:id,col,title,desc,pri,who,pos");
+        assert_eq!(tasks, "#task@v2:id,col,title,desc,pri,who,pos,due,labels,subtasks");
 
         let cols = encode_board_columns(&db, &board.id).unwrap();
         assert_eq!(cols, "#col@v1:id,name,pos,wip,color");

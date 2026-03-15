@@ -643,7 +643,7 @@ mod tests {
         // Should contain all three KBF sections
         assert!(result.contains("#board@v1:"));
         assert!(result.contains("#col@v1:"));
-        assert!(result.contains("#task@v1:"));
+        assert!(result.contains("#task@v2:"));
     }
 
     #[test]
@@ -662,7 +662,7 @@ mod tests {
             })
             .unwrap();
 
-        assert!(result.starts_with("#task@v1:"));
+        assert!(result.starts_with("#task@v2:"));
         assert!(result.contains("Task 1"));
         // Should NOT contain board or column schemas
         assert!(!result.contains("#board@v1:"));
