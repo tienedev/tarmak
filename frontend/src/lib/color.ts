@@ -3,7 +3,12 @@
  * Uses relative luminance approximation from sRGB.
  */
 export function isLightColor(hex: string): boolean {
-  const c = hex.replace('#', '')
+  let c = hex.replace('#', '')
+  // Expand 3-digit hex (#abc → aabbcc)
+  if (c.length === 3) {
+    c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+  }
+  if (c.length !== 6) return false
   const r = parseInt(c.substring(0, 2), 16) / 255
   const g = parseInt(c.substring(2, 4), 16) / 255
   const b = parseInt(c.substring(4, 6), 16) / 255

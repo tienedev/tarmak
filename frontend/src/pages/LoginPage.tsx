@@ -121,7 +121,7 @@ export function LoginPage() {
               >
                 {loading && <Loader2 className="size-3.5 animate-spin" data-icon="inline-start" />}
                 {loading
-                  ? 'Signing in…'
+                  ? (isRegister ? 'Creating account…' : 'Signing in…')
                   : isRegister
                     ? 'Create account'
                     : 'Sign in'}

@@ -53,7 +53,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
       onClick={onClick}
       className={cn(
         'group/card cursor-pointer rounded-xl glass-border p-3 transition-all',
-        'bg-card backdrop-blur-md glass-hover',
+        'bg-card backdrop-blur-md',
         'shadow-[inset_0_1px_0_oklch(1_0_0/20%),0_1px_3px_oklch(0_0_0/4%)]',
         'hover:shadow-[inset_0_1px_0_oklch(1_0_0/25%),0_2px_8px_oklch(0_0_0/8%)]',
         isDragging && 'opacity-40',
