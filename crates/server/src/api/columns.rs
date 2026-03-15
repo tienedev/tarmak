@@ -57,6 +57,11 @@ pub async fn update(
     Json(body): Json<UpdateColumn>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    // Verify column belongs to this board
+    let columns = db.list_columns(&board_id)?;
+    if !columns.iter().any(|c| c.id == cid) {
+        return Err(ApiError::NotFound("column not found".into()));
+    }
     let color = body.color.as_ref().map(|c| c.as_deref());
     let updated = db.update_column(&cid, body.name.as_deref(), body.wip_limit, color)?;
     if !updated {
@@ -73,6 +78,11 @@ pub async fn delete(
     Path((board_id, cid)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    // Verify column belongs to this board
+    let columns = db.list_columns(&board_id)?;
+    if !columns.iter().any(|c| c.id == cid) {
+        return Err(ApiError::NotFound("column not found".into()));
+    }
     let deleted = db.delete_column(&cid)?;
     if !deleted {
         return Err(ApiError::NotFound("column not found".into()));

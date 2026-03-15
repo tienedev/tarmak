@@ -264,7 +264,7 @@ pub fn search_schema() -> kbf::Schema {
 
 /// Encode search results in KBF format.
 pub fn encode_search_results(db: &Db, board_id: &str, query: &str) -> Result<String> {
-    let results = db.search_board(board_id, query, 20).context("search board")?;
+    let results = db.search_board(board_id, query, 20, false).context("search board")?;
     let schema = search_schema();
     let rows: Vec<kbf::Row> = results
         .iter()

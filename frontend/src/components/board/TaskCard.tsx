@@ -11,6 +11,7 @@ import {
   Minus,
   ArrowDown,
   Calendar,
+  Paperclip,
 } from 'lucide-react'
 
 const priorityConfig: Record<string, { icon: LucideIcon; color: string; label: string }> = {
@@ -117,6 +118,14 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
               <path d="M2 8l4 4 8-8" />
             </svg>
             {task.subtask_count.completed}/{task.subtask_count.total}
+          </div>
+        )}
+
+        {/* Attachment count */}
+        {task.attachment_count != null && task.attachment_count > 0 && (
+          <div className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
+            <Paperclip className="size-3" />
+            {task.attachment_count}
           </div>
         )}
 

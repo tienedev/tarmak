@@ -40,6 +40,8 @@ impl AskEngine {
             self.query_high_priority(board_id, format)
         } else if matches_pattern(&q, &["no due", "without date", "sans date"]) {
             self.query_no_due_date(board_id, format)
+        } else if matches_pattern(&q, &["archived", "archives", "archivé"]) {
+            self.query_archived(board_id, format)
         } else {
             // Fallback: FTS5 search
             self.search_fallback(board_id, question, format)
@@ -55,7 +57,7 @@ impl AskEngine {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
-                 WHERE board_id = ?1 AND due_date IS NOT NULL AND due_date < date('now')
+                 WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date < date('now')
                  ORDER BY due_date ASC",
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
@@ -73,7 +75,7 @@ impl AskEngine {
             let sql = format!(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
-                 WHERE board_id = ?1 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= {end_expr}
+                 WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= {end_expr}
                  ORDER BY due_date ASC"
             );
             let mut stmt = conn.prepare(&sql)?;
@@ -88,7 +90,7 @@ impl AskEngine {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
-                 WHERE board_id = ?1 AND (assignee IS NULL OR assignee = '')
+                 WHERE board_id = ?1 AND archived = 0 AND (assignee IS NULL OR assignee = '')
                  ORDER BY created_at DESC",
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
@@ -102,7 +104,7 @@ impl AskEngine {
                 "SELECT t.id, t.board_id, t.column_id, t.title, t.description, t.priority, t.assignee, t.due_date, t.position, t.created_at, t.updated_at
                  FROM tasks t
                  LEFT JOIN task_labels tl ON tl.task_id = t.id
-                 WHERE t.board_id = ?1 AND tl.task_id IS NULL
+                 WHERE t.board_id = ?1 AND t.archived = 0 AND tl.task_id IS NULL
                  ORDER BY t.created_at DESC",
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
@@ -117,6 +119,7 @@ impl AskEngine {
                  FROM tasks t
                  INNER JOIN columns c ON c.id = t.column_id
                  WHERE t.board_id = ?1
+                   AND t.archived = 0
                    AND t.updated_at < datetime('now', '-{days} days')
                    AND LOWER(c.name) NOT IN ('done', 'closed', 'complete', 'completed', 'archive', 'archived')
                  ORDER BY t.updated_at ASC"
@@ -132,7 +135,7 @@ impl AskEngine {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
-                 WHERE board_id = ?1 AND priority IN ('high', 'urgent')
+                 WHERE board_id = ?1 AND archived = 0 AND priority IN ('high', 'urgent')
                  ORDER BY CASE priority WHEN 'urgent' THEN 0 ELSE 1 END, created_at DESC",
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
@@ -145,12 +148,88 @@ impl AskEngine {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
-                 WHERE board_id = ?1 AND due_date IS NULL
+                 WHERE board_id = ?1 AND archived = 0 AND due_date IS NULL
                  ORDER BY created_at DESC",
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
         })?;
         self.format_tasks(&tasks, "tasks with no due date", format, board_id)
+    }
+
+    fn query_archived(&self, board_id: &str, format: &str) -> Result<String> {
+        let (tasks, columns) = self.db.list_archived(board_id)?;
+        match format {
+            "json" => {
+                let result = serde_json::json!({
+                    "archived_tasks": tasks,
+                    "archived_columns": columns,
+                });
+                Ok(serde_json::to_string(&result)?)
+            }
+            "kbf" => {
+                let schema = kbf_bridge::task_schema(&self.db, board_id)?;
+                let task_rows: Vec<kbf::Row> = tasks
+                    .iter()
+                    .map(|t| {
+                        vec![
+                            t.id.clone(),
+                            t.column_id.clone(),
+                            t.title.clone(),
+                            t.description.clone().unwrap_or_default(),
+                            t.priority.short().to_string(),
+                            t.assignee.clone().unwrap_or_default(),
+                            t.position.to_string(),
+                            t.due_date.clone().unwrap_or_default(),
+                            String::new(), // labels
+                            String::new(), // subtasks
+                        ]
+                    })
+                    .collect();
+                let tasks_kbf = kbf::encode_full(&schema, &task_rows);
+
+                let col_schema = kbf_bridge::column_schema();
+                let col_rows: Vec<kbf::Row> = columns
+                    .iter()
+                    .map(|c| {
+                        vec![
+                            c.id.clone(),
+                            c.name.clone(),
+                            c.position.to_string(),
+                            c.wip_limit.map(|w| w.to_string()).unwrap_or_default(),
+                            c.color.clone().unwrap_or_default(),
+                        ]
+                    })
+                    .collect();
+                let cols_kbf = kbf::encode_full(&col_schema, &col_rows);
+
+                Ok(format!("{}\n\n{}", cols_kbf, tasks_kbf))
+            }
+            _ => {
+                // text format
+                let mut lines = Vec::new();
+                if columns.is_empty() && tasks.is_empty() {
+                    return Ok("No archived items.".to_string());
+                }
+                if !columns.is_empty() {
+                    lines.push(format!("{} archived columns:", columns.len()));
+                    for c in &columns {
+                        lines.push(format!("- \"{}\"", c.name));
+                    }
+                }
+                if !tasks.is_empty() {
+                    lines.push(format!("{} archived tasks:", tasks.len()));
+                    for t in &tasks {
+                        let due = t.due_date.as_deref().unwrap_or("no date");
+                        let who = t.assignee.as_deref().unwrap_or("unassigned");
+                        lines.push(format!(
+                            "- \"{}\" (due {}, assigned to {}) [{}]",
+                            t.title, due, who, t.priority
+                        ));
+                    }
+                }
+                Ok(lines.join("\n"))
+            }
+        }
     }
 
     fn query_stats(&self, board_id: &str) -> Result<String> {
@@ -161,12 +240,12 @@ impl AskEngine {
                 |r| r.get(0),
             ).unwrap_or_else(|_| "Unknown".to_string());
 
-            // Total tasks per column
+            // Total tasks per column (excluding archived)
             let mut stmt = conn.prepare(
                 "SELECT c.name, COUNT(t.id)
                  FROM columns c
-                 LEFT JOIN tasks t ON t.column_id = c.id AND t.board_id = ?1
-                 WHERE c.board_id = ?1
+                 LEFT JOIN tasks t ON t.column_id = c.id AND t.board_id = ?1 AND t.archived = 0
+                 WHERE c.board_id = ?1 AND c.archived = 0
                  GROUP BY c.id, c.name
                  ORDER BY c.position",
             )?;
@@ -183,21 +262,21 @@ impl AskEngine {
 
             // Overdue count
             let overdue: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND due_date IS NOT NULL AND due_date < date('now')",
+                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date < date('now')",
                 [board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
 
             // Due this week
             let due_week: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= date('now', '+7 days')",
+                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= date('now', '+7 days')",
                 [board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
 
             // High/urgent priority
             let high_prio: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND priority IN ('high', 'urgent')",
+                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND priority IN ('high', 'urgent')",
                 [board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
@@ -208,14 +287,14 @@ impl AskEngine {
                         COUNT(s.id)
                  FROM subtasks s
                  INNER JOIN tasks t ON t.id = s.task_id
-                 WHERE t.board_id = ?1",
+                 WHERE t.board_id = ?1 AND t.archived = 0",
                 [board_id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             ).unwrap_or((0, 0));
 
             // Unassigned
             let unassigned: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND (assignee IS NULL OR assignee = '')",
+                "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND (assignee IS NULL OR assignee = '')",
                 [board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
@@ -250,12 +329,12 @@ impl AskEngine {
         match format {
             "kbf" => kbf_bridge::encode_search_results(&self.db, board_id, question),
             "json" => {
-                let results = self.db.search_board(board_id, question, 20)?;
+                let results = self.db.search_board(board_id, question, 20, false)?;
                 Ok(serde_json::to_string(&results)?)
             }
             _ => {
                 // text format
-                let results = self.db.search_board(board_id, question, 20)?;
+                let results = self.db.search_board(board_id, question, 20, false)?;
                 if results.is_empty() {
                     return Ok(format!("No results found for \"{}\"", question));
                 }
@@ -302,6 +381,7 @@ impl AskEngine {
                 position: row.get(8)?,
                 created_at,
                 updated_at,
+                archived: false,
             })
         })?;
 

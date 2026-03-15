@@ -74,12 +74,19 @@ pub async fn list(
         counts_by_task.insert(task_id, count);
     }
 
+    let attachment_counts = db.get_attachment_counts_for_board(&board_id)?;
+    let mut att_counts_by_task: HashMap<String, i32> = HashMap::new();
+    for (task_id, count) in attachment_counts {
+        att_counts_by_task.insert(task_id, count);
+    }
+
     let result: Vec<TaskWithRelations> = tasks
         .into_iter()
         .map(|task| {
             let labels = labels_by_task.remove(&task.id).unwrap_or_default();
             let subtask_count = counts_by_task.remove(&task.id).unwrap_or(SubtaskCount { completed: 0, total: 0 });
-            TaskWithRelations { task, labels, subtask_count }
+            let attachment_count = att_counts_by_task.remove(&task.id).unwrap_or(0);
+            TaskWithRelations { task, labels, subtask_count, attachment_count }
         })
         .collect();
 
@@ -130,7 +137,8 @@ pub async fn get(
         completed: subtasks.iter().filter(|s| s.completed).count() as i32,
         total: subtasks.len() as i32,
     };
-    Ok(Json(TaskWithRelations { task, labels, subtask_count }))
+    let attachment_count = db.list_attachments(&tid)?.len() as i32;
+    Ok(Json(TaskWithRelations { task, labels, subtask_count, attachment_count }))
 }
 
 pub async fn update(

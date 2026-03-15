@@ -42,6 +42,10 @@ interface BoardState {
   deleteLabel: (boardId: string, labelId: string) => Promise<void>
   addTaskLabel: (boardId: string, taskId: string, labelId: string) => Promise<void>
   removeTaskLabel: (boardId: string, taskId: string, labelId: string) => Promise<void>
+  archiveTask: (boardId: string, taskId: string) => Promise<void>
+  unarchiveTask: (boardId: string, taskId: string) => Promise<void>
+  archiveColumn: (boardId: string, columnId: string) => Promise<void>
+  unarchiveColumn: (boardId: string, columnId: string) => Promise<void>
   clearCurrentBoard: () => void
 }
 
@@ -155,7 +159,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       position,
     })
     set({
-      tasks: get().tasks.map((t) => (t.id === taskId ? updated : t)),
+      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
     })
   },
 
@@ -166,7 +170,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   ) => {
     const updated = await api.updateTask(boardId, taskId, data)
     set({
-      tasks: get().tasks.map((t) => (t.id === taskId ? updated : t)),
+      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
     })
   },
 
@@ -223,6 +227,34 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           : t,
       ),
     })
+  },
+
+  archiveTask: async (boardId: string, taskId: string) => {
+    await api.archiveTask(boardId, taskId)
+    set({ tasks: get().tasks.filter((t) => t.id !== taskId) })
+    notify('Task archived')
+  },
+
+  unarchiveTask: async (boardId: string, taskId: string) => {
+    await api.unarchiveTask(boardId, taskId)
+    await get().fetchBoard(boardId)
+    notify('Task restored')
+  },
+
+  archiveColumn: async (boardId: string, columnId: string) => {
+    const column = get().columns.find((c) => c.id === columnId)
+    await api.archiveColumn(boardId, columnId)
+    set({
+      columns: get().columns.filter((c) => c.id !== columnId),
+      tasks: get().tasks.filter((t) => t.column_id !== columnId),
+    })
+    if (column) notify(`Column "${column.name}" archived`)
+  },
+
+  unarchiveColumn: async (boardId: string, columnId: string) => {
+    await api.unarchiveColumn(boardId, columnId)
+    await get().fetchBoard(boardId)
+    notify('Column restored')
   },
 
   clearCurrentBoard: () => {
