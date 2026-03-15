@@ -257,6 +257,29 @@ pub fn encode_board_all(db: &Db, board_id: &str) -> Result<String> {
     Ok(format!("{}\n\n{}\n\n{}\n\n{}", info, cols, labels, tasks))
 }
 
+/// Build a KBF schema for search results.
+pub fn search_schema() -> kbf::Schema {
+    kbf::Schema::new("search", vec!["type", "id", "task_id", "snippet"])
+}
+
+/// Encode search results in KBF format.
+pub fn encode_search_results(db: &Db, board_id: &str, query: &str) -> Result<String> {
+    let results = db.search_board(board_id, query, 20).context("search board")?;
+    let schema = search_schema();
+    let rows: Vec<kbf::Row> = results
+        .iter()
+        .map(|r| {
+            vec![
+                r.entity_type.clone(),
+                r.entity_id.clone(),
+                r.task_id.clone(),
+                r.snippet.clone(),
+            ]
+        })
+        .collect();
+    Ok(kbf::encode_full(&schema, &rows))
+}
+
 /// Convert a Priority from its short code for use in mutations.
 pub fn priority_from_short_or_full(s: &str) -> Option<Priority> {
     Priority::from_short(s).or_else(|| Priority::from_str_db(s))

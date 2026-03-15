@@ -21,12 +21,14 @@ use super::kbf_bridge;
 pub struct BoardQueryParams {
     /// Board ID, or "list" to list all boards.
     pub board_id: String,
-    /// "info" | "tasks" | "columns" | "labels" | "subtasks" | "all" (default: "all")
+    /// "info" | "tasks" | "columns" | "labels" | "subtasks" | "search" | "all" (default: "all")
     pub scope: Option<String>,
     /// "kbf" | "json" (default: "kbf")
     pub format: Option<String>,
     /// Task ID, required when scope = "subtasks"
     pub task_id: Option<String>,
+    /// Search query, required when scope = "search"
+    pub query: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -42,6 +44,14 @@ pub struct BoardSyncParams {
     /// Optional KBF delta string to apply before returning state.
     pub delta: Option<String>,
     /// "kbf" | "json" (default: "kbf")
+    pub format: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BoardAskParams {
+    pub board_id: String,
+    pub question: String,
+    /// "text" (default) | "kbf" | "json"
     pub format: Option<String>,
 }
 
@@ -113,6 +123,11 @@ impl KanbanMcpServer {
                 }
                 kbf_bridge::encode_task_subtasks(&self.db, task_id)
             }
+            "search" => {
+                let query = params.query.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
+                kbf_bridge::encode_search_results(&self.db, board_id, query)
+            }
             "all" => kbf_bridge::encode_board_all(&self.db, board_id),
             other => bail!("unsupported scope: {other}"),
         }
@@ -149,6 +164,12 @@ impl KanbanMcpServer {
                 }
                 let subtasks = self.db.list_subtasks(task_id)?;
                 Ok(serde_json::to_string(&subtasks)?)
+            }
+            "search" => {
+                let query = params.query.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
+                let results = self.db.search_board(board_id, query, 20)?;
+                Ok(serde_json::to_string(&results)?)
             }
             "all" => {
                 let board = self
@@ -467,7 +488,19 @@ impl KanbanMcpServer {
             scope: Some("all".to_string()),
             format: params.format,
             task_id: None,
+            query: None,
         })
+    }
+
+    // -----------------------------------------------------------------------
+    // board_ask
+    // -----------------------------------------------------------------------
+
+    /// Handle a board_ask request — natural language query dispatch.
+    pub fn handle_ask(&self, params: BoardAskParams) -> Result<String> {
+        let format = params.format.as_deref().unwrap_or("text");
+        let engine = super::board_ask::AskEngine::new(self.db.clone());
+        engine.answer(&params.board_id, &params.question, format)
     }
 
     /// Parse and apply KBF delta operations to the database.
@@ -678,6 +711,17 @@ pub mod api {
         let result = server.handle_sync(params)?;
         Ok(Json(serde_json::json!({ "result": result })))
     }
+
+    pub async fn ask(
+        State(db): State<Db>,
+        AuthUser(user): AuthUser,
+        Json(params): Json<BoardAskParams>,
+    ) -> Result<Json<Value>, ApiError> {
+        permissions::require_role(&db, &params.board_id, &user.id, Role::Viewer)?;
+        let server = KanbanMcpServer::new(db);
+        let result = server.handle_ask(params)?;
+        Ok(Json(serde_json::json!({ "result": result })))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -718,6 +762,7 @@ mod tests {
                 scope: None,
                 format: None, // defaults to kbf
                 task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -738,6 +783,7 @@ mod tests {
                 scope: None,
                 format: Some("json".into()),
                 task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -761,6 +807,7 @@ mod tests {
                 scope: Some("all".into()),
                 format: None,
                 task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -784,6 +831,7 @@ mod tests {
                 scope: Some("tasks".into()),
                 format: Some("kbf".into()),
                 task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -808,6 +856,7 @@ mod tests {
                 scope: Some("all".into()),
                 format: Some("json".into()),
                 task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -830,6 +879,7 @@ mod tests {
                 scope: Some("info".into()),
                 format: Some("json".into()),
                 task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -848,6 +898,7 @@ mod tests {
             scope: None,
             format: Some("xml".into()),
             task_id: None,
+            query: None,
         });
 
         assert!(result.is_err());

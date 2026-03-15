@@ -42,6 +42,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v4(conn).context("applying migration v4")?;
     }
 
+    if current < 5 {
+        v5(conn).context("applying migration v5")?;
+    }
+
     Ok(())
 }
 
@@ -300,6 +304,100 @@ fn v4(conn: &Connection) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// V5 -- FTS5 search index with triggers + backfill
+// ---------------------------------------------------------------------------
+
+fn v5(conn: &Connection) -> anyhow::Result<()> {
+    // FTS5 virtual tables cannot be created inside a transaction on all SQLite
+    // builds, so we create the virtual table outside the transaction first.
+    conn.execute_batch(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+            entity_type,
+            entity_id,
+            board_id,
+            task_id,
+            content,
+            tokenize='porter unicode61'
+        );",
+    )
+    .context("v5: create FTS5 virtual table")?;
+
+    let tx = conn.unchecked_transaction().context("begin v5 transaction")?;
+    tx.execute_batch(
+        "
+        -- Triggers to keep index in sync
+
+        -- Tasks: title + description
+        CREATE TRIGGER IF NOT EXISTS search_idx_task_insert AFTER INSERT ON tasks BEGIN
+            INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+            VALUES ('task', NEW.id, NEW.board_id, NEW.id, NEW.title || ' ' || COALESCE(NEW.description, ''));
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS search_idx_task_update AFTER UPDATE ON tasks BEGIN
+            DELETE FROM search_index WHERE entity_type = 'task' AND entity_id = OLD.id;
+            INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+            VALUES ('task', NEW.id, NEW.board_id, NEW.id, NEW.title || ' ' || COALESCE(NEW.description, ''));
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS search_idx_task_delete AFTER DELETE ON tasks BEGIN
+            DELETE FROM search_index WHERE entity_type = 'task' AND entity_id = OLD.id;
+        END;
+
+        -- Comments
+        CREATE TRIGGER IF NOT EXISTS search_idx_comment_insert AFTER INSERT ON comments BEGIN
+            INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+            VALUES ('comment', NEW.id,
+                (SELECT board_id FROM tasks WHERE id = NEW.task_id),
+                NEW.task_id, NEW.content);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS search_idx_comment_delete AFTER DELETE ON comments BEGIN
+            DELETE FROM search_index WHERE entity_type = 'comment' AND entity_id = OLD.id;
+        END;
+
+        -- Subtasks
+        CREATE TRIGGER IF NOT EXISTS search_idx_subtask_insert AFTER INSERT ON subtasks BEGIN
+            INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+            VALUES ('subtask', NEW.id,
+                (SELECT board_id FROM tasks WHERE id = NEW.task_id),
+                NEW.task_id, NEW.title);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS search_idx_subtask_update AFTER UPDATE ON subtasks BEGIN
+            DELETE FROM search_index WHERE entity_type = 'subtask' AND entity_id = OLD.id;
+            INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+            VALUES ('subtask', NEW.id,
+                (SELECT board_id FROM tasks WHERE id = NEW.task_id),
+                NEW.task_id, NEW.title);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS search_idx_subtask_delete AFTER DELETE ON subtasks BEGIN
+            DELETE FROM search_index WHERE entity_type = 'subtask' AND entity_id = OLD.id;
+        END;
+
+        -- Backfill existing data
+        INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+        SELECT 'task', id, board_id, id, title || ' ' || COALESCE(description, '') FROM tasks;
+
+        INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+        SELECT 'comment', c.id, t.board_id, c.task_id, c.content
+        FROM comments c INNER JOIN tasks t ON t.id = c.task_id;
+
+        INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+        SELECT 'subtask', s.id, t.board_id, s.task_id, s.title
+        FROM subtasks s INNER JOIN tasks t ON t.id = s.task_id;
+
+        -- Record migration
+        INSERT INTO schema_version (version) VALUES (5);
+        ",
+    )
+    .context("v5 migration")?;
+    tx.commit().context("commit v5 migration")?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -316,7 +414,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 4);
+        assert_eq!(ver, 5);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -345,6 +443,9 @@ mod tests {
             .unwrap();
         conn.execute_batch("SELECT due_date FROM tasks LIMIT 0")
             .unwrap();
+        // v5 FTS5 table
+        conn.execute_batch("SELECT 1 FROM search_index LIMIT 0")
+            .unwrap();
     }
 
     #[test]
@@ -357,7 +458,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 4);
+        assert_eq!(ver, 5);
     }
 
     #[test]
@@ -368,7 +469,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 4);
+        assert_eq!(ver, 5);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();

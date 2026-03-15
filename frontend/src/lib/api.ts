@@ -194,6 +194,10 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // Search
+  searchBoard: (boardId: string, q: string, limit = 20) =>
+    request<SearchResult[]>(`/boards/${boardId}/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+
   // Subtasks
   listSubtasks: (boardId: string, taskId: string) =>
     request<Subtask[]>(`/boards/${boardId}/tasks/${taskId}/subtasks`),
@@ -335,7 +339,17 @@ export interface ActivityEntry {
   task_id?: string
   user_id: string
   user_name: string
+  is_agent: boolean
   action: string
   details?: string
   created_at: string
+}
+
+export interface SearchResult {
+  entity_type: string
+  entity_id: string
+  board_id: string
+  task_id: string
+  snippet: string
+  rank: number
 }

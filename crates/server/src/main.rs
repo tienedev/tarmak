@@ -165,8 +165,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                             "type": "object",
                             "properties": {
                                 "board_id": { "type": "string", "description": "Board ID to query, or 'list' for all boards" },
-                                "scope": { "type": "string", "enum": ["info", "tasks", "columns", "all"], "default": "all" },
-                                "format": { "type": "string", "enum": ["kbf", "json"], "default": "kbf" }
+                                "scope": { "type": "string", "enum": ["info", "tasks", "columns", "labels", "subtasks", "search", "all"], "default": "all" },
+                                "format": { "type": "string", "enum": ["kbf", "json"], "default": "kbf" },
+                                "task_id": { "type": "string", "description": "Task ID, required when scope = subtasks" },
+                                "query": { "type": "string", "description": "Search query, required when scope = search" }
                             },
                             "required": ["board_id"]
                         }
@@ -196,6 +198,19 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                             },
                             "required": ["board_id"]
                         }
+                    },
+                    {
+                        "name": "board_ask",
+                        "description": "Ask a natural language question about a board. Supports: overdue tasks, due this week/today, unassigned, no labels, stale/blocked, stats/summary, high priority, no due date. Falls back to full-text search.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "board_id": { "type": "string", "description": "Board ID" },
+                                "question": { "type": "string", "description": "Natural language question about the board" },
+                                "format": { "type": "string", "enum": ["text", "kbf", "json"], "default": "text" }
+                            },
+                            "required": ["board_id", "question"]
+                        }
                     }
                 ]
             }),
@@ -221,6 +236,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .map(String::from),
                             task_id: args
                                 .get("task_id")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            query: args
+                                .get("query")
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
                         };
@@ -259,6 +278,23 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .map(String::from),
                         };
                         server.handle_sync(sp).map_err(|e| e.to_string())
+                    }
+                    "board_ask" => {
+                        let ap = mcp::BoardAskParams {
+                            board_id: args["board_id"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                            question: args["question"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                            format: args
+                                .get("format")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                        };
+                        server.handle_ask(ap).map_err(|e| e.to_string())
                     }
                     _ => Err(format!("Unknown tool: {tool_name}")),
                 };

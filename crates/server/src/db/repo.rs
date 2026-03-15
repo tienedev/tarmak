@@ -1342,6 +1342,7 @@ impl Db {
         self.with_conn(|conn| {
             let mut sql = String::from(
                 "SELECT a.id, a.board_id, a.task_id, a.user_id, COALESCE(u.name, 'Unknown') as user_name,
+                        COALESCE(u.is_agent, 0) as is_agent,
                         a.action, a.details, a.created_at
                  FROM activity a
                  LEFT JOIN users u ON u.id = a.user_id
@@ -1386,9 +1387,51 @@ impl Db {
                     task_id: row.get(2)?,
                     user_id: row.get(3)?,
                     user_name: row.get(4)?,
-                    action: row.get(5)?,
-                    details: row.get(6)?,
-                    created_at: parse_dt(&row.get::<_, String>(7)?)?,
+                    is_agent: row.get::<_, i64>(5)? != 0,
+                    action: row.get(6)?,
+                    details: row.get(7)?,
+                    created_at: parse_dt(&row.get::<_, String>(8)?)?,
+                })
+            })?;
+            let mut result = Vec::new();
+            for r in rows {
+                result.push(r?);
+            }
+            Ok(result)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+
+impl Db {
+    /// Full-text search across tasks, comments, and subtasks for a board.
+    pub fn search_board(
+        &self,
+        board_id: &str,
+        query: &str,
+        limit: i64,
+    ) -> anyhow::Result<Vec<SearchResult>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT entity_type, entity_id, board_id, task_id,
+                        snippet(search_index, 4, '<mark>', '</mark>', '...', 32) as snippet,
+                        rank
+                 FROM search_index
+                 WHERE search_index MATCH ?1 AND board_id = ?2
+                 ORDER BY rank
+                 LIMIT ?3",
+            )?;
+            let rows = stmt.query_map(params![query, board_id, limit], |row| {
+                Ok(SearchResult {
+                    entity_type: row.get(0)?,
+                    entity_id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    task_id: row.get(3)?,
+                    snippet: row.get(4)?,
+                    rank: row.get(5)?,
                 })
             })?;
             let mut result = Vec::new();

@@ -17,6 +17,7 @@ import { usePresence } from '@/hooks/usePresence'
 import type { Task } from '@/lib/api'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
 import { LabelManager } from '@/components/board/LabelManager'
+import { SearchBar } from '@/components/board/SearchBar'
 import { ArrowLeft, History, Loader2, Settings2 } from 'lucide-react'
 
 function getInitialView(): ViewMode {
@@ -84,6 +85,17 @@ export function BoardPage({ boardId }: BoardPageProps) {
     setTimeout(() => setSelectedTask(null), 200)
   }, [])
 
+  const handleSearchSelect = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((t) => t.id === taskId)
+      if (task) {
+        setSelectedTask(task)
+        setDetailOpen(true)
+      }
+    },
+    [tasks],
+  )
+
   if (loading && !currentBoard) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -120,6 +132,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
             {currentBoard.name}
           </h1>
         </div>
+
+        <SearchBar boardId={boardId} onSelectResult={handleSearchSelect} />
 
         <ViewSwitcher value={view} onChange={handleViewChange} />
 

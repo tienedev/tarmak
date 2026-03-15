@@ -10,6 +10,7 @@ pub mod labels;
 pub mod middleware;
 pub mod permissions;
 pub mod rate_limit;
+pub mod search;
 pub mod subtasks;
 pub mod tasks;
 pub mod validation;
@@ -71,6 +72,7 @@ pub fn router(db: Db) -> Router {
         .merge(board_item)
         .route("/members", get(boards::members))
         .route("/activity", get(activity::list))
+        .route("/search", get(search::search))
         .nest("/columns", columns)
         .nest("/tasks", board_tasks)
         .nest("/labels", board_labels)
@@ -84,6 +86,7 @@ pub fn router(db: Db) -> Router {
         .route("/query", post(mcp_api::query))
         .route("/mutate", post(mcp_api::mutate))
         .route("/sync", post(mcp_api::sync))
+        .route("/ask", post(mcp_api::ask))
         .nest("/sse", mcp_sse::sse_router(db.clone()));
 
     // API key management routes

@@ -245,9 +245,20 @@ pub struct ActivityEntry {
     pub task_id: Option<String>,
     pub user_id: String,
     pub user_name: String,
+    pub is_agent: bool,
     pub action: String,
     pub details: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub board_id: String,
+    pub task_id: String,
+    pub snippet: String,
+    pub rank: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
