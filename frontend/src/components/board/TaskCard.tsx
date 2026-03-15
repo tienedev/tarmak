@@ -61,6 +61,26 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
         {task.title}
       </p>
 
+      {/* Labels */}
+      {task.labels && task.labels.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {task.labels.slice(0, 3).map((label) => (
+            <span
+              key={label.id}
+              className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium text-white"
+              style={{ backgroundColor: label.color }}
+            >
+              {label.name}
+            </span>
+          ))}
+          {task.labels.length > 3 && (
+            <span className="text-[0.6rem] text-muted-foreground">
+              +{task.labels.length - 3}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Metadata row */}
       <div className="mt-2 flex items-center gap-2">
         {/* Priority dot + label */}
@@ -78,8 +98,30 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
           </div>
         )}
 
+        {/* Subtask progress */}
+        {task.subtask_count && task.subtask_count.total > 0 && (
+          <div className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
+            <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 8l4 4 8-8" />
+            </svg>
+            {task.subtask_count.completed}/{task.subtask_count.total}
+          </div>
+        )}
+
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Due date */}
+        {task.due_date && (
+          <span className={cn(
+            'text-[0.6rem] font-medium',
+            new Date(task.due_date) < new Date() ? 'text-red-500' :
+            new Date(task.due_date).getTime() - Date.now() < 2 * 86400000 ? 'text-orange-500' :
+            'text-muted-foreground',
+          )}>
+            {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+        )}
 
         {/* Assignee avatar */}
         {task.assignee && (
