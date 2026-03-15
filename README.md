@@ -4,7 +4,7 @@
 
 **The AI-native kanban board. Self-hosted. Single binary.**
 
-[Why Kanwise](#why-kanwise) · [Quick Start](#quick-start) · [MCP Integration](#mcp-integration) · [Kanban Tracking Skill](#kanban-tracking-skill) · [Features](#features) · [Contributing](#contributing)
+[Why Kanwise](#why-kanwise) · [Quick Start](#quick-start) · [MCP Tools](#mcp-tools) · [Kanban Tracking Skill](#kanban-tracking-skill) · [Features](#features) · [Contributing](#contributing)
 
 </div>
 
@@ -63,7 +63,21 @@ No Postgres, no Redis, no Docker required. SQLite embedded. Frontend embedded. S
 
 ## Quick Start
 
+### One-liner setup (recommended)
+
+Pulls the Docker image, configures MCP for Claude Code, and installs the kanban-tracking skill. Nothing else to do.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tienedev/kanwise/main/scripts/setup-claude.sh | bash -s -- --docker
+```
+
+Restart Claude Code, then try: *"Create a board called Sprint 24 with columns Todo, In Progress, Review, Done"*
+
+**Requires:** Docker, `curl`, `python3`.
+
 ### Docker
+
+Run Kanwise as a standalone web app (without MCP integration):
 
 ```bash
 docker run -d \
@@ -72,13 +86,17 @@ docker run -d \
   ghcr.io/tienedev/kanwise:latest
 ```
 
-### Docker Compose
+Open http://localhost:3001 and create your account.
+
+Or with Docker Compose:
 
 ```bash
 docker compose up -d
 ```
 
 ### From source
+
+For contributors or if you prefer building locally:
 
 ```bash
 git clone https://github.com/tienedev/kanwise.git
@@ -87,14 +105,13 @@ make install  # install frontend dependencies
 make dev      # start dev servers (backend + frontend)
 ```
 
-### Production binary
+To build a production binary and set up MCP in one step:
 
 ```bash
-make build
-./target/release/kanwise
+./scripts/setup-claude.sh
 ```
 
-Open http://localhost:3001 and create your account.
+**Requires:** Rust toolchain, Node.js.
 
 ### Configuration
 
@@ -104,50 +121,9 @@ Open http://localhost:3001 and create your account.
 | `KANBAN_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3001` | Comma-separated CORS origins |
 | `KANBAN_ENV` | — | Set to `production` to enforce security |
 
-## MCP Integration
+### Manual MCP setup
 
-Kanwise includes a built-in MCP server that lets Claude (or any MCP-compatible agent) manage your boards directly. The setup script handles everything — pick the mode that fits your setup:
-
-### With Docker (recommended)
-
-No Rust, no Node, no git clone — just Docker.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tienedev/kanwise/main/scripts/setup-claude.sh | bash -s -- --docker
-```
-
-This pulls the Docker image, configures the MCP server in `~/.claude/.mcp.json`, and installs the kanban-tracking skill. One command, done.
-
-**Requires:** Docker installed and running, `curl`, `python3`.
-
-### From source
-
-If you have Rust and Node.js installed, or you're contributing to Kanwise:
-
-```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
-./scripts/setup-claude.sh
-```
-
-This builds the binary, installs it to `~/.local/bin/`, configures MCP, and installs the skill.
-
-**Requires:** Rust toolchain, Node.js.
-
-### What the script does
-
-Both modes configure the same two things:
-
-| File | Purpose |
-|------|---------|
-| `~/.claude/.mcp.json` | Registers Kanwise as an MCP server for Claude Code |
-| `~/.claude/skills/kanban-tracking/SKILL.md` | Installs the [kanban-tracking skill](#kanban-tracking-skill) |
-
-Run `./scripts/setup-claude.sh --help` for all options.
-
-### Manual setup
-
-If you prefer to configure MCP yourself, add this to your Claude Desktop or Claude Code config:
+If you prefer to configure MCP yourself instead of using the setup script:
 
 <details>
 <summary>Docker</summary>
@@ -185,17 +161,18 @@ If you prefer to configure MCP yourself, add this to your Claude Desktop or Clau
 
 </details>
 
-Then talk to your boards in natural language:
+### What the setup script does
 
-> "Create a board called Sprint 24 with columns Todo, In Progress, Review, Done"
+Both modes (`--docker` and from source) configure the same two things:
 
-> "Move all urgent tasks to the top of In Progress"
+| File | Purpose |
+|------|---------|
+| `~/.claude/.mcp.json` | Registers Kanwise as an MCP server for Claude Code |
+| `~/.claude/skills/kanban-tracking/SKILL.md` | Installs the [kanban-tracking skill](#kanban-tracking-skill) |
 
-> "Show me a summary of what's blocked"
+Run `./scripts/setup-claude.sh --help` for all options.
 
-All responses use the KBF protocol — your agent gets full board context in a fraction of the tokens.
-
-### MCP Tools
+## MCP Tools
 
 | Tool | Purpose |
 |------|---------|
@@ -203,7 +180,13 @@ All responses use the KBF protocol — your agent gets full board context in a f
 | `board_mutate` | Create, update, move, delete any entity |
 | `board_sync` | Apply KBF deltas and return current state |
 
-### Kanban Tracking Skill
+All responses use the KBF protocol — your agent gets full board context in a fraction of the tokens.
+
+> "Move all urgent tasks to the top of In Progress"
+
+> "Show me a summary of what's blocked"
+
+## Kanban Tracking Skill
 
 Kanwise ships with a framework-agnostic AI skill (`skills/kanban-tracking/SKILL.md`) that turns your kanban board into a living project tracker during AI-assisted development. It works with any skill framework — [Superpowers](https://github.com/anthropics/claude-code), BMAD, custom workflows, or none at all.
 
