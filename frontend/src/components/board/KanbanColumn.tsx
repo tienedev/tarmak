@@ -27,7 +27,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
   return (
     <div
       className={cn(
-        'flex w-72 shrink-0 flex-col overflow-hidden rounded-xl bg-muted/50 transition-all',
+        'flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl glass-subtle glass-border transition-all',
         isOver && 'ring-2 ring-ring/30',
       )}
     >
@@ -35,19 +35,19 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
       <div className="flex items-center gap-2 px-3 pt-3 pb-1">
         {column.color && (
           <span
-            className="inline-block size-2.5 rounded-full"
+            className="inline-block size-2.5 rounded-full shadow-sm"
             style={{ backgroundColor: column.color }}
           />
         )}
-        <span className="flex-1 truncate text-xs font-semibold text-foreground">
+        <span className="flex-1 truncate text-xs font-bold text-foreground">
           {column.name}
         </span>
         <span
           className={cn(
-            'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.6rem] font-semibold tabular-nums',
+            'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1.5 text-[0.6rem] font-bold tabular-nums',
             isOverWipLimit
-              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-              : 'bg-muted text-muted-foreground',
+              ? 'bg-red-500/15 text-red-600 dark:bg-red-400/15 dark:text-red-400'
+              : 'bg-foreground/6 text-muted-foreground',
           )}
         >
           {tasks.length}
@@ -59,7 +59,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
 
       {/* WIP limit warning */}
       {isOverWipLimit && (
-        <div className="mx-3 mt-1 rounded-md bg-red-50 px-2 py-0.5 text-[0.6rem] font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">
+        <div className="mx-3 mt-1 rounded-lg bg-red-500/10 px-2 py-0.5 text-[0.6rem] font-medium text-red-600 dark:text-red-400">
           WIP limit reached
         </div>
       )}
@@ -81,9 +81,14 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
 
           {/* Empty state */}
           {sortedTasks.length === 0 && (
-            <p className="py-6 text-center text-[0.65rem] text-muted-foreground/60">
-              No tasks yet
-            </p>
+            <div className="flex flex-col items-center gap-1 py-6 text-center">
+              <p className="text-[0.65rem] font-medium text-muted-foreground/50">
+                No tasks yet
+              </p>
+              <p className="text-[0.65rem] text-muted-foreground/35">
+                Click "Add task" below
+              </p>
+            </div>
           )}
         </div>
 
