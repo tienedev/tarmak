@@ -3,21 +3,20 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Task } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { isLightColor } from '@/lib/color'
-import { GripVertical } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  GripVertical,
+  AlertTriangle,
+  ArrowUp,
+  Minus,
+  ArrowDown,
+} from 'lucide-react'
 
-const priorityColors: Record<string, string> = {
-  urgent: 'bg-red-500',
-  high: 'bg-orange-500',
-  medium: 'bg-yellow-500',
-  low: 'bg-zinc-400',
-  none: 'bg-zinc-300',
-}
-
-const priorityLabels: Record<string, string> = {
-  urgent: 'Urgent',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
+const priorityConfig: Record<string, { icon: LucideIcon; color: string; label: string }> = {
+  urgent: { icon: AlertTriangle, color: 'text-red-500', label: 'Urgent' },
+  high: { icon: ArrowUp, color: 'text-orange-500', label: 'High' },
+  medium: { icon: Minus, color: 'text-yellow-500', label: 'Medium' },
+  low: { icon: ArrowDown, color: 'text-zinc-400', label: 'Low' },
 }
 
 interface TaskCardProps {
@@ -41,7 +40,9 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
     transition,
   }
 
-  const priorityDot = priorityColors[task.priority] ?? priorityColors.none
+  const priorityCfg = task.priority && task.priority !== 'none'
+    ? priorityConfig[task.priority]
+    : undefined
 
   return (
     <div
@@ -100,18 +101,11 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
 
       {/* Metadata row */}
       <div className="mt-2 flex items-center gap-2">
-        {/* Priority dot + label */}
-        {task.priority && task.priority !== 'none' && (
-          <div className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                'inline-block size-2 rounded-full shadow-sm',
-                priorityDot,
-              )}
-            />
-            <span className="text-[0.65rem] font-medium text-muted-foreground">
-              {priorityLabels[task.priority] ?? task.priority}
-            </span>
+        {/* Priority icon */}
+        {priorityCfg && (
+          <div className={cn('flex items-center gap-1', priorityCfg.color)} title={priorityCfg.label}>
+            <priorityCfg.icon className="size-3" />
+            <span className="text-[0.65rem] font-medium">{priorityCfg.label}</span>
           </div>
         )}
 
