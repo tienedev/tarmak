@@ -148,6 +148,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
         <Button
           variant="ghost"
           size="icon-xs"
+          aria-label="Back to boards"
           onClick={() => (window.location.hash = '#/')}
         >
           <ArrowLeft className="size-3.5" />

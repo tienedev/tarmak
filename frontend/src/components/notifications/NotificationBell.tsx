@@ -32,7 +32,7 @@ export function NotificationBell() {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon-xs" className="relative" />
+          <Button variant="ghost" size="icon-xs" className="relative" aria-label="Notifications" />
         }
       >
         <Bell className="size-3.5" />

@@ -48,7 +48,7 @@ export function ThemeSelector() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-xs" />
+          <Button variant="ghost" size="icon-xs" aria-label="Change theme" />
         }
       >
         <ModeIcon className="size-3.5" />
@@ -72,20 +72,20 @@ export function ThemeSelector() {
         <DropdownMenuSeparator />
 
         <DropdownMenuLabel>Accent Color</DropdownMenuLabel>
-        <div className="flex gap-1.5 px-1.5 py-1">
+        <div className="flex gap-2 px-1.5 py-1.5">
           {accentThemes.map((theme: AccentTheme) => (
             <button
               key={theme.name}
               type="button"
               onClick={() => setAccent(theme.name)}
               className={cn(
-                'flex size-6 items-center justify-center rounded-full transition-all',
+                'flex size-7 items-center justify-center rounded-full transition-all',
                 accent === theme.name && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
               )}
               title={theme.label}
             >
               <span
-                className="size-4 rounded-full"
+                className="size-5 rounded-full shadow-sm"
                 style={{ backgroundColor: theme.preview }}
               />
             </button>
