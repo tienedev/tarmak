@@ -3,6 +3,10 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
+import { Plugin } from "@tiptap/pm/state";
+import { FileBlock } from "./FileBlockNode";
+import { api } from "@/lib/api";
 import {
   Bold,
   Italic,
@@ -19,6 +23,8 @@ interface TiptapEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   className?: string;
+  boardId?: string;
+  taskId?: string;
 }
 
 /**
@@ -28,6 +34,54 @@ interface TiptapEditorProps {
 export function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
+}
+
+function createFileDropPlugin(boardId: string, taskId: string) {
+  return new Plugin({
+    props: {
+      handleDrop(view, event) {
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return false;
+
+        event.preventDefault();
+        const pos = view.posAtCoords({
+          left: event.clientX,
+          top: event.clientY,
+        })?.pos;
+
+        Array.from(files).forEach(async (file) => {
+          try {
+            const attachment = await api.uploadAttachment(boardId, taskId, file);
+            const downloadUrl = `/api/v1/boards/${boardId}/attachments/${attachment.id}/download`;
+
+            if (file.type.startsWith("image/")) {
+              view.dispatch(
+                view.state.tr.insert(
+                  pos ?? view.state.doc.content.size,
+                  view.state.schema.nodes.image.create({ src: downloadUrl }),
+                ),
+              );
+            } else {
+              view.dispatch(
+                view.state.tr.insert(
+                  pos ?? view.state.doc.content.size,
+                  view.state.schema.nodes.fileBlock.create({
+                    src: downloadUrl,
+                    filename: attachment.filename,
+                    mime: attachment.mime_type,
+                    size: attachment.size_bytes,
+                  }),
+                ),
+              );
+            }
+          } catch {
+            // upload failed — silently ignore
+          }
+        });
+        return true;
+      },
+    },
+  });
 }
 
 interface BubbleButtonProps {
@@ -56,6 +110,8 @@ export function TiptapEditor({
   onChange,
   placeholder = "Start writing...",
   className,
+  boardId,
+  taskId,
 }: TiptapEditorProps) {
   // Use a ref for onChange so the editor instance doesn't get recreated
   // every time the parent re-renders with a new callback reference.
@@ -77,6 +133,11 @@ export function TiptapEditor({
         heading: { levels: [1, 2, 3] },
       }),
       Placeholder.configure({ placeholder }),
+      Image.configure({ inline: false, allowBase64: false }),
+      FileBlock,
+      ...(boardId && taskId
+        ? [createFileDropPlugin(boardId, taskId)]
+        : []),
     ],
     content,
     onUpdate: handleUpdate,

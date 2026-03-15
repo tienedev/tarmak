@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { CustomFieldValue } from '@/components/fields/CustomFieldValue'
 import { cn } from '@/lib/utils'
 import {
+  Archive,
   Trash2,
   Send,
   ChevronRight,
@@ -180,6 +181,16 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
       addNotification('Failed to add comment')
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    if (!currentBoard) return
+    try {
+      await useBoardStore.getState().archiveTask(currentBoard.id, task.id)
+      onClose()
+    } catch {
+      addNotification('Failed to archive task')
     }
   }
 
@@ -376,6 +387,8 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
         <TiptapEditor
           content={description}
           onChange={handleDescriptionChange}
+          boardId={currentBoard?.id}
+          taskId={task.id}
         />
       </div>
 
@@ -458,10 +471,16 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
         <div className="text-xs text-muted-foreground">
           {saving ? 'Saving...' : 'Auto-saved'}
         </div>
-        <Button variant="destructive" size="sm" onClick={handleDelete}>
-          <Trash2 className="size-3.5" />
-          Delete
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={handleArchive} className="gap-1.5 text-muted-foreground">
+            <Archive className="size-3.5" />
+            Archive
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDelete}>
+            <Trash2 className="size-3.5" />
+            Delete
+          </Button>
+        </div>
       </div>
     </div>
   )
