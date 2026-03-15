@@ -106,7 +106,7 @@ export function TiptapEditor({
     >
       <BubbleMenu
         editor={editor}
-        className="flex items-center gap-0.5 rounded-lg border bg-background p-1 shadow-md"
+        className="flex items-center gap-0.5 rounded-xl glass-heavy glass-border p-1"
       >
         <BubbleButton
           onClick={() => editor.chain().focus().toggleBold().run()}
