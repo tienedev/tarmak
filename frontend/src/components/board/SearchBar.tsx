@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Search, X, FileText, MessageSquare, ListChecks } from 'lucide-react'
+import { Search, X, FileText, MessageSquare, ListChecks, Archive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { api, type SearchResult } from '@/lib/api'
 
 const typeIcons: Record<string, React.ReactNode> = {
@@ -27,6 +28,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [includeArchived, setIncludeArchived] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -40,7 +42,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
       }
       setLoading(true)
       try {
-        const data = await api.searchBoard(boardId, q.trim())
+        const data = await api.searchBoard(boardId, q.trim(), 20, includeArchived)
         setResults(data)
         setShowDropdown(data.length > 0)
       } catch {
@@ -50,7 +52,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
         setLoading(false)
       }
     },
-    [boardId],
+    [boardId, includeArchived],
   )
 
   const handleInputChange = (value: string) => {
@@ -73,6 +75,11 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
     setResults([])
     setShowDropdown(false)
   }
+
+  // Re-search when includeArchived changes
+  useEffect(() => {
+    if (query.trim()) doSearch(query)
+  }, [includeArchived])
 
   // Close on Escape
   useEffect(() => {
@@ -136,6 +143,15 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
             className="h-7 w-52 pl-7 text-xs"
           />
         </div>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => setIncludeArchived((prev) => !prev)}
+          className={cn('text-muted-foreground', includeArchived && 'text-foreground bg-muted')}
+          title={includeArchived ? 'Excluding archives' : 'Include archives'}
+        >
+          <Archive className="size-3.5" />
+        </Button>
         <Button variant="ghost" size="icon-xs" onClick={handleClose}>
           <X className="size-3.5" />
         </Button>
@@ -163,6 +179,11 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
                         className="min-w-0 flex-1 text-xs leading-snug"
                         dangerouslySetInnerHTML={{ __html: r.snippet }}
                       />
+                      {r.archived && (
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[0.6rem] text-muted-foreground">
+                          Archived
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

@@ -16,6 +16,7 @@ import { useSync } from '@/hooks/useSync'
 import { usePresence } from '@/hooks/usePresence'
 import type { Task } from '@/lib/api'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
+import { ArchivePanel } from '@/components/board/ArchivePanel'
 import { LabelManager } from '@/components/board/LabelManager'
 import { SearchBar } from '@/components/board/SearchBar'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -27,7 +28,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
-import { ArrowLeft, History, MoreHorizontal, Settings2 } from 'lucide-react'
+import { Archive, ArrowLeft, History, MoreHorizontal, Settings2 } from 'lucide-react'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash
@@ -49,6 +50,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [fieldsOpen, setFieldsOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
@@ -217,6 +219,10 @@ export function BoardPage({ boardId }: BoardPageProps) {
               <History className="size-3.5" />
               Activity
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setArchiveOpen(true)}>
+              <Archive className="size-3.5" />
+              Archives
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setFieldsOpen(true)}>
               <Settings2 className="size-3.5" />
               Fields
@@ -273,6 +279,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
         onClose={() => setActivityOpen(false)}
         members={members}
       />
+
+      <ArchivePanel boardId={boardId} open={archiveOpen} onClose={() => setArchiveOpen(false)} />
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onAction={handlePaletteAction} />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

@@ -9,7 +9,15 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 import { useBoardStore } from '@/stores/board'
+import { Archive, MoreHorizontal } from 'lucide-react'
 import { TaskCard } from './TaskCard'
 import { AddTaskForm } from './AddTaskForm'
 
@@ -43,7 +51,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
   return (
     <div
       className={cn(
-        'flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl glass-subtle glass-border transition-all',
+        'group/column flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl glass-subtle glass-border transition-all',
         isOver && 'ring-2 ring-ring/30',
       )}
     >
@@ -92,6 +100,21 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
             <p className="mt-1.5 text-[0.65rem] text-muted-foreground">Set to 0 or empty to remove limit</p>
           </PopoverContent>
         </Popover>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="ghost" size="icon-xs" className="size-5 text-muted-foreground opacity-0 group-hover/column:opacity-100 transition-opacity" />
+            }
+          >
+            <MoreHorizontal className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => useBoardStore.getState().archiveColumn(boardId, column.id)}>
+              <Archive className="size-3.5" />
+              Archive column
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* WIP limit warning */}
