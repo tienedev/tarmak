@@ -65,7 +65,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
       )}
 
       {/* Tasks list */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pt-2 pb-1">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-2 pt-2 pb-1">
         <div ref={setNodeRef} className="min-h-[2rem]">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             <div className="flex flex-col gap-1.5 px-1">
