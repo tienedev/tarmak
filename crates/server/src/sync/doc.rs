@@ -64,7 +64,7 @@ impl BoardDocManager {
 
         // Fall back to building from database rows
         let columns = db.list_columns(board_id)?;
-        let tasks = db.list_tasks(board_id)?;
+        let tasks = db.list_tasks(board_id, i64::MAX, 0)?;
 
         {
             let mut txn = doc.transact_mut();

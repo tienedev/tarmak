@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 
@@ -9,6 +9,7 @@ use crate::db::models::{Priority, Role, Task};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use super::validation;
 
 // ---- Request bodies --------------------------------------------------------
 
@@ -38,15 +39,24 @@ pub struct MoveTask {
     pub position: i64,
 }
 
+#[derive(Deserialize)]
+pub struct ListTasksParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 // ---- Handlers --------------------------------------------------------------
 
 pub async fn list(
     State(db): State<Db>,
     AuthUser(user): AuthUser,
     Path(board_id): Path<String>,
+    Query(params): Query<ListTasksParams>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
-    let tasks = db.list_tasks(&board_id)?;
+    let limit = params.limit.unwrap_or(100).min(500);
+    let offset = params.offset.unwrap_or(0).max(0);
+    let tasks = db.list_tasks(&board_id, limit, offset)?;
     Ok(Json(tasks))
 }
 
@@ -57,6 +67,7 @@ pub async fn create(
     Json(body): Json<CreateTask>,
 ) -> Result<Json<Task>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    validation::validate_title(&body.title)?;
     let task = db.create_task(
         &board_id,
         &body.column_id,
@@ -83,7 +94,10 @@ pub async fn get(
     permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
     let task = db
         .get_task(&tid)?
-        .ok_or_else(|| anyhow::anyhow!("task not found"))?;
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if task.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
     Ok(Json(task))
 }
 
@@ -94,6 +108,10 @@ pub async fn update(
     Json(body): Json<UpdateTask>,
 ) -> Result<Json<Task>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    let existing = db.get_task(&tid)?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if existing.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
     let description = body.description.as_ref().map(|d| d.as_deref());
     let assignee = body.assignee.as_ref().map(|a| a.as_deref());
     let task = db
@@ -104,7 +122,7 @@ pub async fn update(
             body.priority,
             assignee,
         )?
-        .ok_or_else(|| anyhow::anyhow!("task not found"))?;
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     let _ = db.log_activity(
         &board_id,
         Some(&tid),
@@ -122,9 +140,13 @@ pub async fn move_task(
     Json(body): Json<MoveTask>,
 ) -> Result<Json<Task>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    let existing = db.get_task(&tid)?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if existing.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
     let task = db
         .move_task(&tid, &body.column_id, body.position)?
-        .ok_or_else(|| anyhow::anyhow!("task not found"))?;
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     let _ = db.log_activity(
         &board_id,
         Some(&tid),
@@ -141,17 +163,20 @@ pub async fn delete(
     Path((board_id, tid)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let task_title = db.get_task(&tid)?.map(|t| t.title).unwrap_or_default();
+    let existing = db.get_task(&tid)?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if existing.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
     let deleted = db.delete_task(&tid)?;
     if !deleted {
-        return Err(anyhow::anyhow!("task not found").into());
+        return Err(ApiError::NotFound("task not found".into()));
     }
     let _ = db.log_activity(
         &board_id,
         Some(&tid),
         &user.id,
         "task_deleted",
-        Some(&serde_json::json!({"title": &task_title}).to_string()),
+        Some(&serde_json::json!({"title": &existing.title}).to_string()),
     );
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

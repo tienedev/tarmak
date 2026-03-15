@@ -1,13 +1,17 @@
 use axum::{
     body::Body,
-    extract::Extension,
+    extract::{ConnectInfo, Extension},
     http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+/// Maximum number of tracked IPs before forced cleanup.
+const MAX_TRACKED_IPS: usize = 10_000;
 
 /// Simple in-memory per-IP rate limiter.
 #[derive(Clone)]
@@ -42,7 +46,8 @@ impl RateLimiter {
         };
 
         // Probabilistic cleanup of stale entries (~1 in 256 calls)
-        if rand::random::<u8>() == 0 {
+        // or forced cleanup when map exceeds size limit
+        if rand::random::<u8>() == 0 || map.len() > MAX_TRACKED_IPS {
             map.retain(|_, v| !v.is_empty());
         }
 
@@ -51,10 +56,19 @@ impl RateLimiter {
 }
 
 fn extract_client_ip(req: &Request<Body>) -> String {
-    req.headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or("unknown").trim().to_string())
+    // Prefer X-Forwarded-For if present (behind reverse proxy)
+    if let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok())
+        && let Some(first) = xff.split(',').next()
+    {
+        let ip = first.trim();
+        if !ip.is_empty() {
+            return ip.to_string();
+        }
+    }
+    // Fall back to actual TCP peer address
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ci| ci.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string())
 }
 

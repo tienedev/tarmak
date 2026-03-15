@@ -6,7 +6,7 @@ use super::error::ApiError;
 /// Role hierarchy: owner > member > viewer
 pub fn require_role(db: &Db, board_id: &str, user_id: &str, min_role: Role) -> Result<Role, ApiError> {
     let role = db.get_board_member(board_id, user_id)?
-        .ok_or_else(|| anyhow::anyhow!("not a member of this board"))?;
+        .ok_or_else(|| ApiError::Forbidden("not a member of this board".into()))?;
 
     let level = role_level(&role);
     let required = role_level(&min_role);
@@ -14,7 +14,7 @@ pub fn require_role(db: &Db, board_id: &str, user_id: &str, min_role: Role) -> R
     if level >= required {
         Ok(role)
     } else {
-        Err(anyhow::anyhow!("insufficient permissions").into())
+        Err(ApiError::Forbidden("insufficient permissions".into()))
     }
 }
 

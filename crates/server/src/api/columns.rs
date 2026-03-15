@@ -60,7 +60,7 @@ pub async fn update(
     let color = body.color.as_ref().map(|c| c.as_deref());
     let updated = db.update_column(&cid, body.name.as_deref(), body.wip_limit, color)?;
     if !updated {
-        return Err(anyhow::anyhow!("column not found").into());
+        return Err(ApiError::NotFound("column not found".into()));
     }
     let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
         Some(&serde_json::json!({"column_id": &cid}).to_string()));
@@ -75,7 +75,7 @@ pub async fn delete(
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
     let deleted = db.delete_column(&cid)?;
     if !deleted {
-        return Err(anyhow::anyhow!("column not found").into());
+        return Err(ApiError::NotFound("column not found".into()));
     }
     let _ = db.log_activity(&board_id, None, &user.id, "column_deleted",
         Some(&serde_json::json!({"column_id": &cid}).to_string()));

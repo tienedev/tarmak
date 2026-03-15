@@ -94,16 +94,30 @@ async fn run_http_server() -> anyhow::Result<()> {
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::X_FRAME_OPTIONS,
             HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("strict-transport-security"),
+            HeaderValue::from_static("max-age=63072000; includeSubDomains"),
         ));
 
     let addr = "0.0.0.0:3001";
     tracing::info!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 
 async fn run_mcp_stdio() -> anyhow::Result<()> {
+    eprintln!("WARNING: MCP stdio mode has no authentication. Intended for local single-user use only.");
+
     let db_path =
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
     let db = db::Db::new(&db_path)?;
