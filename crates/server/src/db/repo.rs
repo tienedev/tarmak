@@ -606,6 +606,159 @@ impl Db {
 }
 
 // ---------------------------------------------------------------------------
+// Subtasks
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub fn create_subtask(&self, task_id: &str, title: &str) -> anyhow::Result<Subtask> {
+        self.with_conn(|conn| {
+            let id = new_id();
+            let now = now_iso();
+            let position: i32 = conn
+                .query_row(
+                    "SELECT COALESCE(MAX(position), -1) + 1 FROM subtasks WHERE task_id = ?1",
+                    params![task_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            conn.execute(
+                "INSERT INTO subtasks (id, task_id, title, completed, position, created_at) VALUES (?1, ?2, ?3, 0, ?4, ?5)",
+                params![id, task_id, title, position, now],
+            ).context("insert subtask")?;
+            Ok(Subtask {
+                id,
+                task_id: task_id.to_string(),
+                title: title.to_string(),
+                completed: false,
+                position,
+                created_at: Utc::now(),
+            })
+        })
+    }
+
+    pub fn list_subtasks(&self, task_id: &str) -> anyhow::Result<Vec<Subtask>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE task_id = ?1 ORDER BY position",
+            )?;
+            let rows = stmt.query_map(params![task_id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+
+    pub fn get_subtask(&self, id: &str) -> anyhow::Result<Option<Subtask>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn update_subtask(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        completed: Option<bool>,
+        position: Option<i32>,
+    ) -> anyhow::Result<Option<Subtask>> {
+        self.with_conn(|conn| {
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            if let Some(t) = title {
+                sets.push("title = ?");
+                values.push(Box::new(t.to_string()));
+            }
+            if let Some(c) = completed {
+                sets.push("completed = ?");
+                values.push(Box::new(c as i32));
+            }
+            if let Some(p) = position {
+                sets.push("position = ?");
+                values.push(Box::new(p));
+            }
+            if !sets.is_empty() {
+                values.push(Box::new(id.to_string()));
+                let sql = format!("UPDATE subtasks SET {} WHERE id = ?", sets.join(", "));
+                let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+                conn.execute(&sql, param_refs.as_slice())?;
+            }
+            // Return updated subtask
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn delete_subtask(&self, id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute("DELETE FROM subtasks WHERE id = ?1", params![id])?;
+            Ok(affected > 0)
+        })
+    }
+
+    /// Get subtask counts for all tasks in a board (avoids N+1).
+    pub fn get_subtask_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, SubtaskCount)>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT s.task_id, COUNT(*) as total, SUM(s.completed) as done
+                 FROM subtasks s
+                 INNER JOIN tasks t ON t.id = s.task_id
+                 WHERE t.board_id = ?1
+                 GROUP BY s.task_id",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                let task_id: String = row.get(0)?;
+                let total: i32 = row.get(1)?;
+                let completed: i32 = row.get(2)?;
+                Ok((task_id, SubtaskCount { completed, total }))
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Custom Fields
 // ---------------------------------------------------------------------------
 
