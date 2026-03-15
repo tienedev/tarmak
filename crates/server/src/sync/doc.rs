@@ -53,13 +53,13 @@ impl BoardDocManager {
         let doc = self.get_or_create(board_id).await;
 
         // Try loading persisted CRDT state first
-        if let Some(state_bytes) = db.load_crdt_state(board_id)? {
-            if let Ok(update) = Update::decode_v1(&state_bytes) {
-                let mut txn = doc.transact_mut();
-                let _ = txn.apply_update(update);
-                drop(txn);
-                return Ok(doc);
-            }
+        if let Some(state_bytes) = db.load_crdt_state(board_id)?
+            && let Ok(update) = Update::decode_v1(&state_bytes)
+        {
+            let mut txn = doc.transact_mut();
+            let _ = txn.apply_update(update);
+            drop(txn);
+            return Ok(doc);
         }
 
         // Fall back to building from database rows
