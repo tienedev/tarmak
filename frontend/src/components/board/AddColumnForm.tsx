@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useBoardStore } from '@/stores/board'
@@ -50,7 +50,7 @@ export function AddColumnForm({ boardId }: AddColumnFormProps) {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="flex h-10 w-72 shrink-0 items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border/60 text-xs font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted/30 hover:text-foreground"
+        className="flex h-10 w-72 shrink-0 items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-foreground/10 text-xs font-medium text-muted-foreground transition-all hover:border-foreground/20 hover:bg-foreground/[3%] hover:text-foreground"
       >
         <Plus className="size-3.5" />
         Add column
@@ -59,7 +59,7 @@ export function AddColumnForm({ boardId }: AddColumnFormProps) {
   }
 
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-3">
+    <div className="flex w-72 shrink-0 flex-col gap-2 rounded-2xl glass-subtle glass-border p-3">
       <Input
         ref={inputRef}
         placeholder="Column name..."
@@ -86,7 +86,8 @@ export function AddColumnForm({ boardId }: AddColumnFormProps) {
           disabled={!name.trim() || submitting}
           className="h-6 text-xs"
         >
-          Add
+          {submitting && <Loader2 className="size-3 animate-spin" />}
+          {submitting ? 'Adding…' : 'Add'}
         </Button>
       </div>
     </div>
