@@ -176,6 +176,7 @@ pub struct Task {
     pub description: Option<String>,
     pub priority: Priority,
     pub assignee: Option<String>,
+    pub due_date: Option<String>,
     pub position: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -244,9 +245,20 @@ pub struct ActivityEntry {
     pub task_id: Option<String>,
     pub user_id: String,
     pub user_name: String,
+    pub is_agent: bool,
     pub action: String,
     pub details: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub board_id: String,
+    pub task_id: String,
+    pub snippet: String,
+    pub rank: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -257,4 +269,41 @@ pub struct ApiKey {
     pub key_prefix: String,
     pub created_at: DateTime<Utc>,
     pub last_used_at: Option<DateTime<Utc>>,
+}
+
+// ---------------------------------------------------------------------------
+// Labels, Subtasks, TaskWithRelations
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Label {
+    pub id: String,
+    pub board_id: String,
+    pub name: String,
+    pub color: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Subtask {
+    pub id: String,
+    pub task_id: String,
+    pub title: String,
+    pub completed: bool,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubtaskCount {
+    pub completed: i32,
+    pub total: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskWithRelations {
+    #[serde(flatten)]
+    pub task: Task,
+    pub labels: Vec<Label>,
+    pub subtask_count: SubtaskCount,
 }

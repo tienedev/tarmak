@@ -295,6 +295,7 @@ impl Db {
                 description: description.map(String::from),
                 priority,
                 assignee: assignee.map(String::from),
+                due_date: None,
                 position: pos,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
@@ -309,7 +310,7 @@ impl Db {
     pub fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks WHERE board_id = ?1 ORDER BY position LIMIT ?2 OFFSET ?3",
             )?;
             let rows = stmt.query_map(params![board_id, limit, offset], map_task_row)?;
@@ -321,7 +322,7 @@ impl Db {
     pub fn list_tasks_in_column(&self, column_id: &str) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks WHERE column_id = ?1 ORDER BY position",
             )?;
             let rows = stmt.query_map(params![column_id], map_task_row)?;
@@ -336,6 +337,7 @@ impl Db {
         description: Option<Option<&str>>,
         priority: Option<Priority>,
         assignee: Option<Option<&str>>,
+        due_date: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Task>> {
         self.with_conn(|conn| {
             let mut sets = Vec::new();
@@ -356,6 +358,10 @@ impl Db {
             if let Some(a) = assignee {
                 sets.push("assignee = ?");
                 values.push(Box::new(a.map(|s| s.to_string())));
+            }
+            if let Some(d) = due_date {
+                sets.push("due_date = ?");
+                values.push(Box::new(d.map(|s| s.to_string())));
             }
 
             if !sets.is_empty() {
@@ -411,15 +417,16 @@ fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         description: row.get(4)?,
         priority: Priority::from_str_db(&priority_str).unwrap_or(Priority::Medium),
         assignee: row.get(6)?,
-        position: row.get(7)?,
-        created_at: parse_dt(&row.get::<_, String>(8)?)?,
-        updated_at: parse_dt(&row.get::<_, String>(9)?)?,
+        due_date: row.get(7)?,
+        position: row.get(8)?,
+        created_at: parse_dt(&row.get::<_, String>(9)?)?,
+        updated_at: parse_dt(&row.get::<_, String>(10)?)?,
     })
 }
 
 fn get_task_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Task>> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
+        "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
          FROM tasks WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(params![id], map_task_row)?;
@@ -437,6 +444,323 @@ fn collect_rows(
         out.push(r?);
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// Labels
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub fn create_label(&self, board_id: &str, name: &str, color: &str) -> anyhow::Result<Label> {
+        self.with_conn(|conn| {
+            let id = new_id();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO labels (id, board_id, name, color, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, board_id, name, color, now],
+            ).context("insert label")?;
+            Ok(Label {
+                id,
+                board_id: board_id.to_string(),
+                name: name.to_string(),
+                color: color.to_string(),
+                created_at: Utc::now(),
+            })
+        })
+    }
+
+    pub fn list_labels(&self, board_id: &str) -> anyhow::Result<Vec<Label>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, name, color, created_at FROM labels WHERE board_id = ?1 ORDER BY created_at",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                Ok(Label {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    color: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+
+    pub fn get_label(&self, id: &str) -> anyhow::Result<Option<Label>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, name, color, created_at FROM labels WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![id], |row| {
+                Ok(Label {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    color: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn update_label(&self, id: &str, name: Option<&str>, color: Option<&str>) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            if let Some(n) = name {
+                sets.push("name = ?");
+                values.push(Box::new(n.to_string()));
+            }
+            if let Some(c) = color {
+                sets.push("color = ?");
+                values.push(Box::new(c.to_string()));
+            }
+            if sets.is_empty() { return Ok(false); }
+            values.push(Box::new(id.to_string()));
+            let sql = format!("UPDATE labels SET {} WHERE id = ?", sets.join(", "));
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+            let affected = conn.execute(&sql, param_refs.as_slice())?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn delete_label(&self, id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute("DELETE FROM labels WHERE id = ?1", params![id])?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn add_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                params![task_id, label_id],
+            ).context("add task label")?;
+            Ok(())
+        })
+    }
+
+    pub fn remove_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute(
+                "DELETE FROM task_labels WHERE task_id = ?1 AND label_id = ?2",
+                params![task_id, label_id],
+            )?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn get_task_labels(&self, task_id: &str) -> anyhow::Result<Vec<Label>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT l.id, l.board_id, l.name, l.color, l.created_at
+                 FROM labels l
+                 INNER JOIN task_labels tl ON tl.label_id = l.id
+                 WHERE tl.task_id = ?1
+                 ORDER BY l.name",
+            )?;
+            let rows = stmt.query_map(params![task_id], |row| {
+                Ok(Label {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    color: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+
+    /// Batch load labels for all tasks in a board (avoids N+1).
+    pub fn get_labels_for_board_tasks(&self, board_id: &str) -> anyhow::Result<Vec<(String, Label)>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT tl.task_id, l.id, l.board_id, l.name, l.color, l.created_at
+                 FROM task_labels tl
+                 INNER JOIN labels l ON l.id = tl.label_id
+                 WHERE l.board_id = ?1
+                 ORDER BY l.name",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                let task_id: String = row.get(0)?;
+                let label = Label {
+                    id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    name: row.get(3)?,
+                    color: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                };
+                Ok((task_id, label))
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Subtasks
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub fn create_subtask(&self, task_id: &str, title: &str) -> anyhow::Result<Subtask> {
+        self.with_conn(|conn| {
+            let id = new_id();
+            let now = now_iso();
+            let position: i32 = conn
+                .query_row(
+                    "SELECT COALESCE(MAX(position), -1) + 1 FROM subtasks WHERE task_id = ?1",
+                    params![task_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            conn.execute(
+                "INSERT INTO subtasks (id, task_id, title, completed, position, created_at) VALUES (?1, ?2, ?3, 0, ?4, ?5)",
+                params![id, task_id, title, position, now],
+            ).context("insert subtask")?;
+            Ok(Subtask {
+                id,
+                task_id: task_id.to_string(),
+                title: title.to_string(),
+                completed: false,
+                position,
+                created_at: Utc::now(),
+            })
+        })
+    }
+
+    pub fn list_subtasks(&self, task_id: &str) -> anyhow::Result<Vec<Subtask>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE task_id = ?1 ORDER BY position",
+            )?;
+            let rows = stmt.query_map(params![task_id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
+
+    pub fn get_subtask(&self, id: &str) -> anyhow::Result<Option<Subtask>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn update_subtask(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        completed: Option<bool>,
+        position: Option<i32>,
+    ) -> anyhow::Result<Option<Subtask>> {
+        self.with_conn(|conn| {
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            if let Some(t) = title {
+                sets.push("title = ?");
+                values.push(Box::new(t.to_string()));
+            }
+            if let Some(c) = completed {
+                sets.push("completed = ?");
+                values.push(Box::new(c as i32));
+            }
+            if let Some(p) = position {
+                sets.push("position = ?");
+                values.push(Box::new(p));
+            }
+            if !sets.is_empty() {
+                values.push(Box::new(id.to_string()));
+                let sql = format!("UPDATE subtasks SET {} WHERE id = ?", sets.join(", "));
+                let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+                conn.execute(&sql, param_refs.as_slice())?;
+            }
+            // Return updated subtask
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn delete_subtask(&self, id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute("DELETE FROM subtasks WHERE id = ?1", params![id])?;
+            Ok(affected > 0)
+        })
+    }
+
+    /// Get subtask counts for all tasks in a board (avoids N+1).
+    pub fn get_subtask_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, SubtaskCount)>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT s.task_id, COUNT(*) as total, SUM(s.completed) as done
+                 FROM subtasks s
+                 INNER JOIN tasks t ON t.id = s.task_id
+                 WHERE t.board_id = ?1
+                 GROUP BY s.task_id",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                let task_id: String = row.get(0)?;
+                let total: i32 = row.get(1)?;
+                let completed: i32 = row.get(2)?;
+                Ok((task_id, SubtaskCount { completed, total }))
+            })?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1018,6 +1342,7 @@ impl Db {
         self.with_conn(|conn| {
             let mut sql = String::from(
                 "SELECT a.id, a.board_id, a.task_id, a.user_id, COALESCE(u.name, 'Unknown') as user_name,
+                        COALESCE(u.is_agent, 0) as is_agent,
                         a.action, a.details, a.created_at
                  FROM activity a
                  LEFT JOIN users u ON u.id = a.user_id
@@ -1062,9 +1387,51 @@ impl Db {
                     task_id: row.get(2)?,
                     user_id: row.get(3)?,
                     user_name: row.get(4)?,
-                    action: row.get(5)?,
-                    details: row.get(6)?,
-                    created_at: parse_dt(&row.get::<_, String>(7)?)?,
+                    is_agent: row.get::<_, i64>(5)? != 0,
+                    action: row.get(6)?,
+                    details: row.get(7)?,
+                    created_at: parse_dt(&row.get::<_, String>(8)?)?,
+                })
+            })?;
+            let mut result = Vec::new();
+            for r in rows {
+                result.push(r?);
+            }
+            Ok(result)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+
+impl Db {
+    /// Full-text search across tasks, comments, and subtasks for a board.
+    pub fn search_board(
+        &self,
+        board_id: &str,
+        query: &str,
+        limit: i64,
+    ) -> anyhow::Result<Vec<SearchResult>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT entity_type, entity_id, board_id, task_id,
+                        snippet(search_index, 4, '<mark>', '</mark>', '...', 32) as snippet,
+                        rank
+                 FROM search_index
+                 WHERE search_index MATCH ?1 AND board_id = ?2
+                 ORDER BY rank
+                 LIMIT ?3",
+            )?;
+            let rows = stmt.query_map(params![query, board_id, limit], |row| {
+                Ok(SearchResult {
+                    entity_type: row.get(0)?,
+                    entity_id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    task_id: row.get(3)?,
+                    snippet: row.get(4)?,
+                    rank: row.get(5)?,
                 })
             })?;
             let mut result = Vec::new();
@@ -1267,7 +1634,7 @@ mod tests {
 
         // Update
         let updated = db
-            .update_task(&t1.id, Some("Task 1 Updated"), None, Some(Priority::High), None)
+            .update_task(&t1.id, Some("Task 1 Updated"), None, Some(Priority::High), None, None)
             .unwrap()
             .expect("task exists");
         assert_eq!(updated.title, "Task 1 Updated");

@@ -6,9 +6,12 @@ pub mod columns;
 pub mod comments;
 pub mod custom_fields;
 pub mod error;
+pub mod labels;
 pub mod middleware;
 pub mod permissions;
 pub mod rate_limit;
+pub mod search;
+pub mod subtasks;
 pub mod tasks;
 pub mod validation;
 
@@ -38,15 +41,29 @@ pub fn router(db: Db) -> Router {
         .route("/", get(custom_fields::get_values))
         .route("/{fid}", put(custom_fields::set_value));
 
+    let task_labels = Router::new()
+        .route("/", post(labels::attach))
+        .route("/{lid}", axum::routing::delete(labels::detach));
+
+    let task_subtasks = Router::new()
+        .route("/", get(subtasks::list).post(subtasks::create))
+        .route("/{sid}", put(subtasks::update).delete(subtasks::delete));
+
     let task_item = Router::new()
         .route("/", get(tasks::get).put(tasks::update).delete(tasks::delete))
         .route("/move", patch(tasks::move_task))
         .nest("/fields", task_fields)
-        .route("/comments", get(comments::list).post(comments::create));
+        .route("/comments", get(comments::list).post(comments::create))
+        .nest("/labels", task_labels)
+        .nest("/subtasks", task_subtasks);
 
     let board_tasks = Router::new()
         .route("/", get(tasks::list).post(tasks::create))
         .nest("/{tid}", task_item);
+
+    let board_labels = Router::new()
+        .route("/", get(labels::list).post(labels::create))
+        .route("/{lid}", put(labels::update).delete(labels::delete));
 
     let board_fields = Router::new()
         .route("/", get(custom_fields::list).post(custom_fields::create));
@@ -55,8 +72,10 @@ pub fn router(db: Db) -> Router {
         .merge(board_item)
         .route("/members", get(boards::members))
         .route("/activity", get(activity::list))
+        .route("/search", get(search::search))
         .nest("/columns", columns)
         .nest("/tasks", board_tasks)
+        .nest("/labels", board_labels)
         .nest("/fields", board_fields);
 
     let boards = Router::new()
@@ -67,6 +86,7 @@ pub fn router(db: Db) -> Router {
         .route("/query", post(mcp_api::query))
         .route("/mutate", post(mcp_api::mutate))
         .route("/sync", post(mcp_api::sync))
+        .route("/ask", post(mcp_api::ask))
         .nest("/sse", mcp_sse::sse_router(db.clone()));
 
     // API key management routes

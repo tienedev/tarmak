@@ -24,6 +24,7 @@ import {
   UserPlus,
   Columns3,
   Tag,
+  Bot,
 } from 'lucide-react'
 
 const PAGE_SIZE = 50
@@ -131,6 +132,7 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
   const [hasMore, setHasMore] = useState(true)
   const [actionFilter, setActionFilter] = useState('__all__')
   const [userFilter, setUserFilter] = useState('__all__')
+  const [agentFilter, setAgentFilter] = useState<'all' | 'humans' | 'agents'>('all')
 
   const fetchEntries = useCallback(
     async (offset = 0, append = false) => {
@@ -174,43 +176,73 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
         </SheetHeader>
 
         {/* Filters */}
-        <div className="flex gap-2 pb-3">
-          <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '__all__')}>
-            <SelectTrigger size="sm" className="flex-1 pl-2.5 text-xs">
-              {actionTypes.find((t) => t.value === actionFilter)?.label ?? 'All actions'}
-            </SelectTrigger>
-            <SelectContent>
-              {actionTypes.map((t) => (
-                <SelectItem key={t.value} value={t.value} className="text-xs">
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={userFilter} onValueChange={(v) => setUserFilter(v ?? '__all__')}>
-            <SelectTrigger size="sm" className="flex-1 pl-2.5 text-xs">
-              {userFilter === '__all__'
-                ? 'All users'
-                : members.find((m) => m.id === userFilter)?.name ?? 'All users'}
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__" className="text-xs">All users</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.id} value={m.id} className="text-xs">
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-2 pb-3">
+          <div className="flex gap-2">
+            <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '__all__')}>
+              <SelectTrigger size="sm" className="flex-1 pl-2.5 text-xs">
+                {actionTypes.find((t) => t.value === actionFilter)?.label ?? 'All actions'}
+              </SelectTrigger>
+              <SelectContent>
+                {actionTypes.map((t) => (
+                  <SelectItem key={t.value} value={t.value} className="text-xs">
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={userFilter} onValueChange={(v) => setUserFilter(v ?? '__all__')}>
+              <SelectTrigger size="sm" className="flex-1 pl-2.5 text-xs">
+                {userFilter === '__all__'
+                  ? 'All users'
+                  : members.find((m) => m.id === userFilter)?.name ?? 'All users'}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__" className="text-xs">All users</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.id} className="text-xs">
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-1">
+            {(['all', 'humans', 'agents'] as const).map((f) => (
+              <Button
+                key={f}
+                variant={agentFilter === f ? 'default' : 'outline'}
+                size="xs"
+                className="text-xs capitalize"
+                onClick={() => setAgentFilter(f)}
+              >
+                {f === 'agents' && <Bot className="mr-1 size-3" />}
+                {f}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Feed */}
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-1 pr-3">
-            {entries.map((entry) => (
+            {entries
+              .filter((e) => {
+                if (agentFilter === 'humans') return !e.is_agent
+                if (agentFilter === 'agents') return e.is_agent
+                return true
+              })
+              .map((entry) => (
               <div key={entry.id} className="flex items-start gap-3 rounded-md px-2 py-2 hover:bg-muted/50">
-                <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  {actionIcons[entry.action] ?? <Pencil className="size-3.5" />}
+                <div
+                  className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${
+                    entry.is_agent
+                      ? 'bg-violet-100 text-violet-600'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {entry.is_agent
+                    ? <Bot className="size-3.5" />
+                    : (actionIcons[entry.action] ?? <Pencil className="size-3.5" />)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm leading-snug text-foreground">

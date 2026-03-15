@@ -21,10 +21,14 @@ use super::kbf_bridge;
 pub struct BoardQueryParams {
     /// Board ID, or "list" to list all boards.
     pub board_id: String,
-    /// "info" | "tasks" | "columns" | "all" (default: "all")
+    /// "info" | "tasks" | "columns" | "labels" | "subtasks" | "search" | "all" (default: "all")
     pub scope: Option<String>,
     /// "kbf" | "json" (default: "kbf")
     pub format: Option<String>,
+    /// Task ID, required when scope = "subtasks"
+    pub task_id: Option<String>,
+    /// Search query, required when scope = "search"
+    pub query: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -40,6 +44,14 @@ pub struct BoardSyncParams {
     /// Optional KBF delta string to apply before returning state.
     pub delta: Option<String>,
     /// "kbf" | "json" (default: "kbf")
+    pub format: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BoardAskParams {
+    pub board_id: String,
+    pub question: String,
+    /// "text" (default) | "kbf" | "json"
     pub format: Option<String>,
 }
 
@@ -78,8 +90,8 @@ impl KanbanMcpServer {
         let board_id = &params.board_id;
 
         match format {
-            "kbf" => self.query_kbf(board_id, scope),
-            "json" => self.query_json(board_id, scope),
+            "kbf" => self.query_kbf(board_id, scope, &params),
+            "json" => self.query_json(board_id, scope, &params),
             other => bail!("unsupported format: {other}"),
         }
     }
@@ -95,17 +107,33 @@ impl KanbanMcpServer {
         }
     }
 
-    fn query_kbf(&self, board_id: &str, scope: &str) -> Result<String> {
+    fn query_kbf(&self, board_id: &str, scope: &str, params: &BoardQueryParams) -> Result<String> {
         match scope {
             "info" => kbf_bridge::encode_board_info(&self.db, board_id),
             "tasks" => kbf_bridge::encode_board_tasks(&self.db, board_id),
             "columns" => kbf_bridge::encode_board_columns(&self.db, board_id),
+            "labels" => kbf_bridge::encode_board_labels(&self.db, board_id),
+            "subtasks" => {
+                let task_id = params.task_id.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("task_id required for subtasks scope"))?;
+                let task = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if task.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                kbf_bridge::encode_task_subtasks(&self.db, task_id)
+            }
+            "search" => {
+                let query = params.query.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
+                kbf_bridge::encode_search_results(&self.db, board_id, query)
+            }
             "all" => kbf_bridge::encode_board_all(&self.db, board_id),
             other => bail!("unsupported scope: {other}"),
         }
     }
 
-    fn query_json(&self, board_id: &str, scope: &str) -> Result<String> {
+    fn query_json(&self, board_id: &str, scope: &str, params: &BoardQueryParams) -> Result<String> {
         match scope {
             "info" => {
                 let board = self
@@ -122,6 +150,27 @@ impl KanbanMcpServer {
                 let columns = self.db.list_columns(board_id)?;
                 Ok(serde_json::to_string(&columns)?)
             }
+            "labels" => {
+                let labels = self.db.list_labels(board_id)?;
+                Ok(serde_json::to_string(&labels)?)
+            }
+            "subtasks" => {
+                let task_id = params.task_id.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("task_id required for subtasks scope"))?;
+                let task = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if task.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                let subtasks = self.db.list_subtasks(task_id)?;
+                Ok(serde_json::to_string(&subtasks)?)
+            }
+            "search" => {
+                let query = params.query.as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
+                let results = self.db.search_board(board_id, query, 20)?;
+                Ok(serde_json::to_string(&results)?)
+            }
             "all" => {
                 let board = self
                     .db
@@ -129,10 +178,12 @@ impl KanbanMcpServer {
                     .ok_or_else(|| anyhow::anyhow!("board not found: {board_id}"))?;
                 let columns = self.db.list_columns(board_id)?;
                 let tasks = self.db.list_tasks(board_id, i64::MAX, 0)?;
+                let labels = self.db.list_labels(board_id)?;
                 let result = serde_json::json!({
                     "board": board,
                     "columns": columns,
                     "tasks": tasks,
+                    "labels": labels,
                 });
                 Ok(serde_json::to_string(&result)?)
             }
@@ -186,10 +237,13 @@ impl KanbanMcpServer {
                 let assignee = data
                     .get("assignee")
                     .map(|v| v.as_str());
+                let due_date = data
+                    .get("due_date")
+                    .map(|v| v.as_str());
 
                 let task = self
                     .db
-                    .update_task(task_id, title, description, priority, assignee)?
+                    .update_task(task_id, title, description, priority, assignee, due_date)?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 Ok(format!("updated task {}", task.id))
             }
@@ -319,6 +373,96 @@ impl KanbanMcpServer {
                 let comment = self.db.create_comment(task_id, user_id, content)?;
                 Ok(format!("added comment {}", comment.id))
             }
+            // ----- Labels -----
+            "create_label" => {
+                let name = json_str(data, "name")?;
+                let color = json_str(data, "color")?;
+                let label = self.db.create_label(board_id, name, color)?;
+                Ok(format!("created label {}", label.id))
+            }
+            "update_label" => {
+                let label_id = json_str(data, "label_id")?;
+                let existing = self.db.get_label(label_id)?
+                    .ok_or_else(|| anyhow::anyhow!("label not found: {label_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("label {label_id} does not belong to board {board_id}");
+                }
+                let name = data.get("name").and_then(Value::as_str);
+                let color = data.get("color").and_then(Value::as_str);
+                self.db.update_label(label_id, name, color)?;
+                Ok(format!("updated label {label_id}"))
+            }
+            "delete_label" => {
+                let label_id = json_str(data, "label_id")?;
+                let existing = self.db.get_label(label_id)?
+                    .ok_or_else(|| anyhow::anyhow!("label not found: {label_id}"))?;
+                if existing.board_id != *board_id {
+                    bail!("label {label_id} does not belong to board {board_id}");
+                }
+                self.db.delete_label(label_id)?;
+                Ok(format!("deleted label {label_id}"))
+            }
+            "add_label" => {
+                let task_id = json_str(data, "task_id")?;
+                let label_id = json_str(data, "label_id")?;
+                let task = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if task.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                self.db.add_task_label(task_id, label_id)?;
+                Ok(format!("added label {label_id} to task {task_id}"))
+            }
+            "remove_label" => {
+                let task_id = json_str(data, "task_id")?;
+                let label_id = json_str(data, "label_id")?;
+                let task = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if task.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                self.db.remove_task_label(task_id, label_id)?;
+                Ok(format!("removed label {label_id} from task {task_id}"))
+            }
+            // ----- Subtasks -----
+            "create_subtask" => {
+                let task_id = json_str(data, "task_id")?;
+                let title = json_str(data, "title")?;
+                let task = self.db.get_task(task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+                if task.board_id != *board_id {
+                    bail!("task {task_id} does not belong to board {board_id}");
+                }
+                let subtask = self.db.create_subtask(task_id, title)?;
+                Ok(format!("created subtask {}", subtask.id))
+            }
+            "update_subtask" => {
+                let subtask_id = json_str(data, "subtask_id")?;
+                let existing = self.db.get_subtask(subtask_id)?
+                    .ok_or_else(|| anyhow::anyhow!("subtask not found: {subtask_id}"))?;
+                // Verify subtask's parent task belongs to board
+                let task = self.db.get_task(&existing.task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("parent task not found"))?;
+                if task.board_id != *board_id {
+                    bail!("subtask {subtask_id} does not belong to board {board_id}");
+                }
+                let title = data.get("title").and_then(Value::as_str);
+                let completed = data.get("completed").and_then(Value::as_bool);
+                self.db.update_subtask(subtask_id, title, completed, None)?;
+                Ok(format!("updated subtask {subtask_id}"))
+            }
+            "delete_subtask" => {
+                let subtask_id = json_str(data, "subtask_id")?;
+                let existing = self.db.get_subtask(subtask_id)?
+                    .ok_or_else(|| anyhow::anyhow!("subtask not found: {subtask_id}"))?;
+                let task = self.db.get_task(&existing.task_id)?
+                    .ok_or_else(|| anyhow::anyhow!("parent task not found"))?;
+                if task.board_id != *board_id {
+                    bail!("subtask {subtask_id} does not belong to board {board_id}");
+                }
+                self.db.delete_subtask(subtask_id)?;
+                Ok(format!("deleted subtask {subtask_id}"))
+            }
             other => bail!("unknown action: {other}"),
         }
     }
@@ -343,7 +487,20 @@ impl KanbanMcpServer {
             board_id,
             scope: Some("all".to_string()),
             format: params.format,
+            task_id: None,
+            query: None,
         })
+    }
+
+    // -----------------------------------------------------------------------
+    // board_ask
+    // -----------------------------------------------------------------------
+
+    /// Handle a board_ask request — natural language query dispatch.
+    pub fn handle_ask(&self, params: BoardAskParams) -> Result<String> {
+        let format = params.format.as_deref().unwrap_or("text");
+        let engine = super::board_ask::AskEngine::new(self.db.clone());
+        engine.answer(&params.board_id, &params.question, format)
     }
 
     /// Parse and apply KBF delta operations to the database.
@@ -396,17 +553,17 @@ impl KanbanMcpServer {
         match field {
             "title" => {
                 self.db
-                    .update_task(task_id, Some(value), None, None, None)?;
+                    .update_task(task_id, Some(value), None, None, None, None)?;
             }
             "desc" => {
                 self.db
-                    .update_task(task_id, None, Some(Some(value)), None, None)?;
+                    .update_task(task_id, None, Some(Some(value)), None, None, None)?;
             }
             "pri" => {
                 let priority = kbf_bridge::priority_from_short_or_full(value)
                     .ok_or_else(|| anyhow::anyhow!("invalid priority: {value}"))?;
                 self.db
-                    .update_task(task_id, None, None, Some(priority), None)?;
+                    .update_task(task_id, None, None, Some(priority), None, None)?;
             }
             "who" => {
                 let assignee = if value.is_empty() {
@@ -415,7 +572,11 @@ impl KanbanMcpServer {
                     Some(Some(value))
                 };
                 self.db
-                    .update_task(task_id, None, None, None, assignee)?;
+                    .update_task(task_id, None, None, None, assignee, None)?;
+            }
+            "due" => {
+                let due = if value.is_empty() { Some(None) } else { Some(Some(value)) };
+                self.db.update_task(task_id, None, None, None, None, due)?;
             }
             "col" => {
                 // Move task to different column, keep position 0
@@ -550,6 +711,17 @@ pub mod api {
         let result = server.handle_sync(params)?;
         Ok(Json(serde_json::json!({ "result": result })))
     }
+
+    pub async fn ask(
+        State(db): State<Db>,
+        AuthUser(user): AuthUser,
+        Json(params): Json<BoardAskParams>,
+    ) -> Result<Json<Value>, ApiError> {
+        permissions::require_role(&db, &params.board_id, &user.id, Role::Viewer)?;
+        let server = KanbanMcpServer::new(db);
+        let result = server.handle_ask(params)?;
+        Ok(Json(serde_json::json!({ "result": result })))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -589,6 +761,8 @@ mod tests {
                 board_id: "list".into(),
                 scope: None,
                 format: None, // defaults to kbf
+                task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -608,6 +782,8 @@ mod tests {
                 board_id: "list".into(),
                 scope: None,
                 format: Some("json".into()),
+                task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -630,13 +806,15 @@ mod tests {
                 board_id: board_id.clone(),
                 scope: Some("all".into()),
                 format: None,
+                task_id: None,
+                query: None,
             })
             .unwrap();
 
-        // Should contain all three KBF sections
+        // Should contain all four KBF sections
         assert!(result.contains("#board@v1:"));
         assert!(result.contains("#col@v1:"));
-        assert!(result.contains("#task@v1:"));
+        assert!(result.contains("#task@v2:"));
     }
 
     #[test]
@@ -652,10 +830,12 @@ mod tests {
                 board_id: board_id.clone(),
                 scope: Some("tasks".into()),
                 format: Some("kbf".into()),
+                task_id: None,
+                query: None,
             })
             .unwrap();
 
-        assert!(result.starts_with("#task@v1:"));
+        assert!(result.starts_with("#task@v2:"));
         assert!(result.contains("Task 1"));
         // Should NOT contain board or column schemas
         assert!(!result.contains("#board@v1:"));
@@ -675,6 +855,8 @@ mod tests {
                 board_id: board_id.clone(),
                 scope: Some("all".into()),
                 format: Some("json".into()),
+                task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -696,6 +878,8 @@ mod tests {
                 board_id: board_id.clone(),
                 scope: Some("info".into()),
                 format: Some("json".into()),
+                task_id: None,
+                query: None,
             })
             .unwrap();
 
@@ -713,6 +897,8 @@ mod tests {
             board_id,
             scope: None,
             format: Some("xml".into()),
+            task_id: None,
+            query: None,
         });
 
         assert!(result.is_err());

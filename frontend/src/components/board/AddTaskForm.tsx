@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -62,7 +62,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-all hover:bg-foreground/[5%] hover:text-foreground"
       >
         <Plus className="size-3.5" />
         <span>Add task</span>
@@ -71,7 +71,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
   }
 
   return (
-    <div ref={formRef} className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card p-2 shadow-sm">
+    <div ref={formRef} className="flex flex-col gap-2 rounded-xl glass-border bg-card p-2 backdrop-blur-md shadow-sm">
       <Input
         ref={inputRef}
         placeholder="Task title..."
@@ -82,7 +82,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
       />
       <div className="flex items-center gap-1.5">
         <Select value={priority} onValueChange={(v) => setPriority(v ?? 'none')}>
-          <SelectTrigger size="sm" className="h-6 min-w-0 gap-1 border-border/60 px-1.5 text-xs">
+          <SelectTrigger size="sm" className="h-6 min-w-0 gap-1 border-[var(--glass-border)] px-1.5 text-xs">
             <SelectValue placeholder="Priority" />
           </SelectTrigger>
           <SelectContent>
@@ -112,7 +112,8 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
           disabled={!title.trim() || submitting}
           className="h-6 text-xs"
         >
-          Add
+          {submitting && <Loader2 className="size-3 animate-spin" />}
+          {submitting ? 'Adding…' : 'Add'}
         </Button>
       </div>
     </div>

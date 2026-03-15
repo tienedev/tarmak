@@ -168,6 +168,58 @@ export const api = {
     const query = qs.toString()
     return request<ActivityEntry[]>(`/boards/${boardId}/activity${query ? `?${query}` : ''}`)
   },
+
+  // Labels
+  listLabels: (boardId: string) =>
+    request<Label[]>(`/boards/${boardId}/labels`),
+  createLabel: (boardId: string, data: { name: string; color: string }) =>
+    request<Label>(`/boards/${boardId}/labels`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateLabel: (boardId: string, labelId: string, data: { name?: string; color?: string }) =>
+    request<Label>(`/boards/${boardId}/labels/${labelId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteLabel: (boardId: string, labelId: string) =>
+    request<void>(`/boards/${boardId}/labels/${labelId}`, { method: 'DELETE' }),
+  addTaskLabel: (boardId: string, taskId: string, labelId: string) =>
+    request<void>(`/boards/${boardId}/tasks/${taskId}/labels`, {
+      method: 'POST',
+      body: JSON.stringify({ label_id: labelId }),
+    }),
+  removeTaskLabel: (boardId: string, taskId: string, labelId: string) =>
+    request<void>(`/boards/${boardId}/tasks/${taskId}/labels/${labelId}`, {
+      method: 'DELETE',
+    }),
+
+  // Search
+  searchBoard: (boardId: string, q: string, limit = 20) =>
+    request<SearchResult[]>(`/boards/${boardId}/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+
+  // Subtasks
+  listSubtasks: (boardId: string, taskId: string) =>
+    request<Subtask[]>(`/boards/${boardId}/tasks/${taskId}/subtasks`),
+  createSubtask: (boardId: string, taskId: string, data: { title: string }) =>
+    request<Subtask>(`/boards/${boardId}/tasks/${taskId}/subtasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateSubtask: (
+    boardId: string,
+    taskId: string,
+    subtaskId: string,
+    data: { title?: string; completed?: boolean; position?: number },
+  ) =>
+    request<Subtask>(`/boards/${boardId}/tasks/${taskId}/subtasks/${subtaskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteSubtask: (boardId: string, taskId: string, subtaskId: string) =>
+    request<void>(`/boards/${boardId}/tasks/${taskId}/subtasks/${subtaskId}`, {
+      method: 'DELETE',
+    }),
 }
 
 // Types
@@ -196,9 +248,34 @@ export interface Task {
   description: string
   priority: string
   assignee?: string
+  due_date?: string | null
+  labels?: Label[]
+  subtask_count?: SubtaskCount
   position: number
   created_at: string
   updated_at: string
+}
+
+export interface Label {
+  id: string
+  board_id: string
+  name: string
+  color: string
+  created_at: string
+}
+
+export interface Subtask {
+  id: string
+  task_id: string
+  title: string
+  completed: boolean
+  position: number
+  created_at: string
+}
+
+export interface SubtaskCount {
+  completed: number
+  total: number
 }
 
 export interface CustomField {
@@ -262,7 +339,17 @@ export interface ActivityEntry {
   task_id?: string
   user_id: string
   user_name: string
+  is_agent: boolean
   action: string
   details?: string
   created_at: string
+}
+
+export interface SearchResult {
+  entity_type: string
+  entity_id: string
+  board_id: string
+  task_id: string
+  snippet: string
+  rank: number
 }

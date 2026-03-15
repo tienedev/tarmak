@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/lib/api'
-import type { Board, Column, Task, CustomField, BoardMember } from '@/lib/api'
+import type { Board, Column, Task, CustomField, BoardMember, Label } from '@/lib/api'
 import { useNotificationStore } from './notifications'
 
 interface BoardState {
@@ -10,6 +10,7 @@ interface BoardState {
   tasks: Task[]
   fields: CustomField[]
   members: BoardMember[]
+  labels: Label[]
   loading: boolean
   error: string | null
 
@@ -36,6 +37,11 @@ interface BoardState {
     data: Partial<Omit<Task, 'id' | 'board_id' | 'created_at' | 'updated_at'>>,
   ) => Promise<void>
   deleteTask: (boardId: string, taskId: string) => Promise<void>
+  createLabel: (boardId: string, name: string, color: string) => Promise<Label>
+  updateLabel: (boardId: string, labelId: string, data: { name?: string; color?: string }) => Promise<void>
+  deleteLabel: (boardId: string, labelId: string) => Promise<void>
+  addTaskLabel: (boardId: string, taskId: string, labelId: string) => Promise<void>
+  removeTaskLabel: (boardId: string, taskId: string, labelId: string) => Promise<void>
   clearCurrentBoard: () => void
 }
 
@@ -50,6 +56,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   tasks: [],
   fields: [],
   members: [],
+  labels: [],
   loading: false,
   error: null,
 
@@ -67,14 +74,15 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   fetchBoard: async (id: string) => {
     set({ loading: true, error: null })
     try {
-      const [board, columns, tasks, fields, members] = await Promise.all([
+      const [board, columns, tasks, fields, members, labels] = await Promise.all([
         api.getBoard(id),
         api.listColumns(id),
         api.listTasks(id),
         api.listFields(id),
         api.listMembers(id),
+        api.listLabels(id),
       ])
-      set({ currentBoard: board, columns, tasks, fields, members, loading: false })
+      set({ currentBoard: board, columns, tasks, fields, members, labels, loading: false })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch board'
       set({ error: message, loading: false })
@@ -173,7 +181,51 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
+  createLabel: async (boardId: string, name: string, color: string) => {
+    const label = await api.createLabel(boardId, { name, color })
+    set({ labels: [...get().labels, label] })
+    return label
+  },
+
+  updateLabel: async (boardId: string, labelId: string, data: { name?: string; color?: string }) => {
+    await api.updateLabel(boardId, labelId, data)
+    set({
+      labels: get().labels.map((l) =>
+        l.id === labelId ? { ...l, ...data } : l,
+      ),
+    })
+  },
+
+  deleteLabel: async (boardId: string, labelId: string) => {
+    await api.deleteLabel(boardId, labelId)
+    set({ labels: get().labels.filter((l) => l.id !== labelId) })
+  },
+
+  addTaskLabel: async (boardId: string, taskId: string, labelId: string) => {
+    await api.addTaskLabel(boardId, taskId, labelId)
+    const label = get().labels.find((l) => l.id === labelId)
+    if (!label) return
+    set({
+      tasks: get().tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, labels: [...(t.labels ?? []), label] }
+          : t,
+      ),
+    })
+  },
+
+  removeTaskLabel: async (boardId: string, taskId: string, labelId: string) => {
+    await api.removeTaskLabel(boardId, taskId, labelId)
+    set({
+      tasks: get().tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, labels: (t.labels ?? []).filter((l) => l.id !== labelId) }
+          : t,
+      ),
+    })
+  },
+
   clearCurrentBoard: () => {
-    set({ currentBoard: null, columns: [], tasks: [], fields: [], members: [] })
+    set({ currentBoard: null, columns: [], tasks: [], fields: [], members: [], labels: [] })
   },
 }))

@@ -47,9 +47,9 @@ export function BoardsListPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-auto">
-      {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-6">
-        <h1 className="text-sm font-semibold">All Boards</h1>
+      {/* Header — glass */}
+      <header className="flex h-14 shrink-0 items-center justify-between glass-heavy glass-border px-6">
+        <h1 className="text-sm font-bold">All Boards</h1>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger
             render={
@@ -100,7 +100,8 @@ export function BoardsListPage() {
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={creating || !newName.trim()}>
-                  {creating ? 'Creating...' : 'Create Board'}
+                  {creating && <Loader2 className="size-3.5 animate-spin" data-icon="inline-start" />}
+                  {creating ? 'Creating…' : 'Create Board'}
                 </Button>
               </DialogFooter>
             </form>
@@ -116,7 +117,7 @@ export function BoardsListPage() {
           </div>
         ) : boards.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-3 text-center">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
+            <div className="flex size-12 items-center justify-center rounded-2xl glass glass-border">
               <LayoutDashboard className="size-5 text-muted-foreground" />
             </div>
             <div>
@@ -140,9 +141,9 @@ export function BoardsListPage() {
               <a
                 key={board.id}
                 href={`#/boards/${board.id}`}
-                className="block transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                className="block rounded-2xl transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/20 focus-visible:outline-none"
               >
-                <Card className="h-full cursor-pointer transition-shadow hover:ring-2 hover:ring-ring/20">
+                <Card className="h-full cursor-pointer glass glass-border transition-shadow hover:shadow-[inset_0_1px_0_oklch(1_0_0/25%),0_4px_16px_oklch(0_0_0/8%)]">
                   <CardHeader>
                     <CardTitle>{board.name}</CardTitle>
                     {board.description && (
