@@ -31,6 +31,7 @@ pub struct UpdateTask {
     pub description: Option<Option<String>>,
     pub priority: Option<Priority>,
     pub assignee: Option<Option<String>>,
+    pub due_date: Option<Option<String>>,
 }
 
 #[derive(Deserialize)]
@@ -114,6 +115,7 @@ pub async fn update(
     }
     let description = body.description.as_ref().map(|d| d.as_deref());
     let assignee = body.assignee.as_ref().map(|a| a.as_deref());
+    let due_date = body.due_date.as_ref().map(|d| d.as_deref());
     let task = db
         .update_task(
             &tid,
@@ -121,6 +123,7 @@ pub async fn update(
             description,
             body.priority,
             assignee,
+            due_date,
         )?
         .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     let _ = db.log_activity(

@@ -186,10 +186,13 @@ impl KanbanMcpServer {
                 let assignee = data
                     .get("assignee")
                     .map(|v| v.as_str());
+                let due_date = data
+                    .get("due_date")
+                    .map(|v| v.as_str());
 
                 let task = self
                     .db
-                    .update_task(task_id, title, description, priority, assignee)?
+                    .update_task(task_id, title, description, priority, assignee, due_date)?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 Ok(format!("updated task {}", task.id))
             }
@@ -396,17 +399,17 @@ impl KanbanMcpServer {
         match field {
             "title" => {
                 self.db
-                    .update_task(task_id, Some(value), None, None, None)?;
+                    .update_task(task_id, Some(value), None, None, None, None)?;
             }
             "desc" => {
                 self.db
-                    .update_task(task_id, None, Some(Some(value)), None, None)?;
+                    .update_task(task_id, None, Some(Some(value)), None, None, None)?;
             }
             "pri" => {
                 let priority = kbf_bridge::priority_from_short_or_full(value)
                     .ok_or_else(|| anyhow::anyhow!("invalid priority: {value}"))?;
                 self.db
-                    .update_task(task_id, None, None, Some(priority), None)?;
+                    .update_task(task_id, None, None, Some(priority), None, None)?;
             }
             "who" => {
                 let assignee = if value.is_empty() {
@@ -415,7 +418,11 @@ impl KanbanMcpServer {
                     Some(Some(value))
                 };
                 self.db
-                    .update_task(task_id, None, None, None, assignee)?;
+                    .update_task(task_id, None, None, None, assignee, None)?;
+            }
+            "due" => {
+                let due = if value.is_empty() { Some(None) } else { Some(Some(value)) };
+                self.db.update_task(task_id, None, None, None, None, due)?;
             }
             "col" => {
                 // Move task to different column, keep position 0

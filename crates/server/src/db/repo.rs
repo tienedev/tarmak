@@ -337,6 +337,7 @@ impl Db {
         description: Option<Option<&str>>,
         priority: Option<Priority>,
         assignee: Option<Option<&str>>,
+        due_date: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Task>> {
         self.with_conn(|conn| {
             let mut sets = Vec::new();
@@ -357,6 +358,10 @@ impl Db {
             if let Some(a) = assignee {
                 sets.push("assignee = ?");
                 values.push(Box::new(a.map(|s| s.to_string())));
+            }
+            if let Some(d) = due_date {
+                sets.push("due_date = ?");
+                values.push(Box::new(d.map(|s| s.to_string())));
             }
 
             if !sets.is_empty() {
@@ -1586,7 +1591,7 @@ mod tests {
 
         // Update
         let updated = db
-            .update_task(&t1.id, Some("Task 1 Updated"), None, Some(Priority::High), None)
+            .update_task(&t1.id, Some("Task 1 Updated"), None, Some(Priority::High), None, None)
             .unwrap()
             .expect("task exists");
         assert_eq!(updated.title, "Task 1 Updated");
