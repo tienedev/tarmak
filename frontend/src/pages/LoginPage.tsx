@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/stores/auth'
-import { Kanban } from 'lucide-react'
+import { Kanban, Loader2 } from 'lucide-react'
 
 export function LoginPage() {
   const [name, setName] = useState('')
@@ -26,24 +26,24 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-            <Kanban className="size-6" />
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
+            <Kanban className="size-7" />
           </div>
           <div className="text-center">
-            <h1 className="text-lg font-semibold tracking-tight">
+            <h1 className="text-xl font-bold tracking-tight">
               Kanwise
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Manage your projects with clarity
             </p>
           </div>
         </div>
 
-        <Card>
+        <Card className="glass glass-border">
           <CardHeader>
             <CardTitle>
               {isRegister ? 'Create an account' : 'Welcome back'}
@@ -119,8 +119,9 @@ export function LoginPage() {
                 className="mt-1 w-full"
                 disabled={loading || !email || !password || (isRegister && !name)}
               >
+                {loading && <Loader2 className="size-3.5 animate-spin" data-icon="inline-start" />}
                 {loading
-                  ? 'Please wait...'
+                  ? 'Signing in…'
                   : isRegister
                     ? 'Create account'
                     : 'Sign in'}
@@ -130,7 +131,7 @@ export function LoginPage() {
                 {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
                 <button
                   type="button"
-                  className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
                   onClick={() => {
                     setIsRegister(!isRegister)
                     clearError()
