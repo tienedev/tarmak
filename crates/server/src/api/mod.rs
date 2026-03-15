@@ -1,6 +1,7 @@
 pub mod activity;
 pub mod api_keys;
 pub mod archive;
+pub mod attachments;
 pub mod auth;
 pub mod boards;
 pub mod columns;
@@ -60,7 +61,9 @@ pub fn router(db: Db) -> Router {
         .nest("/fields", task_fields)
         .route("/comments", get(comments::list).post(comments::create))
         .nest("/labels", task_labels)
-        .nest("/subtasks", task_subtasks);
+        .nest("/subtasks", task_subtasks)
+        .route("/attachments", get(attachments::list).post(attachments::upload))
+        .route("/attachments/{aid}", axum::routing::delete(attachments::delete));
 
     let board_tasks = Router::new()
         .route("/", get(tasks::list).post(tasks::create))
@@ -79,6 +82,7 @@ pub fn router(db: Db) -> Router {
         .route("/activity", get(activity::list))
         .route("/search", get(search::search))
         .route("/archive", get(archive::list_archived))
+        .route("/attachments/{aid}/download", get(attachments::download))
         .nest("/columns", columns)
         .nest("/tasks", board_tasks)
         .nest("/labels", board_labels)
