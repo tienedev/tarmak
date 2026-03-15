@@ -295,6 +295,7 @@ impl Db {
                 description: description.map(String::from),
                 priority,
                 assignee: assignee.map(String::from),
+                due_date: None,
                 position: pos,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
@@ -309,7 +310,7 @@ impl Db {
     pub fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks WHERE board_id = ?1 ORDER BY position LIMIT ?2 OFFSET ?3",
             )?;
             let rows = stmt.query_map(params![board_id, limit, offset], map_task_row)?;
@@ -321,7 +322,7 @@ impl Db {
     pub fn list_tasks_in_column(&self, column_id: &str) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks WHERE column_id = ?1 ORDER BY position",
             )?;
             let rows = stmt.query_map(params![column_id], map_task_row)?;
@@ -411,15 +412,16 @@ fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         description: row.get(4)?,
         priority: Priority::from_str_db(&priority_str).unwrap_or(Priority::Medium),
         assignee: row.get(6)?,
-        position: row.get(7)?,
-        created_at: parse_dt(&row.get::<_, String>(8)?)?,
-        updated_at: parse_dt(&row.get::<_, String>(9)?)?,
+        due_date: row.get(7)?,
+        position: row.get(8)?,
+        created_at: parse_dt(&row.get::<_, String>(9)?)?,
+        updated_at: parse_dt(&row.get::<_, String>(10)?)?,
     })
 }
 
 fn get_task_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Task>> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
+        "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
          FROM tasks WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(params![id], map_task_row)?;
