@@ -278,6 +278,15 @@
   scrollbar-color: oklch(0.5 0 0 / 15%) transparent;
 }
 
+@utility glass-hover {
+  &:hover {
+    background: oklch(0.5 0 0 / 3%);
+  }
+  :is(.dark) &:hover {
+    background: oklch(1 0 0 / 3%);
+  }
+}
+
 /* ===================================================================
    Base Layer
    =================================================================== */
