@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Task } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { isLightColor } from '@/lib/color'
 
 const priorityColors: Record<string, string> = {
   urgent: 'bg-red-500',
@@ -49,11 +50,13 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
       {...listeners}
       onClick={onClick}
       className={cn(
-        'group/card cursor-grab rounded-lg border border-border/60 bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all',
-        'hover:shadow-md hover:border-border',
+        'group/card cursor-grab rounded-xl glass-border p-3 transition-all',
+        'bg-card backdrop-blur-md',
+        'shadow-[inset_0_1px_0_oklch(1_0_0/20%),0_1px_3px_oklch(0_0_0/4%)]',
+        'hover:shadow-[inset_0_1px_0_oklch(1_0_0/25%),0_2px_8px_oklch(0_0_0/8%)]',
         'active:cursor-grabbing',
-        isDragging && 'opacity-50',
-        overlay && 'rotate-[2deg] shadow-lg border-border',
+        isDragging && 'opacity-40',
+        overlay && 'rotate-[2deg] shadow-[inset_0_1px_0_oklch(1_0_0/20%),0_8px_24px_oklch(0_0_0/12%)]',
       )}
     >
       {/* Title */}
@@ -67,7 +70,10 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
           {task.labels.slice(0, 3).map((label) => (
             <span
               key={label.id}
-              className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium text-white"
+              className={cn(
+                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium shadow-sm',
+                isLightColor(label.color) ? 'text-gray-900' : 'text-white',
+              )}
               style={{ backgroundColor: label.color }}
             >
               {label.name}
@@ -88,7 +94,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
           <div className="flex items-center gap-1.5">
             <span
               className={cn(
-                'inline-block size-2 rounded-full',
+                'inline-block size-2 rounded-full shadow-sm',
                 priorityDot,
               )}
             />
@@ -125,7 +131,7 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
 
         {/* Assignee avatar */}
         {task.assignee && (
-          <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[0.6rem] font-semibold text-muted-foreground">
+          <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.6rem] font-semibold text-primary">
             {task.assignee.slice(0, 2).toUpperCase()}
           </div>
         )}
