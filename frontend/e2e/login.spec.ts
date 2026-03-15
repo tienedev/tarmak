@@ -28,8 +28,8 @@ test.describe('Login flow', () => {
     await page.getByLabel('Password').fill(TEST_USER.password)
     await page.getByRole('button', { name: 'Create account' }).click()
 
-    // Should redirect to boards list (hash router: #/ or empty)
-    await expect(page).toHaveURL(/\/#?\/?$/)
+    // Wait for boards list to appear (confirms registration succeeded)
+    await expect(page.getByText('All Boards')).toBeVisible()
 
     // Logout by clearing localStorage and reloading
     await page.evaluate(() => localStorage.removeItem('token'))
