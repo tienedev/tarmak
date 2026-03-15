@@ -56,7 +56,7 @@ pub async fn get(
     permissions::require_role(&db, &id, &user.id, Role::Viewer)?;
     let board = db
         .get_board(&id)?
-        .ok_or_else(|| anyhow::anyhow!("board not found"))?;
+        .ok_or_else(|| ApiError::NotFound("board not found".into()))?;
     Ok(Json(board))
 }
 
@@ -70,7 +70,7 @@ pub async fn update(
     let description = body.description.as_ref().map(|d| Some(d.as_str()));
     let board = db
         .update_board(&id, body.name.as_deref(), description)?
-        .ok_or_else(|| anyhow::anyhow!("board not found"))?;
+        .ok_or_else(|| ApiError::NotFound("board not found".into()))?;
     Ok(Json(board))
 }
 
@@ -111,7 +111,7 @@ pub async fn delete(
     permissions::require_role(&db, &id, &user.id, Role::Owner)?;
     let deleted = db.delete_board(&id)?;
     if !deleted {
-        return Err(anyhow::anyhow!("board not found").into());
+        return Err(ApiError::NotFound("board not found".into()));
     }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

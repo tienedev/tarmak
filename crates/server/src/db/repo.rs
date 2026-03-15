@@ -18,12 +18,15 @@ fn new_id() -> String {
     Uuid::new_v4().to_string()
 }
 
-fn parse_dt(s: &str) -> chrono::DateTime<Utc> {
+fn parse_dt(s: &str) -> Result<chrono::DateTime<Utc>, rusqlite::Error> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|e| {
-            tracing::warn!("failed to parse datetime '{s}': {e}, using current time");
-            Utc::now()
+        .map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                0,
+                rusqlite::types::Type::Text,
+                Box::new(e),
+            )
         })
 }
 
@@ -46,8 +49,8 @@ impl Db {
                 id,
                 name: name.to_string(),
                 description: description.map(String::from),
-                created_at: parse_dt(&now),
-                updated_at: parse_dt(&now),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
             })
         })
     }
@@ -65,8 +68,8 @@ impl Db {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: parse_dt(&row.get::<_, String>(3)?),
-                    updated_at: parse_dt(&row.get::<_, String>(4)?),
+                    created_at: parse_dt(&row.get::<_, String>(3)?)?,
+                    updated_at: parse_dt(&row.get::<_, String>(4)?)?,
                 })
             })?;
             let mut boards = Vec::new();
@@ -132,8 +135,8 @@ fn get_board_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Board>>
             id: row.get(0)?,
             name: row.get(1)?,
             description: row.get(2)?,
-            created_at: parse_dt(&row.get::<_, String>(3)?),
-            updated_at: parse_dt::<>(&row.get::<_, String>(4)?),
+            created_at: parse_dt(&row.get::<_, String>(3)?)?,
+            updated_at: parse_dt(&row.get::<_, String>(4)?)?,
         })
     })?;
     match rows.next() {
@@ -293,8 +296,8 @@ impl Db {
                 priority,
                 assignee: assignee.map(String::from),
                 position: pos,
-                created_at: parse_dt(&now),
-                updated_at: parse_dt(&now),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
             })
         })
     }
@@ -303,13 +306,13 @@ impl Db {
         self.with_conn(|conn| get_task_inner(conn, id))
     }
 
-    pub fn list_tasks(&self, board_id: &str) -> anyhow::Result<Vec<Task>> {
+    pub fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, position, created_at, updated_at
-                 FROM tasks WHERE board_id = ?1 ORDER BY position",
+                 FROM tasks WHERE board_id = ?1 ORDER BY position LIMIT ?2 OFFSET ?3",
             )?;
-            let rows = stmt.query_map(params![board_id], map_task_row)?;
+            let rows = stmt.query_map(params![board_id, limit, offset], map_task_row)?;
             collect_rows(rows)
         })
     }
@@ -409,8 +412,8 @@ fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         priority: Priority::from_str_db(&priority_str).unwrap_or(Priority::Medium),
         assignee: row.get(6)?,
         position: row.get(7)?,
-        created_at: parse_dt(&row.get::<_, String>(8)?),
-        updated_at: parse_dt(&row.get::<_, String>(9)?),
+        created_at: parse_dt(&row.get::<_, String>(8)?)?,
+        updated_at: parse_dt(&row.get::<_, String>(9)?)?,
     })
 }
 
@@ -595,7 +598,7 @@ impl Db {
                         email: row.get(2)?,
                         avatar_url: row.get(3)?,
                         is_agent: is_agent != 0,
-                        created_at: parse_dt(&row.get::<_, String>(5)?),
+                        created_at: parse_dt(&row.get::<_, String>(5)?)?,
                     })
                 },
             );
@@ -616,7 +619,7 @@ impl Db {
                         email: "local@localhost".to_string(),
                         avatar_url: None,
                         is_agent: false,
-                        created_at: parse_dt(&now),
+                        created_at: Utc::now(),
                     })
                 }
                 Err(e) => Err(e.into()),
@@ -647,7 +650,7 @@ impl Db {
                 email: email.to_string(),
                 avatar_url: avatar_url.map(String::from),
                 is_agent,
-                created_at: parse_dt(&now),
+                created_at: Utc::now(),
             })
         })
     }
@@ -667,7 +670,7 @@ impl Db {
                     email: row.get(2)?,
                     avatar_url: row.get(3)?,
                     is_agent: is_agent != 0,
-                    created_at: parse_dt(&row.get::<_, String>(5)?),
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             match rows.next() {
@@ -706,7 +709,7 @@ impl Db {
                     email: row.get(2)?,
                     avatar_url: row.get(3)?,
                     is_agent: is_agent != 0,
-                    created_at: parse_dt(&row.get::<_, String>(5)?),
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             match rows.next() {
@@ -747,7 +750,7 @@ impl Db {
                 user_id: user_id.to_string(),
                 user_name,
                 content: content.to_string(),
-                created_at: parse_dt(&now),
+                created_at: Utc::now(),
             })
         })
     }
@@ -766,7 +769,7 @@ impl Db {
                     task_id: row.get(1)?,
                     user_id: row.get(2)?,
                     content: row.get(3)?,
-                    created_at: parse_dt(&row.get::<_, String>(4)?),
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     user_name: row.get(5)?,
                 })
             })?;
@@ -805,7 +808,7 @@ impl Db {
                 user_id: user_id.to_string(),
                 name: name.to_string(),
                 key_prefix: key_prefix.to_string(),
-                created_at: parse_dt(&now),
+                created_at: Utc::now(),
                 last_used_at: None,
             })
         })
@@ -823,10 +826,10 @@ impl Db {
                     user_id: row.get(1)?,
                     name: row.get(2)?,
                     key_prefix: row.get(3)?,
-                    created_at: parse_dt(&row.get::<_, String>(4)?),
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     last_used_at: row
                         .get::<_, Option<String>>(5)?
-                        .map(|s| parse_dt(&s)),
+                        .map(|s| parse_dt(&s)).transpose()?,
                 })
             })?;
             let mut out = Vec::new();
@@ -868,7 +871,7 @@ impl Db {
                     email: row.get(2)?,
                     avatar_url: row.get(3)?,
                     is_agent: is_agent != 0,
-                    created_at: parse_dt(&row.get::<_, String>(5)?),
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             match rows.next() {
@@ -932,7 +935,7 @@ impl Db {
                         email: row.get(2)?,
                         avatar_url: row.get(3)?,
                         is_agent: row.get(4)?,
-                        created_at: parse_dt(&row.get::<_, String>(5)?),
+                        created_at: parse_dt(&row.get::<_, String>(5)?)?,
                     },
                     Role::from_str_db(&role_str).unwrap_or(Role::Viewer),
                 ))
@@ -957,8 +960,8 @@ impl Db {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: parse_dt(&row.get::<_, String>(3)?),
-                    updated_at: parse_dt(&row.get::<_, String>(4)?),
+                    created_at: parse_dt(&row.get::<_, String>(3)?)?,
+                    updated_at: parse_dt(&row.get::<_, String>(4)?)?,
                 })
             })?;
             let mut out = Vec::new();
@@ -997,7 +1000,7 @@ impl Db {
                 user_id: user_id.to_string(),
                 action: action.to_string(),
                 details: details.map(String::from),
-                created_at: parse_dt(&now),
+                created_at: Utc::now(),
             })
         })
     }
@@ -1061,7 +1064,7 @@ impl Db {
                     user_name: row.get(4)?,
                     action: row.get(5)?,
                     details: row.get(6)?,
-                    created_at: parse_dt(&row.get::<_, String>(7)?),
+                    created_at: parse_dt(&row.get::<_, String>(7)?)?,
                 })
             })?;
             let mut result = Vec::new();
@@ -1257,7 +1260,7 @@ mod tests {
         assert_eq!(fetched.title, "Task 1");
 
         // List by board
-        assert_eq!(db.list_tasks(&board_id).unwrap().len(), 2);
+        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).unwrap().len(), 2);
 
         // List by column
         assert_eq!(db.list_tasks_in_column(&col_id).unwrap().len(), 2);
@@ -1280,7 +1283,7 @@ mod tests {
 
         // Delete
         assert!(db.delete_task(&t2.id).unwrap());
-        assert_eq!(db.list_tasks(&board_id).unwrap().len(), 1);
+        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).unwrap().len(), 1);
     }
 
     // ----- Custom fields ---------------------------------------------------

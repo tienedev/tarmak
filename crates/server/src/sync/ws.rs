@@ -77,6 +77,17 @@ impl SyncState {
         // Ignore send errors (no receivers is fine).
         let _ = tx.send(update);
     }
+
+    /// Remove broadcast channel and persist timestamp if no receivers remain.
+    pub async fn cleanup_channel(&self, board_id: &str) {
+        let mut chans = self.channels.write().await;
+        if let Some(tx) = chans.get(board_id)
+            && tx.receiver_count() == 0
+        {
+            chans.remove(board_id);
+            self.last_persist.write().await.remove(board_id);
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -200,8 +211,9 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
         tracing::warn!("Failed to persist final CRDT state for board {board_id}: {e}");
     }
 
-    // Clean up: abort the sender task.
+    // Clean up: abort the sender task and remove empty channels.
     send_task.abort();
+    state.cleanup_channel(&board_id).await;
 }
 
 // ---------------------------------------------------------------------------

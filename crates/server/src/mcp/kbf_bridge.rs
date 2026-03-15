@@ -78,7 +78,7 @@ pub fn encode_board_columns(db: &Db, board_id: &str) -> Result<String> {
 pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
     let schema = task_schema(db, board_id)?;
     let tasks = db
-        .list_tasks(board_id)
+        .list_tasks(board_id, i64::MAX, 0)
         .context("list tasks for KBF encoding")?;
 
     let custom_fields = db

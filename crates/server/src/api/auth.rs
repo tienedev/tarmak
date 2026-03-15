@@ -64,7 +64,7 @@ pub async fn register(
     validation::validate_password(&body.password)?;
 
     if let Some(_existing) = db.get_user_by_email(&body.email)? {
-        return Err(anyhow::anyhow!("user with this email already exists").into());
+        return Err(ApiError::Conflict("user with this email already exists".into()));
     }
 
     let password_hash = auth::hash_password(&body.password)?;
@@ -83,13 +83,13 @@ pub async fn login(
 
     let user = db
         .get_user_by_email(&body.email)?
-        .ok_or_else(|| anyhow::anyhow!("invalid email or password"))?;
+        .ok_or_else(|| ApiError::BadRequest("invalid email or password".into()))?;
 
     let hash = db.get_password_hash(&user.id)?
-        .ok_or_else(|| anyhow::anyhow!("invalid email or password"))?;
+        .ok_or_else(|| ApiError::BadRequest("invalid email or password".into()))?;
 
     if !auth::verify_password(&body.password, &hash)? {
-        return Err(anyhow::anyhow!("invalid email or password").into());
+        return Err(ApiError::BadRequest("invalid email or password".into()));
     }
 
     let token = auth::create_session(&db, &user.id)?;
@@ -108,7 +108,7 @@ pub async fn invite(
     // Validate role
     let valid_roles = ["owner", "member", "viewer"];
     if !valid_roles.contains(&body.role.as_str()) {
-        return Err(anyhow::anyhow!("invalid role: must be owner, member, or viewer").into());
+        return Err(ApiError::BadRequest("invalid role: must be owner, member, or viewer".into()));
     }
 
     let invite_token =
@@ -168,7 +168,7 @@ pub async fn list_invites(
 ) -> Result<Json<Vec<InviteLinkInfo>>, ApiError> {
     let board_id = params
         .get("board_id")
-        .ok_or_else(|| anyhow::anyhow!("board_id query param required"))?;
+        .ok_or_else(|| ApiError::BadRequest("board_id query param required".into()))?;
 
     permissions::require_role(&db, board_id, &user.id, crate::db::models::Role::Viewer)?;
 
@@ -213,8 +213,8 @@ pub async fn revoke_invite(
             "SELECT board_id FROM invite_links WHERE id = ?1",
             rusqlite::params![invite_id],
             |row| row.get(0),
-        ).map_err(|_| anyhow::anyhow!("invite not found"))
-    })?;
+        ).map_err(|e| anyhow::anyhow!(e))
+    }).map_err(|_| ApiError::NotFound("invite not found".into()))?;
 
     permissions::require_role(&db, &board_id, &user.id, crate::db::models::Role::Owner)?;
 

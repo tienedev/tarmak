@@ -115,7 +115,7 @@ impl KanbanMcpServer {
                 Ok(serde_json::to_string(&board)?)
             }
             "tasks" => {
-                let tasks = self.db.list_tasks(board_id)?;
+                let tasks = self.db.list_tasks(board_id, i64::MAX, 0)?;
                 Ok(serde_json::to_string(&tasks)?)
             }
             "columns" => {
@@ -128,7 +128,7 @@ impl KanbanMcpServer {
                     .get_board(board_id)?
                     .ok_or_else(|| anyhow::anyhow!("board not found: {board_id}"))?;
                 let columns = self.db.list_columns(board_id)?;
-                let tasks = self.db.list_tasks(board_id)?;
+                let tasks = self.db.list_tasks(board_id, i64::MAX, 0)?;
                 let result = serde_json::json!({
                     "board": board,
                     "columns": columns,
@@ -745,7 +745,7 @@ mod tests {
         assert!(result.starts_with("created task "));
 
         // Verify the task was actually created
-        let tasks = db.list_tasks(&board_id).unwrap();
+        let tasks = db.list_tasks(&board_id, i64::MAX, 0).unwrap();
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].title, "New task");
         assert_eq!(tasks[0].priority, Priority::High);
@@ -769,7 +769,7 @@ mod tests {
             })
             .unwrap();
 
-        let tasks = db.list_tasks(&board_id).unwrap();
+        let tasks = db.list_tasks(&board_id, i64::MAX, 0).unwrap();
         assert_eq!(tasks[0].priority, Priority::Medium); // default
         assert_eq!(tasks[0].assignee, None); // default
     }
@@ -1157,7 +1157,7 @@ mod tests {
 
         assert!(result.contains("Created via sync"));
 
-        let tasks = db.list_tasks(&board_id).unwrap();
+        let tasks = db.list_tasks(&board_id, i64::MAX, 0).unwrap();
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].title, "Created via sync");
         assert_eq!(tasks[0].priority, Priority::High);

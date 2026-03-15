@@ -51,28 +51,8 @@ impl IntoResponse for ApiError {
     }
 }
 
-impl<E: Into<anyhow::Error>> From<E> for ApiError {
-    fn from(err: E) -> Self {
-        let err = err.into();
-        let msg = err.to_string();
-
-        // Map known error patterns to appropriate status codes
-        if msg.contains("not found") || msg.contains("no rows") {
-            ApiError::NotFound(msg)
-        } else if msg.contains("not a member") || msg.contains("insufficient permissions") {
-            ApiError::Forbidden(msg)
-        } else if msg.contains("already exists") {
-            ApiError::Conflict(msg)
-        } else if msg.contains("invalid")
-            || msg.contains("required")
-            || msg.contains("must be")
-            || msg.contains("too short")
-            || msg.contains("too long")
-        {
-            ApiError::BadRequest(msg)
-        } else {
-            // Hide internal error details from clients
-            ApiError::Internal(err)
-        }
+impl From<anyhow::Error> for ApiError {
+    fn from(err: anyhow::Error) -> Self {
+        ApiError::Internal(err)
     }
 }
