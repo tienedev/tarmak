@@ -98,8 +98,33 @@ export function BoardPage({ boardId }: BoardPageProps) {
 
   if (loading && !currentBoard) {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Skeleton header */}
+        <header className="flex h-14 shrink-0 items-center gap-3 glass-heavy glass-border px-6">
+          <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+          <div className="flex-1" />
+          <div className="h-6 w-48 animate-pulse rounded-lg bg-muted" />
+        </header>
+        {/* Skeleton columns */}
+        <div className="flex h-full gap-3 overflow-hidden p-6 pb-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex w-72 shrink-0 flex-col rounded-2xl glass-subtle glass-border p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="size-2.5 animate-pulse rounded-full bg-muted" />
+                <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {[1, 2, 3].slice(0, 3 - i + 1).map((j) => (
+                  <div key={j} className="rounded-xl glass-border bg-card p-3">
+                    <div className="h-3.5 w-full animate-pulse rounded bg-muted" />
+                    <div className="mt-2 h-3 w-2/3 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -118,8 +143,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Board header */}
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-6">
+      {/* Board header — glass */}
+      <header className="flex h-14 shrink-0 items-center gap-3 glass-heavy glass-border px-6">
         <Button
           variant="ghost"
           size="icon-xs"
@@ -128,7 +153,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
           <ArrowLeft className="size-3.5" />
         </Button>
         <div className="flex-1 overflow-hidden">
-          <h1 className="truncate text-sm font-semibold">
+          <h1 className="truncate text-sm font-bold">
             {currentBoard.name}
           </h1>
         </div>
