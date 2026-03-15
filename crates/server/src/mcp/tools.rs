@@ -168,7 +168,7 @@ impl KanbanMcpServer {
             "search" => {
                 let query = params.query.as_deref()
                     .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
-                let results = self.db.search_board(board_id, query, 20)?;
+                let results = self.db.search_board(board_id, query, 20, false)?;
                 Ok(serde_json::to_string(&results)?)
             }
             "all" => {

@@ -28,6 +28,6 @@ pub async fn search(
     if q.is_empty() {
         return Ok(Json(vec![]));
     }
-    let results = db.search_board(&board_id, q, limit)?;
+    let results = db.search_board(&board_id, q, limit, false)?;
     Ok(Json(results))
 }

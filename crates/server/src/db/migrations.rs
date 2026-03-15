@@ -46,6 +46,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v5(conn).context("applying migration v5")?;
     }
 
+    if current < 6 {
+        v6(conn).context("applying migration v6")?;
+    }
+
     Ok(())
 }
 
@@ -398,6 +402,40 @@ fn v5(conn: &Connection) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// V6 -- archive support + attachments
+// ---------------------------------------------------------------------------
+
+fn v6(conn: &Connection) -> anyhow::Result<()> {
+    let tx = conn.unchecked_transaction().context("begin v6 transaction")?;
+    tx.execute_batch(
+        "
+        -- Archive support
+        ALTER TABLE tasks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE columns ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+
+        -- Attachments
+        CREATE TABLE attachments (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            storage_key TEXT NOT NULL,
+            uploaded_by TEXT REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_attachments_task ON attachments(task_id);
+        CREATE INDEX idx_attachments_board ON attachments(board_id);
+
+        INSERT INTO schema_version (version) VALUES (6);
+        ",
+    )?;
+    tx.commit().context("commit v6")?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -414,7 +452,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 5);
+        assert_eq!(ver, 6);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -446,6 +484,13 @@ mod tests {
         // v5 FTS5 table
         conn.execute_batch("SELECT 1 FROM search_index LIMIT 0")
             .unwrap();
+        // v6 archive + attachments
+        conn.execute_batch("SELECT archived FROM tasks LIMIT 0")
+            .unwrap();
+        conn.execute_batch("SELECT archived FROM columns LIMIT 0")
+            .unwrap();
+        conn.execute_batch("SELECT 1 FROM attachments LIMIT 0")
+            .unwrap();
     }
 
     #[test]
@@ -458,7 +503,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 5);
+        assert_eq!(ver, 6);
     }
 
     #[test]
@@ -469,7 +514,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 5);
+        assert_eq!(ver, 6);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();

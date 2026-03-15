@@ -250,12 +250,12 @@ impl AskEngine {
         match format {
             "kbf" => kbf_bridge::encode_search_results(&self.db, board_id, question),
             "json" => {
-                let results = self.db.search_board(board_id, question, 20)?;
+                let results = self.db.search_board(board_id, question, 20, false)?;
                 Ok(serde_json::to_string(&results)?)
             }
             _ => {
                 // text format
-                let results = self.db.search_board(board_id, question, 20)?;
+                let results = self.db.search_board(board_id, question, 20, false)?;
                 if results.is_empty() {
                     return Ok(format!("No results found for \"{}\"", question));
                 }
@@ -302,6 +302,7 @@ impl AskEngine {
                 position: row.get(8)?,
                 created_at,
                 updated_at,
+                archived: false,
             })
         })?;
 

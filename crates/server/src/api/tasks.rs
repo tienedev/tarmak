@@ -79,7 +79,7 @@ pub async fn list(
         .map(|task| {
             let labels = labels_by_task.remove(&task.id).unwrap_or_default();
             let subtask_count = counts_by_task.remove(&task.id).unwrap_or(SubtaskCount { completed: 0, total: 0 });
-            TaskWithRelations { task, labels, subtask_count }
+            TaskWithRelations { task, labels, subtask_count, attachment_count: 0 }
         })
         .collect();
 
@@ -130,7 +130,7 @@ pub async fn get(
         completed: subtasks.iter().filter(|s| s.completed).count() as i32,
         total: subtasks.len() as i32,
     };
-    Ok(Json(TaskWithRelations { task, labels, subtask_count }))
+    Ok(Json(TaskWithRelations { task, labels, subtask_count, attachment_count: 0 }))
 }
 
 pub async fn update(

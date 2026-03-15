@@ -165,6 +165,7 @@ pub struct Column {
     pub position: i64,
     pub wip_limit: Option<i64>,
     pub color: Option<String>,
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,6 +181,7 @@ pub struct Task {
     pub position: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,6 +261,7 @@ pub struct SearchResult {
     pub task_id: String,
     pub snippet: String,
     pub rank: f64,
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -306,4 +309,18 @@ pub struct TaskWithRelations {
     pub task: Task,
     pub labels: Vec<Label>,
     pub subtask_count: SubtaskCount,
+    pub attachment_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Attachment {
+    pub id: String,
+    pub task_id: String,
+    pub board_id: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub storage_key: String,
+    pub uploaded_by: Option<String>,
+    pub created_at: DateTime<Utc>,
 }

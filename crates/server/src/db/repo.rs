@@ -179,6 +179,7 @@ impl Db {
                 position: pos,
                 wip_limit,
                 color: color.map(String::from),
+                archived: false,
             })
         })
     }
@@ -186,8 +187,8 @@ impl Db {
     pub fn list_columns(&self, board_id: &str) -> anyhow::Result<Vec<Column>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, name, position, wip_limit, color
-                 FROM columns WHERE board_id = ?1 ORDER BY position",
+                "SELECT id, board_id, name, position, wip_limit, color, archived
+                 FROM columns WHERE board_id = ?1 AND archived = 0 ORDER BY position",
             )?;
             let rows = stmt.query_map(params![board_id], |row| {
                 Ok(Column {
@@ -197,6 +198,7 @@ impl Db {
                     position: row.get(3)?,
                     wip_limit: row.get(4)?,
                     color: row.get(5)?,
+                    archived: row.get::<_, i64>(6)? != 0,
                 })
             })?;
             let mut cols = Vec::new();
@@ -299,6 +301,7 @@ impl Db {
                 position: pos,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
+                archived: false,
             })
         })
     }
@@ -310,8 +313,8 @@ impl Db {
     pub fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
-                 FROM tasks WHERE board_id = ?1 ORDER BY position LIMIT ?2 OFFSET ?3",
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
+                 FROM tasks WHERE board_id = ?1 AND archived = 0 ORDER BY position LIMIT ?2 OFFSET ?3",
             )?;
             let rows = stmt.query_map(params![board_id, limit, offset], map_task_row)?;
             collect_rows(rows)
@@ -322,8 +325,8 @@ impl Db {
     pub fn list_tasks_in_column(&self, column_id: &str) -> anyhow::Result<Vec<Task>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
-                 FROM tasks WHERE column_id = ?1 ORDER BY position",
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
+                 FROM tasks WHERE column_id = ?1 AND archived = 0 ORDER BY position",
             )?;
             let rows = stmt.query_map(params![column_id], map_task_row)?;
             collect_rows(rows)
@@ -421,12 +424,13 @@ fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         position: row.get(8)?,
         created_at: parse_dt(&row.get::<_, String>(9)?)?,
         updated_at: parse_dt(&row.get::<_, String>(10)?)?,
+        archived: row.get::<_, i64>(11)? != 0,
     })
 }
 
 fn get_task_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Task>> {
     let mut stmt = conn.prepare(
-        "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
+        "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
          FROM tasks WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(params![id], map_task_row)?;
@@ -1413,17 +1417,25 @@ impl Db {
         board_id: &str,
         query: &str,
         limit: i64,
+        include_archived: bool,
     ) -> anyhow::Result<Vec<SearchResult>> {
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
+            let archive_filter = if include_archived {
+                ""
+            } else {
+                " AND task_id IN (SELECT id FROM tasks WHERE archived = 0)"
+            };
+            let sql = format!(
                 "SELECT entity_type, entity_id, board_id, task_id,
                         snippet(search_index, 4, '<mark>', '</mark>', '...', 32) as snippet,
-                        rank
+                        rank,
+                        COALESCE((SELECT archived FROM tasks WHERE id = task_id), 0) as archived
                  FROM search_index
-                 WHERE search_index MATCH ?1 AND board_id = ?2
+                 WHERE search_index MATCH ?1 AND board_id = ?2{archive_filter}
                  ORDER BY rank
-                 LIMIT ?3",
-            )?;
+                 LIMIT ?3"
+            );
+            let mut stmt = conn.prepare(&sql)?;
             let rows = stmt.query_map(params![query, board_id, limit], |row| {
                 Ok(SearchResult {
                     entity_type: row.get(0)?,
@@ -1432,12 +1444,237 @@ impl Db {
                     task_id: row.get(3)?,
                     snippet: row.get(4)?,
                     rank: row.get(5)?,
+                    archived: row.get::<_, i64>(6)? != 0,
                 })
             })?;
             let mut result = Vec::new();
             for r in rows {
                 result.push(r?);
             }
+            Ok(result)
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Archive
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub fn archive_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let updated = conn.execute(
+                "UPDATE tasks SET archived = 1, updated_at = ?2 WHERE id = ?1",
+                rusqlite::params![task_id, now_iso()],
+            )?;
+            Ok(updated > 0)
+        })
+    }
+
+    pub fn unarchive_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let col_archived: bool = conn.query_row(
+                "SELECT c.archived FROM tasks t JOIN columns c ON c.id = t.column_id WHERE t.id = ?1",
+                rusqlite::params![task_id],
+                |row| Ok(row.get::<_, i64>(0)? != 0),
+            ).unwrap_or(false);
+
+            if col_archived {
+                let board_id: String = conn.query_row(
+                    "SELECT board_id FROM tasks WHERE id = ?1",
+                    rusqlite::params![task_id],
+                    |row| row.get(0),
+                )?;
+                let first_col: Option<String> = conn.query_row(
+                    "SELECT id FROM columns WHERE board_id = ?1 AND archived = 0 ORDER BY position ASC LIMIT 1",
+                    rusqlite::params![board_id],
+                    |row| row.get(0),
+                ).ok();
+                if let Some(col_id) = first_col {
+                    conn.execute(
+                        "UPDATE tasks SET column_id = ?2 WHERE id = ?1",
+                        rusqlite::params![task_id, col_id],
+                    )?;
+                }
+            }
+
+            let updated = conn.execute(
+                "UPDATE tasks SET archived = 0, updated_at = ?2 WHERE id = ?1",
+                rusqlite::params![task_id, now_iso()],
+            )?;
+            Ok(updated > 0)
+        })
+    }
+
+    pub fn archive_column(&self, column_id: &str) -> anyhow::Result<i64> {
+        self.with_conn(|conn| {
+            let now = now_iso();
+            conn.execute(
+                "UPDATE columns SET archived = 1 WHERE id = ?1",
+                rusqlite::params![column_id],
+            )?;
+            let task_count = conn.execute(
+                "UPDATE tasks SET archived = 1, updated_at = ?2 WHERE column_id = ?1",
+                rusqlite::params![column_id, now],
+            )?;
+            Ok(task_count as i64)
+        })
+    }
+
+    pub fn unarchive_column(&self, column_id: &str) -> anyhow::Result<i64> {
+        self.with_conn(|conn| {
+            let now = now_iso();
+            conn.execute(
+                "UPDATE columns SET archived = 0 WHERE id = ?1",
+                rusqlite::params![column_id],
+            )?;
+            let task_count = conn.execute(
+                "UPDATE tasks SET archived = 0, updated_at = ?2 WHERE column_id = ?1",
+                rusqlite::params![column_id, now],
+            )?;
+            Ok(task_count as i64)
+        })
+    }
+
+    pub fn list_archived(&self, board_id: &str) -> anyhow::Result<(Vec<Task>, Vec<Column>)> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
+                 FROM tasks WHERE board_id = ?1 AND archived = 1 ORDER BY updated_at DESC"
+            )?;
+            let rows = stmt.query_map(params![board_id], map_task_row)?;
+            let tasks = collect_rows(rows)?;
+
+            let mut cstmt = conn.prepare(
+                "SELECT id, board_id, name, position, wip_limit, color, archived
+                 FROM columns WHERE board_id = ?1 AND archived = 1 ORDER BY position"
+            )?;
+            let crows = cstmt.query_map(params![board_id], |row| {
+                Ok(Column {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    position: row.get(3)?,
+                    wip_limit: row.get(4)?,
+                    color: row.get(5)?,
+                    archived: row.get::<_, i64>(6)? != 0,
+                })
+            })?;
+            let mut columns = Vec::new();
+            for r in crows { columns.push(r?); }
+
+            Ok((tasks, columns))
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub fn create_attachment(&self, id: &str, task_id: &str, board_id: &str,
+        filename: &str, mime_type: &str, size_bytes: i64, storage_key: &str,
+        uploaded_by: Option<&str>) -> anyhow::Result<Attachment> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO attachments (id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by],
+            )?;
+            let att = conn.query_row(
+                "SELECT id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by, created_at
+                 FROM attachments WHERE id = ?1",
+                params![id],
+                |row| Ok(Attachment {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    filename: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    size_bytes: row.get(5)?,
+                    storage_key: row.get(6)?,
+                    uploaded_by: row.get(7)?,
+                    created_at: parse_dt(&row.get::<_, String>(8)?)?,
+                }),
+            )?;
+            Ok(att)
+        })
+    }
+
+    pub fn list_attachments(&self, task_id: &str) -> anyhow::Result<Vec<Attachment>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by, created_at
+                 FROM attachments WHERE task_id = ?1 ORDER BY created_at DESC"
+            )?;
+            let rows = stmt.query_map(params![task_id], |row| {
+                Ok(Attachment {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    filename: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    size_bytes: row.get(5)?,
+                    storage_key: row.get(6)?,
+                    uploaded_by: row.get(7)?,
+                    created_at: parse_dt(&row.get::<_, String>(8)?)?,
+                })
+            })?;
+            let mut result = Vec::new();
+            for r in rows { result.push(r?); }
+            Ok(result)
+        })
+    }
+
+    pub fn get_attachment(&self, attachment_id: &str) -> anyhow::Result<Option<Attachment>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by, created_at
+                 FROM attachments WHERE id = ?1"
+            )?;
+            let mut rows = stmt.query_map(params![attachment_id], |row| {
+                Ok(Attachment {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    filename: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    size_bytes: row.get(5)?,
+                    storage_key: row.get(6)?,
+                    uploaded_by: row.get(7)?,
+                    created_at: parse_dt(&row.get::<_, String>(8)?)?,
+                })
+            })?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn delete_attachment(&self, attachment_id: &str) -> anyhow::Result<bool> {
+        self.with_conn(|conn| {
+            let affected = conn.execute(
+                "DELETE FROM attachments WHERE id = ?1",
+                params![attachment_id],
+            )?;
+            Ok(affected > 0)
+        })
+    }
+
+    pub fn get_attachment_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, i32)>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT task_id, COUNT(*) as cnt FROM attachments
+                 WHERE board_id = ?1
+                 GROUP BY task_id"
+            )?;
+            let rows = stmt.query_map(rusqlite::params![board_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?))
+            })?;
+            let mut result = Vec::new();
+            for r in rows { result.push(r?); }
             Ok(result)
         })
     }
