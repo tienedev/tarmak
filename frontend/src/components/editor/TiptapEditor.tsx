@@ -4,7 +4,9 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { FileBlock } from "./FileBlockNode";
 import { api } from "@/lib/api";
 import {
@@ -36,50 +38,57 @@ export function stripHtml(html: string): string {
   return doc.body.textContent ?? "";
 }
 
-function createFileDropPlugin(boardId: string, taskId: string) {
-  return new Plugin({
-    props: {
-      handleDrop(view, event) {
-        const files = event.dataTransfer?.files;
-        if (!files?.length) return false;
+function createFileDropExtension(boardId: string, taskId: string) {
+  return Extension.create({
+    name: "fileDrop",
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          props: {
+            handleDrop(view: EditorView, event: DragEvent) {
+              const files = event.dataTransfer?.files;
+              if (!files?.length) return false;
 
-        event.preventDefault();
-        const pos = view.posAtCoords({
-          left: event.clientX,
-          top: event.clientY,
-        })?.pos;
+              event.preventDefault();
+              const pos = view.posAtCoords({
+                left: event.clientX,
+                top: event.clientY,
+              })?.pos;
 
-        Array.from(files).forEach(async (file) => {
-          try {
-            const attachment = await api.uploadAttachment(boardId, taskId, file);
-            const downloadUrl = `/api/v1/boards/${boardId}/attachments/${attachment.id}/download`;
+              Array.from(files).forEach(async (file) => {
+                try {
+                  const attachment = await api.uploadAttachment(boardId, taskId, file);
+                  const downloadUrl = `/api/v1/boards/${boardId}/attachments/${attachment.id}/download`;
 
-            if (file.type.startsWith("image/")) {
-              view.dispatch(
-                view.state.tr.insert(
-                  pos ?? view.state.doc.content.size,
-                  view.state.schema.nodes.image.create({ src: downloadUrl }),
-                ),
-              );
-            } else {
-              view.dispatch(
-                view.state.tr.insert(
-                  pos ?? view.state.doc.content.size,
-                  view.state.schema.nodes.fileBlock.create({
-                    src: downloadUrl,
-                    filename: attachment.filename,
-                    mime: attachment.mime_type,
-                    size: attachment.size_bytes,
-                  }),
-                ),
-              );
-            }
-          } catch {
-            // upload failed — silently ignore
-          }
-        });
-        return true;
-      },
+                  if (file.type.startsWith("image/")) {
+                    view.dispatch(
+                      view.state.tr.insert(
+                        pos ?? view.state.doc.content.size,
+                        view.state.schema.nodes.image.create({ src: downloadUrl }),
+                      ),
+                    );
+                  } else {
+                    view.dispatch(
+                      view.state.tr.insert(
+                        pos ?? view.state.doc.content.size,
+                        view.state.schema.nodes.fileBlock.create({
+                          src: downloadUrl,
+                          filename: attachment.filename,
+                          mime: attachment.mime_type,
+                          size: attachment.size_bytes,
+                        }),
+                      ),
+                    );
+                  }
+                } catch {
+                  // upload failed — silently ignore
+                }
+              });
+              return true;
+            },
+          },
+        }),
+      ];
     },
   });
 }
@@ -136,7 +145,7 @@ export function TiptapEditor({
       Image.configure({ inline: false, allowBase64: false }),
       FileBlock,
       ...(boardId && taskId
-        ? [createFileDropPlugin(boardId, taskId)]
+        ? [createFileDropExtension(boardId, taskId)]
         : []),
     ],
     content,
