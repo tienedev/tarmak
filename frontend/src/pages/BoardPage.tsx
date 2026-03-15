@@ -16,6 +16,7 @@ import { useSync } from '@/hooks/useSync'
 import { usePresence } from '@/hooks/usePresence'
 import type { Task } from '@/lib/api'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
+import { LabelManager } from '@/components/board/LabelManager'
 import { ArrowLeft, History, Loader2, Settings2 } from 'lucide-react'
 
 function getInitialView(): ViewMode {
@@ -123,6 +124,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
         <ViewSwitcher value={view} onChange={handleViewChange} />
 
         <SharePopover boardId={boardId} />
+
+        <LabelManager />
 
         <Button
           variant="ghost"
