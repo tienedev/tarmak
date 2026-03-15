@@ -116,6 +116,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
         size="icon-xs"
         onClick={() => setExpanded(true)}
         className="text-muted-foreground"
+        aria-label="Search"
       >
         <Search className="size-3.5" />
       </Button>

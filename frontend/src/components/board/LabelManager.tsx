@@ -56,7 +56,7 @@ export function LabelManager() {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon-xs" className="size-8" />
+          <Button variant="ghost" size="icon-xs" className="size-8" aria-label="Labels" />
         }
       >
         <Tag className="size-4" />
