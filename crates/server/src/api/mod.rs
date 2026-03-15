@@ -10,6 +10,7 @@ pub mod labels;
 pub mod middleware;
 pub mod permissions;
 pub mod rate_limit;
+pub mod subtasks;
 pub mod tasks;
 pub mod validation;
 
@@ -43,12 +44,17 @@ pub fn router(db: Db) -> Router {
         .route("/", post(labels::attach))
         .route("/{lid}", axum::routing::delete(labels::detach));
 
+    let task_subtasks = Router::new()
+        .route("/", get(subtasks::list).post(subtasks::create))
+        .route("/{sid}", put(subtasks::update).delete(subtasks::delete));
+
     let task_item = Router::new()
         .route("/", get(tasks::get).put(tasks::update).delete(tasks::delete))
         .route("/move", patch(tasks::move_task))
         .nest("/fields", task_fields)
         .route("/comments", get(comments::list).post(comments::create))
-        .nest("/labels", task_labels);
+        .nest("/labels", task_labels)
+        .nest("/subtasks", task_subtasks);
 
     let board_tasks = Router::new()
         .route("/", get(tasks::list).post(tasks::create))
