@@ -1,6 +1,13 @@
 import { type Page, expect } from '@playwright/test'
 
-/** Register a fresh user and land on the boards list page. */
+const API = '/api/v1'
+
+interface AuthResult {
+  token: string
+  user: { id: string; name: string; email: string }
+}
+
+/** Register a user via API and inject the token into the browser. */
 export async function registerAndLogin(page: Page, prefix: string) {
   const user = {
     name: `E2E ${prefix}`,
@@ -8,32 +15,45 @@ export async function registerAndLogin(page: Page, prefix: string) {
     password: 'testpassword123',
   }
 
+  // Register directly via API (much faster than going through UI)
+  const res = await page.request.post(`${API}/auth/register`, {
+    data: user,
+  })
+  const auth: AuthResult = await res.json()
+
+  // Inject the token and navigate to boards list
   await page.goto('/')
-  await page.getByText('Create one').click()
-  await expect(page.getByText('Create an account')).toBeVisible()
-
-  await page.getByLabel('Name').fill(user.name)
-  await page.getByLabel('Email').fill(user.email)
-  await page.getByLabel('Password').fill(user.password)
-  await page.getByRole('button', { name: 'Create account' }).click()
-
-  // Wait for boards list — confirms registration + navigation
+  await page.evaluate((token) => localStorage.setItem('token', token), auth.token)
+  await page.reload()
   await expect(page.getByText('All Boards')).toBeVisible()
 
   return user
 }
 
-/** Create a board and navigate into it. Returns the board name. */
+/** Create a board via API and navigate into it. */
 export async function createBoard(page: Page, name: string, description?: string) {
-  await page.getByRole('button', { name: 'New Board' }).click()
-  await expect(page.getByText('Create Board').first()).toBeVisible()
+  const res = await page.request.post(`${API}/boards`, {
+    data: { name, description },
+    headers: {
+      Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('token'))}`,
+    },
+  })
+  const board: { id: string } = await res.json()
 
-  await page.getByLabel('Name').fill(name)
-  if (description) {
-    await page.getByLabel('Description (optional)').fill(description)
-  }
-  await page.getByRole('button', { name: 'Create Board' }).last().click()
+  // Navigate to the board
+  await page.goto(`/#/boards/${board.id}`)
+  await expect(page.getByText(name)).toBeVisible()
 
-  // Wait for navigation to the board page
-  await expect(page).toHaveURL(/#\/boards\//)
+  return board
+}
+
+/** Create a column via API. */
+export async function createColumn(page: Page, boardId: string, name: string, color?: string) {
+  const res = await page.request.post(`${API}/boards/${boardId}/columns`, {
+    data: { name, color },
+    headers: {
+      Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('token'))}`,
+    },
+  })
+  return (await res.json()) as { id: string }
 }
