@@ -11,6 +11,7 @@ use crate::db::models::{Board, Role};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use super::validation;
 
 // ---- Request bodies --------------------------------------------------------
 
@@ -41,6 +42,7 @@ pub async fn create(
     AuthUser(user): AuthUser,
     Json(body): Json<CreateBoard>,
 ) -> Result<Json<Board>, ApiError> {
+    validation::validate_title(&body.name)?;
     let board = db.create_board(&body.name, body.description.as_deref())?;
     db.add_board_member(&board.id, &user.id, Role::Owner)?;
     Ok(Json(board))

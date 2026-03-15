@@ -9,6 +9,7 @@ use crate::db::models::{Priority, Role, Task};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use super::validation;
 
 // ---- Request bodies --------------------------------------------------------
 
@@ -57,6 +58,7 @@ pub async fn create(
     Json(body): Json<CreateTask>,
 ) -> Result<Json<Task>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    validation::validate_title(&body.title)?;
     let task = db.create_task(
         &board_id,
         &body.column_id,
