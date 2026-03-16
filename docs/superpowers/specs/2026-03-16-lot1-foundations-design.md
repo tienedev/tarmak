@@ -63,17 +63,24 @@ This is backward-compatible (`&mut` auto-reborrows to `&`), but the `Send + 'sta
 self.conn.call(move |conn| f(conn)).await.map_err(|e| anyhow::anyhow!("{e}"))
 ```
 
-**Call site migration**: Every call to `db.with_conn(...)` gains `.await`. ~87 call sites total, concentrated in `db/repo.rs` (~69), `mcp/board_ask.rs` (~8), `auth/mod.rs` (~6), `api/auth.rs` (~4).
+**Call site migration — two levels of cascade**:
+
+1. **Direct `with_conn` calls** (~87 sites): These gain `.await`. Concentrated in `db/repo.rs` (~69), `mcp/board_ask.rs` (~8), `auth/mod.rs` (~6), `api/auth.rs` (~4).
+2. **Callers of `Db` public methods** (~180+ sites): Every public method in `repo.rs` becomes async, so all callers in `api/*.rs` (~108 calls across 14 handler modules), `mcp/tools.rs` (~64 calls), `sync/ws.rs` (~4 calls), `sync/doc.rs` (~3 calls), `api/middleware.rs` (~2 calls), and `auth/mod.rs` public functions (~6 calls) also gain `.await`.
+
+The `auth/` public functions (`create_session`, `validate_session`, `accept_invite`, `create_invite_link`) become async, which cascades to their callers in `api/auth.rs`, `api/middleware.rs`, and `sync/ws.rs`.
+
+This is the largest mechanical change in the lot. It is entirely mechanical (add `.await`), but the scope is ~270 total sites across ~25 files.
 
 **`Db` stays `Clone`**: `tokio_rusqlite::Connection` is internally `Arc`-wrapped and clone-safe.
 
-**Async callers**: `Db::new()` becoming async affects all construction sites:
-- `main.rs` HTTP server path (already in `#[tokio::main]` async context — straightforward)
-- `main.rs` `reset_password` CLI path — must become async or use `.await` within the async main
-- `main.rs` `run_mcp_stdio` path — must become async
+**Async callers of `Db::new()`**:
+- `main.rs` HTTP server path — already in `#[tokio::main]` async context, straightforward
+- `main.rs` `reset_password` CLI path — must become async
+- `main.rs` `run_mcp_stdio` path — must become async. Note: the current blocking `for line in stdin.lock().lines()` loop must be restructured to use `tokio::io::BufReader` on `tokio::io::stdin()` since the MCP tool handlers (`handle_query`, etc.) will be async and need `.await` inside the loop body
 - `Db::in_memory()` in tests — test functions must be `#[tokio::test]`
 
-**Pragmas**: WAL and `busy_timeout` are currently set in `Db::new()`. `foreign_keys` is set in `migrations.rs`. After migration, consolidate all pragmas into `Db::new()` inside the initial `call()` for clarity.
+**Pragmas**: WAL and `busy_timeout` are currently set in `Db::new()`. `foreign_keys` is set in `migrations.rs` (lines 7-9). After migration, consolidate all three pragmas into `Db::new()` inside the initial `call()` and remove them from `migrations.rs`. Note: `foreign_keys` is per-connection (not persisted), so it must be set on every connection open — `Db::new()` is the correct place.
 
 ### Testing
 
@@ -146,7 +153,7 @@ impl Db {
 }
 ```
 
-**New RateLimiter method**: `RateLimiter::sweep() -> usize` — acquires the lock, removes all entries with no timestamps within the current window, returns count of removed IPs.
+**New RateLimiter method**: `RateLimiter::sweep() -> usize` — acquires the lock, first prunes all timestamps older than the window from every entry, then removes entries with empty timestamp vecs, returns count of removed IPs.
 
 **Removals**:
 - Remove probabilistic cleanup in `auth/mod.rs` (the `rand::random::<u8>() == 0` block in `validate_session`)
@@ -188,13 +195,13 @@ new WebsocketProvider(wsUrl, roomName, doc, {
 })
 ```
 
-2. **Expose connection status**: Listen to the provider's `status` event (already emitted by `y-websocket`) and expose it via the `useSync` hook:
+2. **Expose connection status**: Listen to the provider's `status` event (already emitted by `y-websocket`) and expose it via the `useSync` hook. The existing hook exposes `connected: boolean` — replace this with a richer status:
 ```typescript
 interface SyncState {
   status: 'connected' | 'connecting' | 'disconnected'
 }
 ```
-The provider emits `{ status: 'connected' | 'connecting' | 'disconnected' }` events. Wire these to React state.
+The provider emits `{ status: 'connected' | 'connecting' | 'disconnected' }` events. Wire these to React state. Update existing consumers that check `connected` to use `status === 'connected'` instead.
 
 3. **Build `ConnectionStatus` component**: A minimal UI indicator:
 - Renders in `AppLayout`, positioned subtly (e.g. bottom-left or top-right corner)
@@ -215,21 +222,47 @@ The provider emits `{ status: 'connected' | 'connecting' | 'disconnected' }` eve
 
 | File | Change |
 |------|--------|
+| **Database layer** | |
 | `crates/server/Cargo.toml` | Add `tokio-rusqlite` |
-| `crates/server/src/db/mod.rs` | Rewrite `Db` to use `tokio_rusqlite::Connection`, consolidate pragmas |
-| `crates/server/src/db/repo.rs` | Add `.await` to ~69 `with_conn` calls |
-| `crates/server/src/db/migrations.rs` | Run migrations inside async `call()`, move `foreign_keys` pragma to `Db::new` |
-| `crates/server/src/main.rs` | Make DB init async, make `reset_password` and `run_mcp_stdio` async, add `spawn_cleanup_tasks()` |
-| `crates/server/src/api/auth.rs` | Add `.await` to ~4 `with_conn` calls |
-| `crates/server/src/auth/mod.rs` | Add `.await` to ~6 calls, remove probabilistic cleanup, move `cleanup_expired_sessions` to `Db` method |
+| `crates/server/src/db/mod.rs` | Rewrite `Db` to use `tokio_rusqlite::Connection`, consolidate all pragmas |
+| `crates/server/src/db/repo.rs` | Make all ~69 `with_conn` calls async, all public methods become async |
+| `crates/server/src/db/migrations.rs` | Run migrations inside async `call()`, remove pragma lines (moved to `Db::new`) |
+| **Entrypoints** | |
+| `crates/server/src/main.rs` | Make DB init async, make `reset_password` async, restructure `run_mcp_stdio` to async (replace blocking stdin loop with `tokio::io`), add `spawn_cleanup_tasks()` |
+| **Auth** | |
+| `crates/server/src/auth/mod.rs` | Make `create_session`, `validate_session`, `accept_invite`, `create_invite_link` async. Remove probabilistic cleanup. Move `cleanup_expired_sessions` to `Db` method. |
+| **API handlers (14 modules)** | |
+| `crates/server/src/api/auth.rs` | Add `.await` to auth function calls |
+| `crates/server/src/api/boards.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/tasks.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/columns.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/labels.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/subtasks.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/comments.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/custom_fields.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/archive.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/attachments.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/search.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/activity.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/permissions.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/api_keys.rs` | Add `.await` to Db method calls |
+| `crates/server/src/api/middleware.rs` | Add `.await` to `validate_session` and `validate_api_key` calls |
+| **MCP** | |
+| `crates/server/src/mcp/tools.rs` | Add `.await` to ~64 Db method calls |
 | `crates/server/src/mcp/board_ask.rs` | Add `.await` to ~8 `with_conn` calls |
-| `crates/server/src/mcp/*.rs` | Add `.await` to any other `with_conn` calls |
-| `crates/server/src/sync/doc.rs` | Add `.await` to `Db` method calls (indirect via `init_from_db`) |
+| `crates/server/src/mcp/sse.rs` | Add `.await` to handler calls (`handle_query`, `handle_mutate`, `handle_sync`) |
+| **Sync** | |
+| `crates/server/src/sync/ws.rs` | Add `.await` to ~4 Db method calls (`validate_api_key`, `get_board_member`, `save_crdt_state`) |
+| `crates/server/src/sync/doc.rs` | Add `.await` to Db method calls in `init_from_db` |
+| **Cleanup tasks** | |
 | `crates/server/src/api/rate_limit.rs` | Remove probabilistic cleanup, add `sweep()` method |
+| **Frontend** | |
 | `frontend/src/lib/sync.ts` | Configure `maxBackoffTime: 30000` on WebsocketProvider |
-| `frontend/src/hooks/useSync.ts` | Expose connection status from provider's `status` events |
+| `frontend/src/hooks/useSync.ts` | Replace `connected: boolean` with `status` from provider events, update consumers |
 | `frontend/src/components/board/ConnectionStatus.tsx` | New component — connection indicator |
 | `frontend/src/layouts/AppLayout.tsx` | Render `ConnectionStatus` |
+
+**Total**: ~25-30 backend files, 4 frontend files. ~270 `.await` additions (mechanical).
 
 ## Out of Scope
 
