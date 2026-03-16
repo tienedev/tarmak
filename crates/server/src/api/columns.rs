@@ -25,6 +25,11 @@ pub struct UpdateColumn {
     pub color: Option<Option<String>>,
 }
 
+#[derive(Deserialize)]
+pub struct MoveColumn {
+    pub position: i64,
+}
+
 // ---- Handlers --------------------------------------------------------------
 
 pub async fn list(
@@ -70,6 +75,26 @@ pub async fn update(
     let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
         Some(&serde_json::json!({"column_id": &cid}).to_string()));
     Ok(Json(serde_json::json!({ "updated": true })))
+}
+
+pub async fn move_col(
+    State(db): State<Db>,
+    AuthUser(user): AuthUser,
+    Path((board_id, cid)): Path<(String, String)>,
+    Json(body): Json<MoveColumn>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    let columns = db.list_columns(&board_id)?;
+    if !columns.iter().any(|c| c.id == cid) {
+        return Err(ApiError::NotFound("column not found".into()));
+    }
+    let moved = db.move_column(&cid, body.position)?;
+    if !moved {
+        return Err(ApiError::NotFound("column not found".into()));
+    }
+    let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
+        Some(&serde_json::json!({"column_id": &cid, "position": body.position}).to_string()));
+    Ok(Json(serde_json::json!({ "moved": true })))
 }
 
 pub async fn delete(

@@ -38,6 +38,7 @@ pub fn router(db: Db) -> Router {
     let columns = Router::new()
         .route("/", get(columns::list).post(columns::create))
         .route("/{cid}", put(columns::update).delete(columns::delete))
+        .route("/{cid}/move", post(columns::move_col))
         .route("/{cid}/archive", post(archive::archive_column))
         .route("/{cid}/unarchive", post(archive::unarchive_column));
 
