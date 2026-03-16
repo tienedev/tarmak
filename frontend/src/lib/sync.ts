@@ -16,6 +16,7 @@ export function createSyncProvider(boardId: string, token: string | null) {
 
   const provider = new WebsocketProvider(`${wsBase}/ws/boards`, boardId, doc, {
     params: { token },
+    maxBackoffTime: 30_000,
   })
   return { doc, provider }
 }

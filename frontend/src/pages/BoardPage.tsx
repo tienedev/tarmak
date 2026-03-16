@@ -7,6 +7,7 @@ import { ListView } from '@/components/board/ListView'
 import { TimelineView } from '@/components/board/TimelineView'
 import type { ViewMode } from '@/components/board/ViewSwitcher'
 import { PresenceAvatars } from '@/components/presence/PresenceAvatars'
+import { ConnectionStatus } from '@/components/board/ConnectionStatus'
 import { TaskDialog } from '@/components/board/TaskDialog'
 import { BoardSubNav } from '@/components/board/BoardSubNav'
 import { BoardSettingsPanel } from '@/components/board/BoardSettingsPanel'
@@ -48,7 +49,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   // Real-time sync and presence
-  const { provider } = useSync(boardId)
+  const { provider, status } = useSync(boardId)
   const presenceUsers = usePresence(provider, user?.name ?? 'Anonymous')
 
   // Filter tasks
@@ -301,6 +302,8 @@ export function BoardPage({ boardId }: BoardPageProps) {
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onAction={handlePaletteAction} />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      <ConnectionStatus status={status} />
     </div>
   )
 }
