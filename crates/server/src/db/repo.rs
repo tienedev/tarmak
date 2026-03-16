@@ -1909,6 +1909,25 @@ impl Db {
 }
 
 // ---------------------------------------------------------------------------
+// Session cleanup
+// ---------------------------------------------------------------------------
+
+impl Db {
+    /// Delete all sessions that have expired. Returns the number of deleted rows.
+    pub async fn cleanup_expired_sessions(&self) -> anyhow::Result<usize> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.with_conn(move |conn| {
+            let count = conn.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?1",
+                rusqlite::params![now],
+            )?;
+            Ok(count)
+        })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
 // CRDT state persistence
 // ---------------------------------------------------------------------------
 
@@ -2210,5 +2229,30 @@ mod tests {
         assert_eq!(comments.len(), 2);
         assert_eq!(comments[0].content, "First comment");
         assert_eq!(comments[1].content, "Second comment");
+    }
+
+    // ----- Session cleanup -------------------------------------------------
+
+    #[tokio::test]
+    async fn cleanup_expired_sessions_removes_old() {
+        let db = Db::in_memory().await.unwrap();
+        let user = db.create_user("test", "test@test.com", None, false, Some("hash")).await.unwrap();
+
+        let token = crate::auth::generate_token();
+        let token_hash = crate::auth::hash_token(&token);
+        let expired = (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        db.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), user.id, token_hash, expired],
+            )?;
+            Ok(())
+        }).await.unwrap();
+
+        let count = db.cleanup_expired_sessions().await.unwrap();
+        assert_eq!(count, 1);
+
+        let count = db.cleanup_expired_sessions().await.unwrap();
+        assert_eq!(count, 0);
     }
 }

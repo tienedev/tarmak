@@ -124,20 +124,6 @@ pub async fn validate_session(db: &Db, token: &str) -> anyhow::Result<User> {
     .await
 }
 
-/// Delete all sessions whose `expires_at` has passed. Returns the number of
-/// rows removed.
-pub async fn cleanup_expired_sessions(db: &Db) -> anyhow::Result<usize> {
-    let now = Utc::now().to_rfc3339();
-    db.with_conn(move |conn| {
-        let affected = conn.execute(
-            "DELETE FROM sessions WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        Ok(affected)
-    })
-    .await
-}
-
 // ---------------------------------------------------------------------------
 // Invite links
 // ---------------------------------------------------------------------------
