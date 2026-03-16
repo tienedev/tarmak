@@ -30,7 +30,7 @@ export async function registerAndLogin(page: Page, prefix: string) {
   await page.goto('/')
   await page.evaluate((token) => localStorage.setItem('token', token), auth.token)
   await page.reload()
-  await expect(page.getByRole('main').getByText('All Boards')).toBeVisible()
+  await expect(page.getByRole('main').getByText('Dashboard')).toBeVisible()
 
   return user
 }
