@@ -240,7 +240,6 @@ impl Db {
         })
     }
 
-    #[allow(dead_code)]
     pub fn move_column(&self, id: &str, new_position: i64) -> anyhow::Result<bool> {
         self.with_conn(|conn| {
             let affected = conn.execute(

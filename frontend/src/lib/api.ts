@@ -262,7 +262,7 @@ export const api = {
       method: 'DELETE',
     }),
 
-  // Column update
+  // Column management
   updateColumn: (
     boardId: string,
     columnId: string,
@@ -271,6 +271,15 @@ export const api = {
     request<{ updated: boolean }>(`/boards/${boardId}/columns/${columnId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    }),
+  deleteColumn: (boardId: string, columnId: string) =>
+    request<{ deleted: boolean }>(`/boards/${boardId}/columns/${columnId}`, {
+      method: 'DELETE',
+    }),
+  moveColumn: (boardId: string, columnId: string, position: number) =>
+    request<{ moved: boolean }>(`/boards/${boardId}/columns/${columnId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ position }),
     }),
 }
 

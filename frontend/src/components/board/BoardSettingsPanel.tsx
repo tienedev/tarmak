@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
+import { DrawerLayout } from '@/components/ui/drawer-layout'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,49 +53,48 @@ export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPane
   const [activeTab, setActiveTab] = useState<SettingsTab>('members')
 
   return (
-    <Sheet open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
-      <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-[480px]">
-        <SheetHeader className="shrink-0 px-4 pt-4 pb-0">
-          <SheetTitle className="text-base">Board Settings</SheetTitle>
-          <SheetDescription className="sr-only">Configure board settings</SheetDescription>
-        </SheetHeader>
+    <DrawerLayout
+      open={open}
+      onClose={onClose}
+      title="Board Settings"
+      width="560px"
+      rawBody
+    >
+      <div className="flex flex-1 overflow-hidden">
+        {/* Vertical tab nav */}
+        <nav className="flex w-36 shrink-0 flex-col gap-0.5 border-r px-2 py-3">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors text-left',
+                  activeTab === tab.id
+                    ? 'bg-accent text-accent-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                <Icon className="size-3.5" />
+                {tab.label}
+              </button>
+            )
+          })}
+        </nav>
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* Vertical tab nav */}
-          <nav className="flex w-36 shrink-0 flex-col gap-0.5 border-r px-2 py-3">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors text-left',
-                    activeTab === tab.id
-                      ? 'bg-accent text-accent-foreground font-medium'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <Icon className="size-3.5" />
-                  {tab.label}
-                </button>
-              )
-            })}
-          </nav>
-
-          {/* Tab content */}
-          <ScrollArea className="flex-1">
-            <div className="p-4">
-              {activeTab === 'members' && <MembersTab boardId={boardId} />}
-              {activeTab === 'labels' && <LabelsTab />}
-              {activeTab === 'fields' && <FieldsTab />}
-              {activeTab === 'wip' && <WipTab boardId={boardId} />}
-            </div>
-          </ScrollArea>
-        </div>
-      </SheetContent>
-    </Sheet>
+        {/* Tab content */}
+        <ScrollArea className="flex-1">
+          <div className="px-6 py-4">
+            {activeTab === 'members' && <MembersTab boardId={boardId} />}
+            {activeTab === 'labels' && <LabelsTab />}
+            {activeTab === 'fields' && <FieldsTab />}
+            {activeTab === 'wip' && <WipTab boardId={boardId} />}
+          </div>
+        </ScrollArea>
+      </div>
+    </DrawerLayout>
   )
 }
 

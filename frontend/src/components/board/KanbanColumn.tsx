@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -14,30 +14,72 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useBoardStore } from '@/stores/board'
-import { Archive, MoreHorizontal } from 'lucide-react'
+import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  MoreHorizontal,
+  Paintbrush,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { TaskCard } from './TaskCard'
 import { AddTaskForm } from './AddTaskForm'
+
+const PALETTE = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
+]
 
 interface KanbanColumnProps {
   column: Column
   tasks: Task[]
   boardId: string
   onTaskClick?: (task: Task) => void
+  columnIndex: number
+  columnCount: number
 }
 
-export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, boardId, onTaskClick, columnIndex, columnCount }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const [wipOpen, setWipOpen] = useState(false)
   const [wipValue, setWipValue] = useState(column.wip_limit?.toString() ?? '')
+  const [editing, setEditing] = useState(false)
+  const [editName, setEditName] = useState(column.name)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const sortedTasks = [...tasks].sort((a, b) => a.position - b.position)
   const taskIds = sortedTasks.map((t) => t.id)
 
   const isOverWipLimit =
     column.wip_limit != null && column.wip_limit > 0 && tasks.length >= column.wip_limit
+
+  const isFirst = columnIndex === 0
+  const isLast = columnIndex === columnCount - 1
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
 
   async function saveWipLimit() {
     const val = wipValue.trim() === '' ? null : parseInt(wipValue, 10) || null
@@ -46,6 +88,28 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
       useBoardStore.getState().fetchBoard(boardId)
       setWipOpen(false)
     } catch { /* ignore */ }
+  }
+
+  async function saveRename() {
+    const trimmed = editName.trim()
+    if (trimmed && trimmed !== column.name) {
+      await useBoardStore.getState().updateColumn(boardId, column.id, { name: trimmed })
+    }
+    setEditing(false)
+  }
+
+  async function handleColorChange(color: string | null) {
+    await useBoardStore.getState().updateColumn(boardId, column.id, { color })
+  }
+
+  async function handleMove(direction: 'left' | 'right') {
+    const newPosition = direction === 'left' ? column.position - 1 : column.position + 1
+    await useBoardStore.getState().moveColumn(boardId, column.id, newPosition)
+  }
+
+  async function handleDelete() {
+    await useBoardStore.getState().deleteColumn(boardId, column.id)
+    setConfirmDelete(false)
   }
 
   return (
@@ -59,13 +123,29 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
       <div className="flex items-center gap-2 px-3 pt-3 pb-1">
         {column.color && (
           <span
-            className="inline-block size-2.5 rounded-full shadow-sm"
+            className="inline-block size-2.5 shrink-0 rounded-full shadow-sm"
             style={{ backgroundColor: column.color }}
           />
         )}
-        <span className="flex-1 truncate text-xs font-bold text-foreground">
-          {column.name}
-        </span>
+
+        {editing ? (
+          <Input
+            ref={inputRef}
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveRename()
+              if (e.key === 'Escape') { setEditing(false); setEditName(column.name) }
+            }}
+            onBlur={saveRename}
+            className="h-6 flex-1 rounded px-1 text-xs font-bold"
+          />
+        ) : (
+          <span className="flex-1 truncate text-xs font-bold text-foreground">
+            {column.name}
+          </span>
+        )}
+
         <Popover open={wipOpen} onOpenChange={setWipOpen}>
           <PopoverTrigger
             render={
@@ -100,6 +180,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
             <p className="mt-1.5 text-[0.65rem] text-muted-foreground">Set to 0 or empty to remove limit</p>
           </PopoverContent>
         </Popover>
+
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -108,10 +189,65 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
           >
             <MoreHorizontal className="size-3.5" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={() => { setEditName(column.name); setEditing(true) }}>
+              <Pencil className="size-3.5" />
+              Rename
+            </DropdownMenuItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Paintbrush className="size-3.5" />
+                Color
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="p-2">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PALETTE.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={cn(
+                        'size-6 rounded-full border-2 transition-transform hover:scale-110',
+                        column.color === c ? 'border-foreground' : 'border-transparent',
+                      )}
+                      style={{ backgroundColor: c }}
+                      onClick={() => handleColorChange(c)}
+                    />
+                  ))}
+                </div>
+                {column.color && (
+                  <button
+                    type="button"
+                    onClick={() => handleColorChange(null)}
+                    className="mt-2 flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="size-3" />
+                    Remove color
+                  </button>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem onClick={() => handleMove('left')} disabled={isFirst}>
+              <ArrowLeft className="size-3.5" />
+              Move left
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleMove('right')} disabled={isLast}>
+              <ArrowRight className="size-3.5" />
+              Move right
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
             <DropdownMenuItem onClick={() => useBoardStore.getState().archiveColumn(boardId, column.id)}>
               <Archive className="size-3.5" />
-              Archive column
+              Archive
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="size-3.5" />
+              Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -157,6 +293,26 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick }: KanbanColu
           <AddTaskForm boardId={boardId} columnId={column.id} />
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete "{column.name}"?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this column and all {tasks.length} task{tasks.length !== 1 ? 's' : ''} in it. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

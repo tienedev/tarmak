@@ -181,13 +181,15 @@ export function KanbanBoard({ filteredTasks, onTaskClick }: KanbanBoardProps) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full gap-3 overflow-x-auto overflow-y-hidden p-6 pb-4">
-        {sortedColumns.map((column) => (
+        {sortedColumns.map((column, index) => (
           <KanbanColumn
             key={column.id}
             column={column}
             tasks={tasksByColumn(column.id)}
             boardId={currentBoard.id}
             onTaskClick={onTaskClick}
+            columnIndex={index}
+            columnCount={sortedColumns.length}
           />
         ))}
 

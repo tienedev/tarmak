@@ -3,6 +3,7 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
@@ -53,44 +54,48 @@ export function ThemeSelector() {
       >
         <ModeIcon className="size-3.5" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>Theme Mode</DropdownMenuLabel>
-        {modeOptions.map((opt) => {
-          const Icon = opt.icon
-          return (
-            <DropdownMenuItem
-              key={opt.value}
-              onClick={() => setMode(opt.value)}
-              className={cn(mode === opt.value && 'bg-accent')}
-            >
-              <Icon className="size-3.5" />
-              {opt.label}
-            </DropdownMenuItem>
-          )
-        })}
+      <DropdownMenuContent align="end" side="top" className="w-44">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Theme Mode</DropdownMenuLabel>
+          {modeOptions.map((opt) => {
+            const Icon = opt.icon
+            return (
+              <DropdownMenuItem
+                key={opt.value}
+                onClick={() => setMode(opt.value)}
+                className={cn(mode === opt.value && 'bg-accent')}
+              >
+                <Icon className="size-3.5" />
+                {opt.label}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel>Accent Color</DropdownMenuLabel>
-        <div className="flex gap-2 px-1.5 py-1.5">
-          {accentThemes.map((theme: AccentTheme) => (
-            <button
-              key={theme.name}
-              type="button"
-              onClick={() => setAccent(theme.name)}
-              className={cn(
-                'flex size-7 items-center justify-center rounded-full transition-all',
-                accent === theme.name && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
-              )}
-              title={theme.label}
-            >
-              <span
-                className="size-5 rounded-full shadow-sm"
-                style={{ backgroundColor: theme.preview }}
-              />
-            </button>
-          ))}
-        </div>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Accent Color</DropdownMenuLabel>
+          <div className="flex gap-2 px-1.5 py-1.5">
+            {accentThemes.map((theme: AccentTheme) => (
+              <button
+                key={theme.name}
+                type="button"
+                onClick={() => setAccent(theme.name)}
+                className={cn(
+                  'flex size-7 items-center justify-center rounded-full transition-all',
+                  accent === theme.name && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
+                )}
+                title={theme.label}
+              >
+                <span
+                  className="size-5 rounded-full shadow-sm"
+                  style={{ backgroundColor: theme.preview }}
+                />
+              </button>
+            ))}
+          </div>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

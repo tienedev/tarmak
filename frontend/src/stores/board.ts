@@ -44,6 +44,13 @@ interface BoardState {
   removeTaskLabel: (boardId: string, taskId: string, labelId: string) => Promise<void>
   archiveTask: (boardId: string, taskId: string) => Promise<void>
   unarchiveTask: (boardId: string, taskId: string) => Promise<void>
+  updateColumn: (
+    boardId: string,
+    columnId: string,
+    data: { name?: string; color?: string | null },
+  ) => Promise<void>
+  deleteColumn: (boardId: string, columnId: string) => Promise<void>
+  moveColumn: (boardId: string, columnId: string, position: number) => Promise<void>
   archiveColumn: (boardId: string, columnId: string) => Promise<void>
   unarchiveColumn: (boardId: string, columnId: string) => Promise<void>
   clearCurrentBoard: () => void
@@ -239,6 +246,30 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     await api.unarchiveTask(boardId, taskId)
     await get().fetchBoard(boardId)
     notify('Task restored')
+  },
+
+  updateColumn: async (boardId: string, columnId: string, data: { name?: string; color?: string | null }) => {
+    await api.updateColumn(boardId, columnId, data)
+    set({
+      columns: get().columns.map((c) =>
+        c.id === columnId ? { ...c, ...data } : c,
+      ),
+    })
+  },
+
+  deleteColumn: async (boardId: string, columnId: string) => {
+    const column = get().columns.find((c) => c.id === columnId)
+    await api.deleteColumn(boardId, columnId)
+    set({
+      columns: get().columns.filter((c) => c.id !== columnId),
+      tasks: get().tasks.filter((t) => t.column_id !== columnId),
+    })
+    if (column) notify(`Column "${column.name}" deleted`)
+  },
+
+  moveColumn: async (boardId: string, columnId: string, position: number) => {
+    await api.moveColumn(boardId, columnId, position)
+    await get().fetchBoard(boardId)
   },
 
   archiveColumn: async (boardId: string, columnId: string) => {

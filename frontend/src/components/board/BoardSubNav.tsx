@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBoardStore } from '@/stores/board'
 import { useFilterStore } from '@/hooks/useFilters'
 import { Button } from '@/components/ui/button'
@@ -10,7 +9,7 @@ import {
   PopoverContent,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { Columns3, List, GanttChart, Filter, X, ChevronDown } from 'lucide-react'
+import { Filter, X, ChevronDown } from 'lucide-react'
 import type { ViewMode } from '@/components/board/ViewSwitcher'
 
 const priorityOptions = [
@@ -40,34 +39,6 @@ export function BoardSubNav({ view, onViewChange }: BoardSubNavProps) {
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-3 border-b px-6">
-      {/* View switcher */}
-      <Tabs
-        value={view}
-        onValueChange={(v) => {
-          if (v === 'kanban' || v === 'list' || v === 'timeline') {
-            onViewChange(v)
-          }
-        }}
-      >
-        <TabsList variant="default">
-          <TabsTrigger value="kanban">
-            <Columns3 className="size-3.5" />
-            Board
-          </TabsTrigger>
-          <TabsTrigger value="list">
-            <List className="size-3.5" />
-            List
-          </TabsTrigger>
-          <TabsTrigger value="timeline">
-            <GanttChart className="size-3.5" />
-            Timeline
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Separator */}
-      <div className="h-4 w-px bg-border" />
-
       {/* Filters */}
       <div className="flex items-center gap-1 text-muted-foreground">
         <Filter className="size-3.5" />

@@ -20,7 +20,8 @@ import { SearchBar } from '@/components/board/SearchBar'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { useHotkeys } from '@/hooks/useHotkeys'
-import { Archive, ArrowLeft, History, Settings2 } from 'lucide-react'
+import { Archive, ArrowLeft, Columns3, GanttChart, History, List, Settings2 } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash
@@ -183,11 +184,36 @@ export function BoardPage({ boardId }: BoardPageProps) {
         >
           <ArrowLeft className="size-3.5" />
         </Button>
-        <div className="flex-1 overflow-hidden">
-          <h1 className="truncate text-sm font-bold">
-            {currentBoard.name}
-          </h1>
-        </div>
+        <h1 className="truncate text-sm font-bold">
+          {currentBoard.name}
+        </h1>
+
+        {/* View switcher — integrated in header */}
+        <Tabs
+          value={view}
+          onValueChange={(v) => {
+            if (v === 'kanban' || v === 'list' || v === 'timeline') {
+              handleViewChange(v)
+            }
+          }}
+        >
+          <TabsList variant="line">
+            <TabsTrigger value="kanban">
+              <Columns3 className="size-3.5" />
+              Board
+            </TabsTrigger>
+            <TabsTrigger value="list">
+              <List className="size-3.5" />
+              List
+            </TabsTrigger>
+            <TabsTrigger value="timeline">
+              <GanttChart className="size-3.5" />
+              Timeline
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex-1" />
 
         <SearchBar boardId={boardId} onSelectResult={handleSearchSelect} />
 
@@ -227,7 +253,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
         </div>
       </header>
 
-      {/* Sub-nav: view switcher + filters */}
+      {/* Sub-nav: filters only */}
       <BoardSubNav view={view} onViewChange={handleViewChange} />
 
       {/* View content */}
