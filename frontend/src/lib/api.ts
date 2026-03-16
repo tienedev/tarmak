@@ -47,8 +47,13 @@ export const api = {
     }),
 
   // Tasks
-  listTasks: (boardId: string) =>
-    request<Task[]>(`/boards/${boardId}/tasks`),
+  listTasks: (boardId: string, params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.offset) qs.set('offset', String(params.offset))
+    const query = qs.toString()
+    return request<Task[]>(`/boards/${boardId}/tasks${query ? `?${query}` : ''}`)
+  },
   createTask: (
     boardId: string,
     data: { column_id: string; title: string; priority?: string },

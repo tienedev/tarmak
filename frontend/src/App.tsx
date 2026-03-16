@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBoardStore } from '@/stores/board'
 import { AppLayout } from '@/layouts/AppLayout'
 import { LoginPage } from '@/pages/LoginPage'
-import { BoardsListPage } from '@/pages/BoardsListPage'
+import { DashboardPage } from '@/pages/DashboardPage'
 import { BoardPage } from '@/pages/BoardPage'
 import { InvitePage } from '@/pages/InvitePage'
 import { Loader2 } from 'lucide-react'
@@ -47,7 +47,7 @@ function Router() {
   // Route: #/ (default - boards list)
   return (
     <AppLayout>
-      <BoardsListPage />
+      <DashboardPage />
     </AppLayout>
   )
 }

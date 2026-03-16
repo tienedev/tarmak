@@ -250,9 +250,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   updateColumn: async (boardId: string, columnId: string, data: { name?: string; color?: string | null }) => {
     await api.updateColumn(boardId, columnId, data)
+    const patch: Partial<Column> = { ...data, color: data.color ?? undefined }
     set({
       columns: get().columns.map((c) =>
-        c.id === columnId ? { ...c, ...data } : c,
+        c.id === columnId ? { ...c, ...patch } : c,
       ),
     })
   },
