@@ -52,6 +52,38 @@ async fn reset_password(email: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn spawn_cleanup_tasks(db: db::Db, rate_limiter: api::rate_limit::RateLimiter) {
+    let db_clone = db.clone();
+    // Session cleanup — every hour
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            match db_clone.cleanup_expired_sessions().await {
+                Ok(count) if count > 0 => {
+                    tracing::info!("Purged {count} expired sessions");
+                }
+                Err(e) => {
+                    tracing::warn!("Session cleanup failed: {e}");
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // Rate limiter sweep — every 5 minutes
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            let removed = rate_limiter.sweep();
+            if removed > 0 {
+                tracing::debug!("Rate limiter: removed {removed} stale IPs");
+            }
+        }
+    });
+}
+
 async fn run_http_server() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -84,7 +116,10 @@ async fn run_http_server() -> anyhow::Result<()> {
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
         .allow_headers([HeaderName::from_static("content-type"), HeaderName::from_static("authorization")]);
 
-    let app = api::router(db)
+    let rate_limiter = api::rate_limit::RateLimiter::new(10, 60);
+    spawn_cleanup_tasks(db.clone(), rate_limiter.clone());
+
+    let app = api::router(db, rate_limiter)
         .nest("/ws", ws_routes)
         .fallback(static_files::static_handler)
         .layer(cors)
