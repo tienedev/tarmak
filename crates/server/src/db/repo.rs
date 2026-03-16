@@ -2255,4 +2255,25 @@ mod tests {
         let count = db.cleanup_expired_sessions().await.unwrap();
         assert_eq!(count, 0);
     }
+
+    #[tokio::test]
+    async fn concurrent_reads() {
+        let db = test_db().await;
+        let board = db.create_board("Concurrent", None).await.unwrap();
+
+        // Spawn 10 concurrent reads
+        let mut handles = vec![];
+        for _ in 0..10 {
+            let db = db.clone();
+            let board_id = board.id.clone();
+            handles.push(tokio::spawn(async move {
+                db.get_board(&board_id).await.unwrap()
+            }));
+        }
+
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(result.is_some());
+        }
+    }
 }

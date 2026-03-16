@@ -498,7 +498,7 @@ impl KanbanMcpServer {
                 let uploads_dir = std::path::PathBuf::from(
                     std::env::var("KANBAN_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()),
                 );
-                let _ = std::fs::remove_file(uploads_dir.join(&att.storage_key));
+                let _ = tokio::fs::remove_file(uploads_dir.join(&att.storage_key)).await;
                 Ok(format!("deleted attachment {attachment_id}"))
             }
             // ----- Subtasks -----
