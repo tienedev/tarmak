@@ -46,20 +46,45 @@ pub struct Db {
 
 **Migrations** run inside a single `call()` at startup, same as today but async.
 
-**Call site migration**: Every call to `db.with_conn(...)` gains `.await`. This is mechanical — the closure signatures remain identical. Estimated ~60 call sites across `api/`, `auth/`, `mcp/`, `sync/`.
+**Closure signature change**: `tokio_rusqlite::Connection::call` passes `&mut Connection` (not `&Connection`). The `with_conn` signature changes accordingly:
+```rust
+// Before
+pub fn with_conn<F, T>(&self, f: F) -> anyhow::Result<T>
+where F: FnOnce(&Connection) -> anyhow::Result<T>
+
+// After
+pub async fn with_conn<F, T>(&self, f: F) -> anyhow::Result<T>
+where F: FnOnce(&mut Connection) -> anyhow::Result<T> + Send + 'static, T: Send + 'static
+```
+This is backward-compatible (`&mut` auto-reborrows to `&`), but the `Send + 'static` bounds may require minor adjustments in closures that capture non-Send types.
+
+**Error handling**: `tokio_rusqlite::Connection::call` returns `Result<R, tokio_rusqlite::Error<E>>`. The `with_conn` wrapper maps this to `anyhow::Error` to preserve the existing API contract:
+```rust
+self.conn.call(move |conn| f(conn)).await.map_err(|e| anyhow::anyhow!("{e}"))
+```
+
+**Call site migration**: Every call to `db.with_conn(...)` gains `.await`. ~87 call sites total, concentrated in `db/repo.rs` (~69), `mcp/board_ask.rs` (~8), `auth/mod.rs` (~6), `api/auth.rs` (~4).
 
 **`Db` stays `Clone`**: `tokio_rusqlite::Connection` is internally `Arc`-wrapped and clone-safe.
 
+**Async callers**: `Db::new()` becoming async affects all construction sites:
+- `main.rs` HTTP server path (already in `#[tokio::main]` async context — straightforward)
+- `main.rs` `reset_password` CLI path — must become async or use `.await` within the async main
+- `main.rs` `run_mcp_stdio` path — must become async
+- `Db::in_memory()` in tests — test functions must be `#[tokio::test]`
+
+**Pragmas**: WAL and `busy_timeout` are currently set in `Db::new()`. `foreign_keys` is set in `migrations.rs`. After migration, consolidate all pragmas into `Db::new()` inside the initial `call()` for clarity.
+
 ### Testing
 
-- `Db::in_memory()` continues to work for unit tests (also async now)
+- `Db::in_memory()` continues to work for unit tests (must use `#[tokio::test]`)
 - Existing backend tests verify no regressions after migration
 - Add a concurrent read test: spawn 10 tasks reading the same board simultaneously
 
 ### Dependencies
 
 - Add `tokio-rusqlite` to `crates/server/Cargo.toml`
-- Remove direct `rusqlite` dependency if fully replaced, or keep it as transitive
+- Keep `rusqlite` as transitive dependency (accessed via `tokio_rusqlite::Connection::call`)
 
 ## 2. Background Cleanup Tasks
 
@@ -78,14 +103,16 @@ Replace probabilistic cleanup with deterministic periodic background tasks using
 **New function in `main.rs`**:
 ```rust
 fn spawn_cleanup_tasks(db: Db, rate_limiter: RateLimiter) {
+    let db_clone = db.clone();
     // Session cleanup — every hour
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(3600));
         loop {
             interval.tick().await;
-            match db.cleanup_expired_sessions().await {
-                Ok(count) => tracing::info!("Purged {count} expired sessions"),
+            match db_clone.cleanup_expired_sessions().await {
+                Ok(count) if count > 0 => tracing::info!("Purged {count} expired sessions"),
                 Err(e) => tracing::warn!("Session cleanup failed: {e}"),
+                _ => {}
             }
         }
     });
@@ -104,14 +131,27 @@ fn spawn_cleanup_tasks(db: Db, rate_limiter: RateLimiter) {
 }
 ```
 
-**New DB method**: `Db::cleanup_expired_sessions() -> Result<usize>` — executes `DELETE FROM sessions WHERE expires_at < datetime('now')` and returns the number of deleted rows.
+Note: `db` is cloned explicitly for the first task. If future cleanup tasks need DB access, clone again before each `tokio::spawn`.
+
+**Session cleanup**: A free function `cleanup_expired_sessions` already exists in `auth/mod.rs`. Move it to a `Db` method for consistency, using the existing SQL approach (`Utc::now().to_rfc3339()` as parameter, not `datetime('now')`) to match the RFC 3339 format used for `expires_at` values in the sessions table:
+```rust
+impl Db {
+    pub async fn cleanup_expired_sessions(&self) -> anyhow::Result<usize> {
+        let now = Utc::now().to_rfc3339();
+        self.with_conn(move |conn| {
+            let count = conn.execute("DELETE FROM sessions WHERE expires_at <= ?1", [&now])?;
+            Ok(count)
+        }).await
+    }
+}
+```
 
 **New RateLimiter method**: `RateLimiter::sweep() -> usize` — acquires the lock, removes all entries with no timestamps within the current window, returns count of removed IPs.
 
 **Removals**:
 - Remove probabilistic cleanup in `auth/mod.rs` (the `rand::random::<u8>() == 0` block in `validate_session`)
 - Remove probabilistic cleanup in `rate_limit.rs` (the `rand::random::<u8>() == 0 || map.len() > MAX_TRACKED_IPS` block)
-- Remove `rand` dependency if no longer used elsewhere
+- Keep `rand` dependency — it is used for token generation in `auth/mod.rs` and session IDs in `mcp/sse.rs`
 
 ### Intervals
 
@@ -134,29 +174,29 @@ fn spawn_cleanup_tasks(db: Db, rate_limiter: RateLimiter) {
 
 ### Solution
 
-Implement automatic reconnection with exponential backoff and a minimal connection status indicator.
+Configure `y-websocket`'s built-in reconnect (it already implements exponential backoff) and add a minimal connection status indicator.
 
 ### Design
 
-**Reconnection logic in `sync.ts`**:
+**`y-websocket` already reconnects**: The `WebsocketProvider` in `y-websocket@3.0.0` has built-in reconnect with exponential backoff (`2^n * 100ms`, default cap at 2500ms). No custom reconnect logic is needed. The work is:
 
-The `y-websocket` `WebsocketProvider` has built-in reconnect support. Verify and configure:
-- If `WebsocketProvider` handles reconnect natively: configure its `resyncInterval` and connection parameters
-- If manual reconnect is needed: listen to `status` events on the provider, implement backoff on `disconnected`
+1. **Configure `maxBackoffTime`**: Set to `30000` (30s) in the `WebsocketProvider` constructor to match our desired cap:
+```typescript
+new WebsocketProvider(wsUrl, roomName, doc, {
+  maxBackoffTime: 30000,
+  // connect: true (default)
+})
+```
 
-**Backoff schedule**: 1s → 2s → 4s → 8s → 16s → 30s (cap). Reset to 1s on successful reconnection.
-
-**Max retries**: Unlimited. Yjs buffers local edits in memory — the board remains usable in read/write mode. Edits sync automatically when connection restores.
-
-**State exposed by `useSync` hook**:
+2. **Expose connection status**: Listen to the provider's `status` event (already emitted by `y-websocket`) and expose it via the `useSync` hook:
 ```typescript
 interface SyncState {
   status: 'connected' | 'connecting' | 'disconnected'
-  retryCount: number
 }
 ```
+The provider emits `{ status: 'connected' | 'connecting' | 'disconnected' }` events. Wire these to React state.
 
-**UI indicator — `ConnectionStatus` component**:
+3. **Build `ConnectionStatus` component**: A minimal UI indicator:
 - Renders in `AppLayout`, positioned subtly (e.g. bottom-left or top-right corner)
 - **Connected**: hidden (no indicator)
 - **Connecting**: small pulsing dot + "Reconnecting..." text, muted color
@@ -169,24 +209,25 @@ interface SyncState {
 ### Testing
 
 - E2E test: connect to board, kill WS server, verify "Reconnecting..." appears, restart server, verify auto-reconnect and indicator disappears
-- Unit test: backoff schedule produces correct delays (1, 2, 4, 8, 16, 30, 30, 30...)
+- Manual test: close laptop lid, reopen, verify board resumes sync
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `crates/server/Cargo.toml` | Add `tokio-rusqlite`, possibly remove `rand` |
-| `crates/server/src/db/mod.rs` | Rewrite `Db` to use `tokio_rusqlite::Connection` |
-| `crates/server/src/db/repo.rs` | Add `.await` to all `with_conn` calls |
-| `crates/server/src/db/migrations.rs` | Run migrations inside async `call()` |
-| `crates/server/src/main.rs` | Make DB init async, add `spawn_cleanup_tasks()` |
-| `crates/server/src/api/*.rs` | Add `.await` to `with_conn` calls (~19 modules) |
-| `crates/server/src/auth/mod.rs` | Add `.await`, remove probabilistic cleanup, add `cleanup_expired_sessions` |
-| `crates/server/src/mcp/*.rs` | Add `.await` to `with_conn` calls |
-| `crates/server/src/sync/doc.rs` | Add `.await` to `with_conn` calls |
+| `crates/server/Cargo.toml` | Add `tokio-rusqlite` |
+| `crates/server/src/db/mod.rs` | Rewrite `Db` to use `tokio_rusqlite::Connection`, consolidate pragmas |
+| `crates/server/src/db/repo.rs` | Add `.await` to ~69 `with_conn` calls |
+| `crates/server/src/db/migrations.rs` | Run migrations inside async `call()`, move `foreign_keys` pragma to `Db::new` |
+| `crates/server/src/main.rs` | Make DB init async, make `reset_password` and `run_mcp_stdio` async, add `spawn_cleanup_tasks()` |
+| `crates/server/src/api/auth.rs` | Add `.await` to ~4 `with_conn` calls |
+| `crates/server/src/auth/mod.rs` | Add `.await` to ~6 calls, remove probabilistic cleanup, move `cleanup_expired_sessions` to `Db` method |
+| `crates/server/src/mcp/board_ask.rs` | Add `.await` to ~8 `with_conn` calls |
+| `crates/server/src/mcp/*.rs` | Add `.await` to any other `with_conn` calls |
+| `crates/server/src/sync/doc.rs` | Add `.await` to `Db` method calls (indirect via `init_from_db`) |
 | `crates/server/src/api/rate_limit.rs` | Remove probabilistic cleanup, add `sweep()` method |
-| `frontend/src/lib/sync.ts` | Add reconnect logic with backoff |
-| `frontend/src/hooks/useSync.ts` | Expose connection status |
+| `frontend/src/lib/sync.ts` | Configure `maxBackoffTime: 30000` on WebsocketProvider |
+| `frontend/src/hooks/useSync.ts` | Expose connection status from provider's `status` events |
 | `frontend/src/components/board/ConnectionStatus.tsx` | New component — connection indicator |
 | `frontend/src/layouts/AppLayout.tsx` | Render `ConnectionStatus` |
 
