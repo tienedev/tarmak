@@ -220,11 +220,17 @@ function ActivityRow({ entry }: { entry: DashboardActivity }) {
 export function DashboardPage() {
   const boards = useBoardStore((s) => s.boards)
   const boardsLoading = useBoardStore((s) => s.loading)
+  const fetchBoards = useBoardStore((s) => s.fetchBoards)
   const user = useAuthStore((s) => s.user)
 
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+
+  // Refresh board list every time the dashboard mounts
+  useEffect(() => {
+    fetchBoards()
+  }, [fetchBoards])
 
   const load = useCallback(async () => {
     if (!user || boards.length === 0) {
