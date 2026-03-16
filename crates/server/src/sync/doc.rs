@@ -53,7 +53,7 @@ impl BoardDocManager {
         let doc = self.get_or_create(board_id).await;
 
         // Try loading persisted CRDT state first
-        if let Some(state_bytes) = db.load_crdt_state(board_id)?
+        if let Some(state_bytes) = db.load_crdt_state(board_id).await?
             && let Ok(update) = Update::decode_v1(&state_bytes)
         {
             let mut txn = doc.transact_mut();
@@ -63,8 +63,8 @@ impl BoardDocManager {
         }
 
         // Fall back to building from database rows
-        let columns = db.list_columns(board_id)?;
-        let tasks = db.list_tasks(board_id, i64::MAX, 0)?;
+        let columns = db.list_columns(board_id).await?;
+        let tasks = db.list_tasks(board_id, i64::MAX, 0).await?;
 
         {
             let mut txn = doc.transact_mut();
@@ -136,13 +136,15 @@ mod tests {
     async fn init_from_db_populates_maps() {
         use crate::db::models::Priority;
 
-        let db = Db::in_memory().expect("in-memory db");
-        let board = db.create_board("Test", None).unwrap();
+        let db = Db::in_memory().await.expect("in-memory db");
+        let board = db.create_board("Test", None).await.unwrap();
         let col = db
             .create_column(&board.id, "To Do", None, None)
+            .await
             .unwrap();
         let _task = db
             .create_task(&board.id, &col.id, "First", None, Priority::Medium, None)
+            .await
             .unwrap();
 
         let mgr = BoardDocManager::new();
@@ -162,9 +164,9 @@ mod tests {
         use yrs::updates::decoder::Decode;
         use yrs::Update;
 
-        let db = Db::in_memory().expect("in-memory db");
-        let board = db.create_board("Sync", None).unwrap();
-        let col = db.create_column(&board.id, "Col", None, None).unwrap();
+        let db = Db::in_memory().await.expect("in-memory db");
+        let board = db.create_board("Sync", None).await.unwrap();
+        let col = db.create_column(&board.id, "Col", None, None).await.unwrap();
         db.create_task(
             &board.id,
             &col.id,
@@ -173,6 +175,7 @@ mod tests {
             crate::db::models::Priority::Low,
             None,
         )
+        .await
         .unwrap();
 
         let mgr = BoardDocManager::new();

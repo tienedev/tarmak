@@ -37,8 +37,8 @@ pub async fn list(
     AuthUser(user): AuthUser,
     Path(board_id): Path<String>,
 ) -> Result<Json<Vec<Column>>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
-    let columns = db.list_columns(&board_id)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Viewer).await?;
+    let columns = db.list_columns(&board_id).await?;
     Ok(Json(columns))
 }
 
@@ -48,10 +48,10 @@ pub async fn create(
     Path(board_id): Path<String>,
     Json(body): Json<CreateColumn>,
 ) -> Result<Json<Column>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let column = db.create_column(&board_id, &body.name, None, body.color.as_deref())?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let column = db.create_column(&board_id, &body.name, None, body.color.as_deref()).await?;
     let _ = db.log_activity(&board_id, None, &user.id, "column_created",
-        Some(&serde_json::json!({"name": &column.name}).to_string()));
+        Some(&serde_json::json!({"name": &column.name}).to_string())).await;
     Ok(Json(column))
 }
 
@@ -61,19 +61,19 @@ pub async fn update(
     Path((board_id, cid)): Path<(String, String)>,
     Json(body): Json<UpdateColumn>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     // Verify column belongs to this board
-    let columns = db.list_columns(&board_id)?;
+    let columns = db.list_columns(&board_id).await?;
     if !columns.iter().any(|c| c.id == cid) {
         return Err(ApiError::NotFound("column not found".into()));
     }
     let color = body.color.as_ref().map(|c| c.as_deref());
-    let updated = db.update_column(&cid, body.name.as_deref(), body.wip_limit, color)?;
+    let updated = db.update_column(&cid, body.name.as_deref(), body.wip_limit, color).await?;
     if !updated {
         return Err(ApiError::NotFound("column not found".into()));
     }
     let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
-        Some(&serde_json::json!({"column_id": &cid}).to_string()));
+        Some(&serde_json::json!({"column_id": &cid}).to_string())).await;
     Ok(Json(serde_json::json!({ "updated": true })))
 }
 
@@ -83,17 +83,17 @@ pub async fn move_col(
     Path((board_id, cid)): Path<(String, String)>,
     Json(body): Json<MoveColumn>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let columns = db.list_columns(&board_id)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let columns = db.list_columns(&board_id).await?;
     if !columns.iter().any(|c| c.id == cid) {
         return Err(ApiError::NotFound("column not found".into()));
     }
-    let moved = db.move_column(&cid, body.position)?;
+    let moved = db.move_column(&cid, body.position).await?;
     if !moved {
         return Err(ApiError::NotFound("column not found".into()));
     }
     let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
-        Some(&serde_json::json!({"column_id": &cid, "position": body.position}).to_string()));
+        Some(&serde_json::json!({"column_id": &cid, "position": body.position}).to_string())).await;
     Ok(Json(serde_json::json!({ "moved": true })))
 }
 
@@ -102,17 +102,17 @@ pub async fn delete(
     AuthUser(user): AuthUser,
     Path((board_id, cid)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     // Verify column belongs to this board
-    let columns = db.list_columns(&board_id)?;
+    let columns = db.list_columns(&board_id).await?;
     if !columns.iter().any(|c| c.id == cid) {
         return Err(ApiError::NotFound("column not found".into()));
     }
-    let deleted = db.delete_column(&cid)?;
+    let deleted = db.delete_column(&cid).await?;
     if !deleted {
         return Err(ApiError::NotFound("column not found".into()));
     }
     let _ = db.log_activity(&board_id, None, &user.id, "column_deleted",
-        Some(&serde_json::json!({"column_id": &cid}).to_string()));
+        Some(&serde_json::json!({"column_id": &cid}).to_string())).await;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

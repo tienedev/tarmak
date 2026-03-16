@@ -65,32 +65,35 @@ pub fn verify_password(password: &str, hash: &str) -> anyhow::Result<bool> {
 
 /// Create a new session for the given user. Returns the raw (unhashed) token
 /// that the client should store and send as a Bearer token.
-pub fn create_session(db: &Db, user_id: &str) -> anyhow::Result<String> {
+pub async fn create_session(db: &Db, user_id: &str) -> anyhow::Result<String> {
     let raw_token = generate_token();
     let token_hash = hash_token(&raw_token);
     let id = Uuid::new_v4().to_string();
     let expires_at = (Utc::now() + Duration::days(30)).to_rfc3339();
 
-    db.with_conn(|conn| {
+    let id_owned = id;
+    let user_id_owned = user_id.to_string();
+    db.with_conn(move |conn| {
         conn.execute(
             "INSERT INTO sessions (id, user_id, token_hash, expires_at)
              VALUES (?1, ?2, ?3, ?4)",
-            params![id, user_id, token_hash, expires_at],
+            params![id_owned, user_id_owned, token_hash, expires_at],
         )
         .context("insert session")?;
         Ok(())
-    })?;
+    })
+    .await?;
 
     Ok(raw_token)
 }
 
 /// Validate a raw bearer token against stored sessions. Returns the user if
 /// the session is valid and not expired.
-pub fn validate_session(db: &Db, token: &str) -> anyhow::Result<User> {
+pub async fn validate_session(db: &Db, token: &str) -> anyhow::Result<User> {
     let token_hash = hash_token(token);
     let now = Utc::now().to_rfc3339();
 
-    let user = db.with_conn(|conn| {
+    db.with_conn(move |conn| {
         let mut stmt = conn.prepare(
             "SELECT u.id, u.name, u.email, u.avatar_url, u.is_agent, u.created_at
              FROM sessions s
@@ -117,27 +120,22 @@ pub fn validate_session(db: &Db, token: &str) -> anyhow::Result<User> {
             Some(r) => Ok(r?),
             None => Err(anyhow::anyhow!("invalid or expired session")),
         }
-    })?;
-
-    // Probabilistic cleanup: ~1-in-256 chance on each validation
-    if rand::random::<u8>() == 0 {
-        let _ = cleanup_expired_sessions(db);
-    }
-
-    Ok(user)
+    })
+    .await
 }
 
 /// Delete all sessions whose `expires_at` has passed. Returns the number of
 /// rows removed.
-pub fn cleanup_expired_sessions(db: &Db) -> anyhow::Result<usize> {
+pub async fn cleanup_expired_sessions(db: &Db) -> anyhow::Result<usize> {
     let now = Utc::now().to_rfc3339();
-    db.with_conn(|conn| {
+    db.with_conn(move |conn| {
         let affected = conn.execute(
             "DELETE FROM sessions WHERE expires_at <= ?1",
             params![now],
         )?;
         Ok(affected)
     })
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +144,7 @@ pub fn cleanup_expired_sessions(db: &Db) -> anyhow::Result<usize> {
 
 /// Create an invite link for a board. Returns the raw invite token.
 /// The token is hashed before storage; the raw value is returned to the caller.
-pub fn create_invite_link(
+pub async fn create_invite_link(
     db: &Db,
     board_id: &str,
     role: &str,
@@ -157,7 +155,10 @@ pub fn create_invite_link(
     let id = Uuid::new_v4().to_string();
     let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
 
-    db.with_conn(|conn| {
+    let board_id = board_id.to_string();
+    let role = role.to_string();
+    let created_by = created_by.to_string();
+    db.with_conn(move |conn| {
         conn.execute(
             "INSERT INTO invite_links (id, board_id, token, role, expires_at, created_by)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -165,18 +166,20 @@ pub fn create_invite_link(
         )
         .context("insert invite link")?;
         Ok(())
-    })?;
+    })
+    .await?;
 
     Ok(raw_token)
 }
 
 /// Accept an invite link: hash the incoming token, look up the invite,
 /// verify it hasn't expired, then add the user as a board member with the specified role.
-pub fn accept_invite(db: &Db, invite_token: &str, user_id: &str) -> anyhow::Result<()> {
+pub async fn accept_invite(db: &Db, invite_token: &str, user_id: &str) -> anyhow::Result<()> {
     let token_hash = hash_token(invite_token);
     let now = Utc::now().to_rfc3339();
+    let user_id = user_id.to_string();
 
-    db.with_conn(|conn| {
+    db.with_conn(move |conn| {
         let mut stmt = conn.prepare(
             "SELECT board_id, role FROM invite_links
              WHERE token = ?1 AND (expires_at IS NULL OR expires_at > ?2)",
@@ -199,6 +202,7 @@ pub fn accept_invite(db: &Db, invite_token: &str, user_id: &str) -> anyhow::Resu
 
         Ok(())
     })
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -243,76 +247,86 @@ mod tests {
         assert_ne!(h1, h2);
     }
 
-    #[test]
-    fn test_create_and_validate_session() {
-        let db = Db::in_memory().expect("in-memory db");
+    #[tokio::test]
+    async fn test_create_and_validate_session() {
+        let db = Db::in_memory().await.expect("in-memory db");
         let user = db
             .create_user("Alice", "alice@example.com", None, false, None)
+            .await
             .unwrap();
 
-        let token = create_session(&db, &user.id).unwrap();
+        let token = create_session(&db, &user.id).await.unwrap();
         assert_eq!(token.len(), 64);
 
-        let found = validate_session(&db, &token).unwrap();
+        let found = validate_session(&db, &token).await.unwrap();
         assert_eq!(found.id, user.id);
         assert_eq!(found.email, "alice@example.com");
     }
 
-    #[test]
-    fn test_validate_session_rejects_bad_token() {
-        let db = Db::in_memory().expect("in-memory db");
+    #[tokio::test]
+    async fn test_validate_session_rejects_bad_token() {
+        let db = Db::in_memory().await.expect("in-memory db");
         let user = db
             .create_user("Bob", "bob@example.com", None, false, None)
+            .await
             .unwrap();
-        let _token = create_session(&db, &user.id).unwrap();
+        let _token = create_session(&db, &user.id).await.unwrap();
 
-        let result = validate_session(&db, "not-a-real-token");
+        let result = validate_session(&db, "not-a-real-token").await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_create_and_accept_invite() {
-        let db = Db::in_memory().expect("in-memory db");
+    #[tokio::test]
+    async fn test_create_and_accept_invite() {
+        let db = Db::in_memory().await.expect("in-memory db");
 
         // Create a board and two users
-        let board = db.create_board("Team Board", None).unwrap();
+        let board = db.create_board("Team Board", None).await.unwrap();
         let owner = db
             .create_user("Owner", "owner@example.com", None, false, None)
+            .await
             .unwrap();
         let invitee = db
             .create_user("Invitee", "invitee@example.com", None, false, None)
+            .await
             .unwrap();
 
         // Owner creates an invite
         let invite_token =
-            create_invite_link(&db, &board.id, "member", &owner.id).unwrap();
+            create_invite_link(&db, &board.id, "member", &owner.id).await.unwrap();
         assert_eq!(invite_token.len(), 64);
 
         // Invitee accepts
-        accept_invite(&db, &invite_token, &invitee.id).unwrap();
+        accept_invite(&db, &invite_token, &invitee.id).await.unwrap();
 
         // Verify board_members row exists
         let role: String = db
-            .with_conn(|conn| {
-                conn.query_row(
-                    "SELECT role FROM board_members WHERE board_id = ?1 AND user_id = ?2",
-                    params![board.id, invitee.id],
-                    |row| row.get(0),
-                )
-                .context("query board_members")
+            .with_conn({
+                let board_id = board.id.clone();
+                let invitee_id = invitee.id.clone();
+                move |conn| {
+                    conn.query_row(
+                        "SELECT role FROM board_members WHERE board_id = ?1 AND user_id = ?2",
+                        params![board_id, invitee_id],
+                        |row| row.get(0),
+                    )
+                    .context("query board_members")
+                }
             })
+            .await
             .unwrap();
         assert_eq!(role, "member");
     }
 
-    #[test]
-    fn test_accept_invite_rejects_bad_token() {
-        let db = Db::in_memory().expect("in-memory db");
+    #[tokio::test]
+    async fn test_accept_invite_rejects_bad_token() {
+        let db = Db::in_memory().await.expect("in-memory db");
         let user = db
             .create_user("Alice", "alice@example.com", None, false, None)
+            .await
             .unwrap();
 
-        let result = accept_invite(&db, "nonexistent-token", &user.id);
+        let result = accept_invite(&db, "nonexistent-token", &user.id).await;
         assert!(result.is_err());
     }
 

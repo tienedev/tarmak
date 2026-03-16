@@ -4,8 +4,8 @@ use super::error::ApiError;
 
 /// Check that a user has at least the required role on a board.
 /// Role hierarchy: owner > member > viewer
-pub fn require_role(db: &Db, board_id: &str, user_id: &str, min_role: Role) -> Result<Role, ApiError> {
-    let role = db.get_board_member(board_id, user_id)?
+pub async fn require_role(db: &Db, board_id: &str, user_id: &str, min_role: Role) -> Result<Role, ApiError> {
+    let role = db.get_board_member(board_id, user_id).await?
         .ok_or_else(|| ApiError::Forbidden("not a member of this board".into()))?;
 
     let level = role_level(&role);

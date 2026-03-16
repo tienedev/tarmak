@@ -25,25 +25,26 @@ async fn main() -> anyhow::Result<()> {
         let email = args
             .get(pos + 1)
             .ok_or_else(|| anyhow::anyhow!("Usage: kanwise --reset-password <email>"))?;
-        reset_password(email)
+        reset_password(email).await
     } else {
         run_http_server().await
     }
 }
 
-fn reset_password(email: &str) -> anyhow::Result<()> {
+async fn reset_password(email: &str) -> anyhow::Result<()> {
     let db_path =
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
-    let db = db::Db::new(&db_path)?;
+    let db = db::Db::new(&db_path).await?;
 
     let user = db
-        .get_user_by_email(email)?
+        .get_user_by_email(email)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("No user found with email: {email}"))?;
 
     let temp_password = &auth::generate_token()[..16];
     let password_hash = auth::hash_password(temp_password)?;
-    db.set_password_hash(&user.id, &password_hash)?;
-    db.delete_user_sessions(&user.id)?;
+    db.set_password_hash(&user.id, &password_hash).await?;
+    db.delete_user_sessions(&user.id).await?;
 
     println!("Password reset for: {} ({})", user.name, email);
     println!("New password: {temp_password}");
@@ -61,7 +62,7 @@ async fn run_http_server() -> anyhow::Result<()> {
 
     tracing::info!(db_path = %db_path, "Starting kanwise");
 
-    let db = db::Db::new(&db_path)?;
+    let db = db::Db::new(&db_path).await?;
     let sync_state = Arc::new(SyncState::new(db.clone()));
 
     let ws_routes = Router::new()
@@ -120,16 +121,17 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
 
     let db_path =
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
-    let db = db::Db::new(&db_path)?;
+    let db = db::Db::new(&db_path).await?;
 
-    use std::io::{BufRead, Write};
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    let stdin = BufReader::new(tokio::io::stdin());
+    let mut stdout = tokio::io::stdout();
 
     let server = mcp::KanbanMcpServer::new(db);
 
-    for line in stdin.lock().lines() {
-        let line = line?;
+    let mut lines = stdin.lines();
+    while let Some(line) = lines.next_line().await? {
         if line.is_empty() {
             continue;
         }
@@ -247,7 +249,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .get("include_archived")
                                 .and_then(|v| v.as_bool()),
                         };
-                        server.handle_query(qp).map_err(|e| e.to_string())
+                        server.handle_query(qp).await.map_err(|e| e.to_string())
                     }
                     "board_mutate" => {
                         let mp = mcp::BoardMutateParams {
@@ -264,7 +266,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .cloned()
                                 .unwrap_or(serde_json::json!({})),
                         };
-                        server.handle_mutate(mp).map_err(|e| e.to_string())
+                        server.handle_mutate(mp).await.map_err(|e| e.to_string())
                     }
                     "board_sync" => {
                         let sp = mcp::BoardSyncParams {
@@ -281,7 +283,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
                         };
-                        server.handle_sync(sp).map_err(|e| e.to_string())
+                        server.handle_sync(sp).await.map_err(|e| e.to_string())
                     }
                     "board_ask" => {
                         let ap = mcp::BoardAskParams {
@@ -298,7 +300,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
                         };
-                        server.handle_ask(ap).map_err(|e| e.to_string())
+                        server.handle_ask(ap).await.map_err(|e| e.to_string())
                     }
                     _ => Err(format!("Unknown tool: {tool_name}")),
                 };
@@ -326,9 +328,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                         "message": format!("Method not found: {method}")
                     }
                 });
-                let mut out = stdout.lock();
-                writeln!(out, "{}", serde_json::to_string(&response)?)?;
-                out.flush()?;
+                let out = serde_json::to_string(&response)?;
+                stdout.write_all(out.as_bytes()).await?;
+                stdout.write_all(b"\n").await?;
+                stdout.flush().await?;
                 continue;
             }
         };
@@ -339,9 +342,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                 "id": id,
                 "result": result,
             });
-            let mut out = stdout.lock();
-            writeln!(out, "{}", serde_json::to_string(&response)?)?;
-            out.flush()?;
+            let out = serde_json::to_string(&response)?;
+            stdout.write_all(out.as_bytes()).await?;
+            stdout.write_all(b"\n").await?;
+            stdout.flush().await?;
         }
     }
 

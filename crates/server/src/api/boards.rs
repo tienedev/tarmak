@@ -33,7 +33,7 @@ pub async fn list(
     State(db): State<Db>,
     AuthUser(user): AuthUser,
 ) -> Result<Json<Vec<Board>>, ApiError> {
-    let boards = db.list_user_boards(&user.id)?;
+    let boards = db.list_user_boards(&user.id).await?;
     Ok(Json(boards))
 }
 
@@ -43,8 +43,8 @@ pub async fn create(
     Json(body): Json<CreateBoard>,
 ) -> Result<Json<Board>, ApiError> {
     validation::validate_title(&body.name)?;
-    let board = db.create_board(&body.name, body.description.as_deref())?;
-    db.add_board_member(&board.id, &user.id, Role::Owner)?;
+    let board = db.create_board(&body.name, body.description.as_deref()).await?;
+    db.add_board_member(&board.id, &user.id, Role::Owner).await?;
     Ok(Json(board))
 }
 
@@ -53,9 +53,10 @@ pub async fn get(
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<Board>, ApiError> {
-    permissions::require_role(&db, &id, &user.id, Role::Viewer)?;
+    permissions::require_role(&db, &id, &user.id, Role::Viewer).await?;
     let board = db
-        .get_board(&id)?
+        .get_board(&id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("board not found".into()))?;
     Ok(Json(board))
 }
@@ -66,10 +67,11 @@ pub async fn update(
     Path(id): Path<String>,
     Json(body): Json<UpdateBoard>,
 ) -> Result<Json<Board>, ApiError> {
-    permissions::require_role(&db, &id, &user.id, Role::Owner)?;
+    permissions::require_role(&db, &id, &user.id, Role::Owner).await?;
     let description = body.description.as_ref().map(|d| Some(d.as_str()));
     let board = db
-        .update_board(&id, body.name.as_deref(), description)?
+        .update_board(&id, body.name.as_deref(), description)
+        .await?
         .ok_or_else(|| ApiError::NotFound("board not found".into()))?;
     Ok(Json(board))
 }
@@ -88,8 +90,8 @@ pub async fn members(
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<MemberResponse>>, ApiError> {
-    permissions::require_role(&db, &id, &user.id, Role::Viewer)?;
-    let members = db.list_board_members(&id)?;
+    permissions::require_role(&db, &id, &user.id, Role::Viewer).await?;
+    let members = db.list_board_members(&id).await?;
     let resp: Vec<MemberResponse> = members
         .into_iter()
         .map(|(u, role)| MemberResponse {
@@ -108,8 +110,8 @@ pub async fn delete(
     AuthUser(user): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    permissions::require_role(&db, &id, &user.id, Role::Owner)?;
-    let deleted = db.delete_board(&id)?;
+    permissions::require_role(&db, &id, &user.id, Role::Owner).await?;
+    let deleted = db.delete_board(&id).await?;
     if !deleted {
         return Err(ApiError::NotFound("board not found".into()));
     }

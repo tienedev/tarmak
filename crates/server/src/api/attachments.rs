@@ -30,9 +30,10 @@ pub async fn upload(
     Path((board_id, tid)): Path<(String, String)>,
     mut multipart: Multipart,
 ) -> Result<Json<Attachment>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     let task = db
-        .get_task(&tid)?
+        .get_task(&tid)
+        .await?
         .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     if task.board_id != board_id {
         return Err(ApiError::NotFound("task not found".into()));
@@ -88,7 +89,7 @@ pub async fn upload(
         data.len() as i64,
         &storage_key,
         Some(&user.id),
-    )?;
+    ).await?;
 
     let _ = db.log_activity(
         &board_id,
@@ -103,7 +104,7 @@ pub async fn upload(
             })
             .to_string(),
         ),
-    );
+    ).await;
 
     Ok(Json(attachment))
 }
@@ -113,8 +114,8 @@ pub async fn list(
     AuthUser(user): AuthUser,
     Path((board_id, tid)): Path<(String, String)>,
 ) -> Result<Json<Vec<Attachment>>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
-    let attachments = db.list_attachments(&tid)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Viewer).await?;
+    let attachments = db.list_attachments(&tid).await?;
     Ok(Json(attachments))
 }
 
@@ -123,9 +124,10 @@ pub async fn download(
     AuthUser(user): AuthUser,
     Path((board_id, aid)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Viewer).await?;
     let att = db
-        .get_attachment(&aid)?
+        .get_attachment(&aid)
+        .await?
         .ok_or_else(|| ApiError::NotFound("attachment not found".into()))?;
     if att.board_id != board_id {
         return Err(ApiError::NotFound("attachment not found".into()));
@@ -155,16 +157,17 @@ pub async fn delete(
     AuthUser(user): AuthUser,
     Path((board_id, tid, aid)): Path<(String, String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     let att = db
-        .get_attachment(&aid)?
+        .get_attachment(&aid)
+        .await?
         .ok_or_else(|| ApiError::NotFound("attachment not found".into()))?;
     if att.board_id != board_id {
         return Err(ApiError::NotFound("attachment not found".into()));
     }
 
-    let task = db.get_task(&tid)?;
-    db.delete_attachment(&aid)?;
+    let task = db.get_task(&tid).await?;
+    db.delete_attachment(&aid).await?;
 
     let path = uploads_dir().join(&att.storage_key);
     let _ = tokio::fs::remove_file(&path).await;
@@ -182,7 +185,7 @@ pub async fn delete(
                 })
                 .to_string(),
             ),
-        );
+        ).await;
     }
 
     Ok(Json(serde_json::json!({ "deleted": true })))
