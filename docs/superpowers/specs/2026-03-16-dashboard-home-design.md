@@ -23,7 +23,7 @@ Four glass cards in a horizontal row showing aggregated numbers across all board
 
 **Responsive:** 4-col grid on desktop, 2x2 on mobile (`grid-cols-2 lg:grid-cols-4`).
 
-**Note on "Done This Week":** Requires counting `task_archived` activity entries from the current week across all boards. Since there's no explicit "done" column semantic, we use archived tasks as a proxy for completion.
+**Note on "Done This Week":** Requires counting `task_archived` activity entries from the rolling last 7 days across all boards. Since there's no explicit "done" column semantic, we use archived tasks as a proxy for completion. Fetched via `GET /boards/{id}/activity?action=task_archived&limit=50` per board, then filtered client-side by `created_at >= now - 7 days`.
 
 ### 2. Up Next — My Tasks
 
@@ -40,7 +40,9 @@ Visual treatment:
 - Overdue tasks get a red-tinted background (`destructive/4%` bg, `destructive/10%` border)
 - Normal tasks use standard glass surface
 - Tasks without a date are slightly dimmed (opacity 0.7)
-- Click navigates to `#/boards/{boardId}?task={taskId}` (opens task on its board)
+- Click navigates to `#/boards/{boardId}` (opens the board where the task lives). Deep-linking to a specific task within the board is out of scope for MVP.
+
+**Board name resolution:** Each task has `board_id` but not a board name. Map via the `boards[]` array already in the board store (populated on app init by `fetchBoards()`).
 
 **Data source:** Fetch tasks from each board where `assignee === currentUser.id` and `archived === false`. Aggregate and sort client-side.
 
@@ -55,7 +57,7 @@ Each entry shows:
 
 Shows the most recent ~20 entries. No pagination needed for MVP — scroll within the panel.
 
-**Data source:** Fetch activity from each board (`GET /boards/{id}/activity?limit=10`), merge, sort by `created_at` desc, take top 20.
+**Data source:** Fetch activity from each board (`GET /boards/{id}/activity?limit=10`), merge, sort by `created_at` desc, take top 20. Known limitation: if one board has >10 very recent entries, some may be missed due to the per-board limit. Acceptable for MVP.
 
 ## Layout
 
@@ -86,11 +88,12 @@ Shows the most recent ~20 entries. No pagination needed for MVP — scroll withi
 
 **No new endpoints needed for MVP.** The frontend aggregates data from existing endpoints:
 
-1. `GET /boards` — list of user's boards (already fetched by board store)
+1. `GET /boards` — reuse boards already in the Zustand store (fetched on app init), no extra call
 2. `GET /boards/{id}/tasks?limit=500` — per-board, filter by `assignee` client-side
-3. `GET /boards/{id}/activity?limit=10` — per-board, merge client-side
+3. `GET /boards/{id}/activity?limit=10` — per-board, merge client-side for the feed
+4. `GET /boards/{id}/activity?action=task_archived&limit=50` — per-board, for "Done This Week" stat
 
-**Performance concern:** For users with many boards, this means N+1 API calls. Acceptable for MVP (most users have <10 boards). A future `GET /dashboard` endpoint could aggregate server-side.
+**Performance concern:** For users with many boards, this means N API calls per section. Acceptable for MVP (most users have <10 boards). A future `GET /dashboard` endpoint could aggregate server-side. Client-side mitigation: cache dashboard data in component state, skip re-fetch if navigating back within 30 seconds.
 
 ## Frontend Changes
 
@@ -98,9 +101,10 @@ Shows the most recent ~20 entries. No pagination needed for MVP — scroll withi
 
 | File | Change |
 |------|--------|
-| `pages/BoardsListPage.tsx` | Replace entirely with dashboard implementation |
-| `lib/api.ts` | No changes needed — all endpoints already exist |
-| `stores/board.ts` | May need a `fetchAllTasks()` or similar helper, or dashboard fetches directly via `api` |
+| `pages/BoardsListPage.tsx` | Replace entirely with dashboard implementation (rename to `DashboardPage.tsx`) |
+| `lib/api.ts` | Extend `listTasks()` to accept optional `limit`/`offset` params (currently hardcoded with no params, defaults to 100 server-side) |
+| `stores/board.ts` | Reuse existing `boards` from store; dashboard fetches tasks/activity directly via `api` |
+| `App.tsx` | Update import from `BoardsListPage` to `DashboardPage` |
 
 ### Routing
 
@@ -109,6 +113,17 @@ No changes — dashboard remains at `#/` (same route as the old boards list).
 ### Sidebar
 
 The "New Board" button stays in the sidebar. The sidebar remains the primary board navigation. No changes needed.
+
+## States
+
+### Loading
+While fetching, show skeleton placeholders: 4 shimmer rectangles for the stats strip, and two shimmer panels below. Use the same glass surfaces with a pulsing opacity animation.
+
+### Empty (new user, zero boards)
+Show a centered empty state similar to the current one: glass icon container with `LayoutDashboard`, "Welcome to Kanwise" heading, "Create your first board to get started" subtitle. No stats or panels — just the welcome message. The sidebar's "New Board" button is the CTA.
+
+### Partial failure
+If one board's fetch fails, skip it silently and show data from the boards that succeeded. No error banner unless all fetches fail, in which case show a simple "Could not load dashboard" message with a retry button.
 
 ## Styling
 
@@ -128,3 +143,5 @@ No new CSS variables or utilities needed.
 - Charts or graphs (keep it simple for MVP)
 - Notification integration
 - Drag-and-drop on dashboard tasks
+- Deep-linking to a specific task from dashboard click (navigates to board only)
+- Server-side date range filtering on activity endpoint
