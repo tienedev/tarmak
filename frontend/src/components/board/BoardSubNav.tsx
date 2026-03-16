@@ -25,7 +25,7 @@ interface BoardSubNavProps {
   onViewChange: (v: ViewMode) => void
 }
 
-export function BoardSubNav({ view, onViewChange }: BoardSubNavProps) {
+export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardSubNavProps) {
   const { columns, members } = useBoardStore()
   const { filters, toggleFilter, clearFilter, clearAll, hasActiveFilters } = useFilterStore()
   const isActive = hasActiveFilters()
