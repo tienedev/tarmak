@@ -10,6 +10,7 @@ pub mod custom_fields;
 pub mod error;
 pub mod labels;
 pub mod middleware;
+pub mod notifications;
 pub mod permissions;
 pub mod rate_limit;
 pub mod search;
@@ -25,13 +26,14 @@ use axum::{
 use crate::db::Db;
 use crate::mcp::tools::api as mcp_api;
 use crate::mcp::sse as mcp_sse;
+use crate::notifications::NotifTx;
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "status": "ok" }))
 }
 
 /// Build the full API router with all resource routes.
-pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
+pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) -> Router {
     let board_item = Router::new()
         .route("/", get(boards::get).put(boards::update).delete(boards::delete));
 
@@ -99,7 +101,7 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
         .route("/mutate", post(mcp_api::mutate))
         .route("/sync", post(mcp_api::sync))
         .route("/ask", post(mcp_api::ask))
-        .nest("/sse", mcp_sse::sse_router(db.clone()));
+        .nest("/sse", mcp_sse::sse_router(db.clone(), notif_tx));
 
     // API key management routes
     let api_key_routes = Router::new()
@@ -113,12 +115,21 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
         .layer(axum::middleware::from_fn(rate_limit::rate_limit_middleware))
         .layer(axum::Extension(rate_limiter));
 
+    let notification_routes = Router::new()
+        .route("/", get(notifications::list))
+        .route("/unread-count", get(notifications::unread_count))
+        .route("/read-all", patch(notifications::mark_all_read))
+        .route("/{id}/read", patch(notifications::mark_read))
+        .route("/stream", get(notifications::stream))
+        .route("/stream-ticket", post(notifications::create_stream_ticket));
+
     // All protected routes under one middleware layer: boards, mcp, api-keys,
     // and the authenticated auth endpoints (me, invite, accept).
     let protected = Router::new()
         .nest("/boards", boards)
         .nest("/mcp", mcp)
         .nest("/api-keys", api_key_routes)
+        .nest("/notifications", notification_routes)
         .route("/auth/me", get(auth::me))
         .route("/auth/accept", post(auth::accept))
         .route("/auth/invite", get(auth::list_invites).post(auth::invite))

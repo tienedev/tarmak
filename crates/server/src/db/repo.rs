@@ -2191,6 +2191,232 @@ impl Db {
 }
 
 // ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub async fn create_notification(
+        &self,
+        user_id: &str,
+        board_id: &str,
+        task_id: Option<&str>,
+        notif_type: &str,
+        title: &str,
+        body: Option<&str>,
+    ) -> anyhow::Result<Notification> {
+        let user_id = user_id.to_string();
+        let board_id = board_id.to_string();
+        let task_id = task_id.map(String::from);
+        let notif_type = notif_type.to_string();
+        let title = title.to_string();
+        let body = body.map(String::from);
+        self.with_conn(move |conn| {
+            let id = new_id();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO notifications (id, user_id, board_id, task_id, type, title, body, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![id, user_id, board_id, task_id, notif_type, title, body, now],
+            )
+            .context("insert notification")?;
+            Ok(Notification {
+                id,
+                user_id,
+                board_id,
+                task_id,
+                notification_type: notif_type,
+                title,
+                body,
+                read: false,
+                created_at: Utc::now(),
+            })
+        })
+        .await
+    }
+
+    pub async fn list_notifications(
+        &self,
+        user_id: &str,
+        unread_only: bool,
+        limit: i64,
+        offset: i64,
+    ) -> anyhow::Result<Vec<Notification>> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
+            let sql = if unread_only {
+                "SELECT id, user_id, board_id, task_id, type, title, body, read, created_at
+                 FROM notifications WHERE user_id = ?1 AND read = 0
+                 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3"
+            } else {
+                "SELECT id, user_id, board_id, task_id, type, title, body, read, created_at
+                 FROM notifications WHERE user_id = ?1
+                 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3"
+            };
+            let mut stmt = conn.prepare(sql)?;
+            let rows = stmt.query_map(params![user_id, limit, offset], |row| {
+                Ok(Notification {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    board_id: row.get(2)?,
+                    task_id: row.get(3)?,
+                    notification_type: row.get(4)?,
+                    title: row.get(5)?,
+                    body: row.get(6)?,
+                    read: row.get::<_, i64>(7)? != 0,
+                    created_at: parse_dt(&row.get::<_, String>(8)?)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows {
+                out.push(r?);
+            }
+            Ok(out)
+        })
+        .await
+    }
+
+    pub async fn unread_notification_count(&self, user_id: &str) -> anyhow::Result<i64> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM notifications WHERE user_id = ?1 AND read = 0",
+                params![user_id],
+                |row| row.get(0),
+            )?;
+            Ok(count)
+        })
+        .await
+    }
+
+    pub async fn mark_notification_read(&self, notification_id: &str, user_id: &str) -> anyhow::Result<bool> {
+        let notification_id = notification_id.to_string();
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
+            let rows = conn.execute(
+                "UPDATE notifications SET read = 1 WHERE id = ?1 AND user_id = ?2",
+                params![notification_id, user_id],
+            )?;
+            Ok(rows > 0)
+        })
+        .await
+    }
+
+    pub async fn mark_all_notifications_read(&self, user_id: &str) -> anyhow::Result<u64> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
+            let rows = conn.execute(
+                "UPDATE notifications SET read = 1 WHERE user_id = ?1 AND read = 0",
+                params![user_id],
+            )? as u64;
+            Ok(rows)
+        })
+        .await
+    }
+
+    pub async fn get_task_participant_ids(&self, task_id: &str) -> anyhow::Result<Vec<String>> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
+            let mut ids = Vec::new();
+            let assignee: Option<String> = conn
+                .query_row("SELECT assignee FROM tasks WHERE id = ?1", params![task_id], |r| r.get(0))
+                .optional()?
+                .flatten();
+            if let Some(a) = assignee
+                && !a.is_empty()
+            {
+                let uid: Option<String> = conn
+                    .query_row("SELECT id FROM users WHERE name = ?1", params![a], |r| r.get(0))
+                    .optional()?;
+                if let Some(uid) = uid {
+                    ids.push(uid);
+                }
+            }
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT user_id FROM comments WHERE task_id = ?1",
+            )?;
+            let rows = stmt.query_map(params![task_id], |row| row.get::<_, String>(0))?;
+            for r in rows {
+                let uid = r?;
+                if !ids.contains(&uid) {
+                    ids.push(uid);
+                }
+            }
+            Ok(ids)
+        })
+        .await
+    }
+
+    pub async fn has_deadline_notification(&self, task_id: &str, user_id: &str) -> anyhow::Result<bool> {
+        let task_id = task_id.to_string();
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM notifications
+                 WHERE task_id = ?1 AND user_id = ?2 AND type = 'deadline'",
+                params![task_id, user_id],
+                |row| row.get(0),
+            )?;
+            Ok(count > 0)
+        })
+        .await
+    }
+
+    pub async fn get_user_by_name(&self, name: &str) -> anyhow::Result<Option<User>> {
+        let name = name.to_string();
+        self.with_conn(move |conn| {
+            let user = conn.query_row(
+                "SELECT id, name, email, avatar_url, is_agent, created_at FROM users WHERE name = ?1",
+                params![name],
+                |row| {
+                    Ok(User {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        email: row.get(2)?,
+                        avatar_url: row.get(3)?,
+                        is_agent: row.get::<_, i64>(4)? != 0,
+                        created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                    })
+                },
+            )
+            .optional()?;
+            Ok(user)
+        })
+        .await
+    }
+
+    pub async fn get_tasks_due_between(
+        &self,
+        from_date: &str,
+        to_date: &str,
+    ) -> anyhow::Result<Vec<(String, String, String, String)>> {
+        let from = from_date.to_string();
+        let to = to_date.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, title, assignee FROM tasks
+                 WHERE due_date >= ?1 AND due_date <= ?2
+                 AND assignee IS NOT NULL AND assignee != ''
+                 AND archived = 0",
+            )?;
+            let rows = stmt.query_map(params![from, to], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })?;
+            let mut out = Vec::new();
+            for r in rows {
+                out.push(r?);
+            }
+            Ok(out)
+        })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

@@ -325,3 +325,17 @@ pub struct Attachment {
     pub uploaded_by: Option<String>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Notification {
+    pub id: String,
+    pub user_id: String,
+    pub board_id: String,
+    pub task_id: Option<String>,
+    #[serde(rename = "type")]
+    pub notification_type: String,
+    pub title: String,
+    pub body: Option<String>,
+    pub read: bool,
+    pub created_at: DateTime<Utc>,
+}

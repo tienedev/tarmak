@@ -1,8 +1,10 @@
 mod api;
 mod auth;
+mod background;
 mod cli;
 mod db;
 mod mcp;
+mod notifications;
 mod static_files;
 mod sync;
 
@@ -184,7 +186,15 @@ async fn run_http_server() -> anyhow::Result<()> {
     let rate_limiter = api::rate_limit::RateLimiter::new(10, 60);
     spawn_cleanup_tasks(db.clone(), rate_limiter.clone());
 
-    let app = api::router(db, rate_limiter)
+    let (notif_sender, _) = tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
+    let notif_tx = notifications::NotifTx(notif_sender);
+    let ticket_store = api::notifications::TicketStore::default();
+
+    tokio::spawn(background::deadline_checker(db.clone(), notif_tx.clone()));
+
+    let app = api::router(db, rate_limiter, notif_tx.clone())
+        .layer(axum::Extension(notif_tx.clone()))
+        .layer(axum::Extension(ticket_store))
         .nest("/ws", ws_routes)
         .fallback(static_files::static_handler)
         .layer(cors)
@@ -228,7 +238,9 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
     let stdin = BufReader::new(tokio::io::stdin());
     let mut stdout = tokio::io::stdout();
 
-    let server = mcp::KanbanMcpServer::new(db);
+    let (notif_sender, _) = tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
+    let notif_tx = notifications::NotifTx(notif_sender);
+    let server = mcp::KanbanMcpServer::new(db, notif_tx);
 
     let mut lines = stdin.lines();
     while let Some(line) = lines.next_line().await? {

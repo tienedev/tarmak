@@ -301,6 +301,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ position }),
     }),
+
+  // Notifications
+  listNotifications: (params?: { unread_only?: boolean; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.unread_only !== undefined) qs.set('unread_only', String(params.unread_only))
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.offset) qs.set('offset', String(params.offset))
+    const query = qs.toString()
+    return request<ServerNotification[]>(`/notifications${query ? `?${query}` : ''}`)
+  },
+  getUnreadCount: () =>
+    request<{ count: number }>('/notifications/unread-count'),
+  markNotificationRead: (id: string) =>
+    request<{ ok: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () =>
+    request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
+  getStreamTicket: () =>
+    request<{ ticket: string }>('/notifications/stream-ticket', { method: 'POST' }),
 }
 
 // Types
@@ -385,6 +403,18 @@ export interface Comment {
   content: string
   created_at: string
   updated_at: string | null
+}
+
+export interface ServerNotification {
+  id: string
+  user_id: string
+  board_id: string
+  task_id: string | null
+  type: 'mention' | 'assignment' | 'deadline' | 'comment'
+  title: string
+  body: string | null
+  read: boolean
+  created_at: string
 }
 
 export interface AuthResponse {

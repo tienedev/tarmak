@@ -47,6 +47,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v7(conn).context("applying migration v7")?;
     }
 
+    if current < 8 {
+        v8(conn).context("applying migration v8")?;
+    }
+
     Ok(())
 }
 
@@ -459,6 +463,37 @@ fn v7(conn: &Connection) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// V8 -- notifications table
+// ---------------------------------------------------------------------------
+
+fn v8(conn: &Connection) -> anyhow::Result<()> {
+    let tx = conn.unchecked_transaction().context("begin v8 transaction")?;
+    tx.execute_batch(
+        "
+        CREATE TABLE notifications (
+            id         TEXT PRIMARY KEY,
+            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            board_id   TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+            task_id    TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+            type       TEXT NOT NULL,
+            title      TEXT NOT NULL,
+            body       TEXT,
+            read       INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_notifications_user_unread
+            ON notifications(user_id, read, created_at);
+
+        INSERT INTO schema_version (version) VALUES (8);
+        ",
+    )
+    .context("v8 migration")?;
+    tx.commit().context("commit v8")?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -475,7 +510,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 7);
+        assert_eq!(ver, 8);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -517,6 +552,9 @@ mod tests {
         // v7 updated_at on comments
         conn.execute_batch("SELECT updated_at FROM comments LIMIT 0")
             .unwrap();
+        // v8 notifications
+        conn.execute_batch("SELECT id, user_id, type, title, read FROM notifications LIMIT 0")
+            .unwrap();
     }
 
     #[test]
@@ -529,7 +567,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 7);
+        assert_eq!(ver, 8);
     }
 
     #[test]
@@ -540,7 +578,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 7);
+        assert_eq!(ver, 8);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();
