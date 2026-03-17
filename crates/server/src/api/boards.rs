@@ -27,6 +27,12 @@ pub struct UpdateBoard {
     pub description: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DuplicateBoardBody {
+    pub name: String,
+    pub include_tasks: Option<bool>,
+}
+
 // ---- Handlers --------------------------------------------------------------
 
 pub async fn list(
@@ -116,4 +122,24 @@ pub async fn delete(
         return Err(ApiError::NotFound("board not found".into()));
     }
     Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
+pub async fn duplicate(
+    State(db): State<Db>,
+    AuthUser(user): AuthUser,
+    Path(board_id): Path<String>,
+    Json(body): Json<DuplicateBoardBody>,
+) -> Result<Json<Board>, ApiError> {
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    validation::validate_title(&body.name)?;
+    let include_tasks = body.include_tasks.unwrap_or(true);
+    let board = db.duplicate_board(&board_id, &body.name, include_tasks, &user.id).await?;
+    let _ = db.log_activity(
+        &board.id,
+        None,
+        &user.id,
+        "board_duplicated",
+        Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
+    ).await;
+    Ok(Json(board))
 }
