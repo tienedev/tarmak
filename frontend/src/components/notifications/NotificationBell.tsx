@@ -1,4 +1,7 @@
-import { useNotificationStore, type Notification } from '@/stores/notifications'
+import { useNotificationStore } from '@/stores/notifications'
+import type { ServerNotification } from '@/lib/api'
+import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import {
   Popover,
   PopoverTrigger,
@@ -24,12 +27,20 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export function NotificationBell() {
-  const { notifications, markRead, markAllRead, dismiss, unreadCount } =
+  const navigate = useNavigate()
+  const { notifications, markRead, markAllRead, dismiss, unreadCount, fetch, connectSSE, disconnectSSE, fetchUnreadCount } =
     useNotificationStore()
-  const count = unreadCount()
+  // unreadCount is now a plain number, not a function
+  const count = unreadCount
+
+  useEffect(() => {
+    connectSSE()
+    fetchUnreadCount()
+    return () => disconnectSSE()
+  }, [connectSSE, disconnectSSE, fetchUnreadCount])
 
   return (
-    <Popover>
+    <Popover onOpenChange={(open) => { if (open) fetch() }}>
       <PopoverTrigger
         render={
           <Button variant="ghost" size="icon-xs" className="relative" aria-label="Notifications" />
@@ -61,11 +72,15 @@ export function NotificationBell() {
         {notifications.length > 0 ? (
           <ScrollArea className="max-h-72">
             <div className="flex flex-col">
-              {notifications.map((notif: Notification) => (
+              {notifications.map((notif: ServerNotification) => (
                 <div
                   key={notif.id}
+                  onClick={() => {
+                    if (notif.board_id) navigate(`/boards/${notif.board_id}`)
+                    if (!notif.read) markRead(notif.id)
+                  }}
                   className={cn(
-                    'group flex items-start gap-2.5 border-b border-border/40 px-3 py-2.5 transition-colors last:border-0',
+                    'group flex cursor-pointer items-start gap-2.5 border-b border-border/40 px-3 py-2.5 transition-colors last:border-0 hover:bg-accent/50',
                     !notif.read && 'bg-accent/30',
                   )}
                 >
@@ -79,10 +94,10 @@ export function NotificationBell() {
 
                   <div className="min-w-0 flex-1">
                     <p className="text-sm leading-snug text-foreground">
-                      {notif.message}
+                      {notif.title}
                     </p>
                     <span className="text-[0.65rem] text-muted-foreground">
-                      {formatTimeAgo(notif.timestamp)}
+                      {formatTimeAgo(new Date(notif.created_at).getTime())}
                     </span>
                   </div>
 
@@ -90,7 +105,7 @@ export function NotificationBell() {
                     {!notif.read && (
                       <button
                         type="button"
-                        onClick={() => markRead(notif.id)}
+                        onClick={(e) => { e.stopPropagation(); markRead(notif.id) }}
                         className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                         title="Mark as read"
                       >
@@ -99,7 +114,7 @@ export function NotificationBell() {
                     )}
                     <button
                       type="button"
-                      onClick={() => dismiss(notif.id)}
+                      onClick={(e) => { e.stopPropagation(); dismiss(notif.id) }}
                       className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       title="Dismiss"
                     >
