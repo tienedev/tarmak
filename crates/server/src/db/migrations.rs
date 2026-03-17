@@ -3,13 +3,6 @@ use rusqlite::Connection;
 
 /// Run all migrations in order, skipping those already applied.
 pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
-    // Enable WAL mode and foreign keys before anything else.
-    conn.execute_batch(
-        "PRAGMA journal_mode = WAL;
-         PRAGMA foreign_keys = ON;",
-    )
-    .context("setting PRAGMAs")?;
-
     // Bootstrap the version-tracking table.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_version (

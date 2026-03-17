@@ -159,15 +159,17 @@ impl ServerHandler for McpSseHandler {
                         Err(e) => Err(format!("invalid params: {e}")),
                         Ok(params) => {
                             if params.board_id == "list" {
-                                db.list_user_boards(&user_id)
-                                    .and_then(|b| Ok(serde_json::to_string(&b)?))
-                                    .map_err(|e| e.to_string())
+                                match db.list_user_boards(&user_id).await {
+                                    Ok(b) => serde_json::to_string(&b).map_err(|e| e.to_string()),
+                                    Err(e) => Err(e.to_string()),
+                                }
                             } else {
-                                permissions::require_role(
+                                match permissions::require_role(
                                     &db, &params.board_id, &user_id, Role::Viewer,
-                                )
-                                .map_err(|e| e.to_string())
-                                .and_then(|_| server.handle_query(params).map_err(|e| e.to_string()))
+                                ).await {
+                                    Ok(_) => server.handle_query(params).await.map_err(|e| e.to_string()),
+                                    Err(e) => Err(e.to_string()),
+                                }
                             }
                         }
                     }
@@ -177,27 +179,29 @@ impl ServerHandler for McpSseHandler {
                         Err(e) => Err(format!("invalid params: {e}")),
                         Ok(params) => {
                             if params.action == "create_board" {
-                                (|| -> Result<String, String> {
+                                let res: Result<String, String> = async {
                                     let name = params.data.get("name")
                                         .and_then(|v| v.as_str())
                                         .ok_or_else(|| "missing required field: name".to_string())?;
                                     let description = params.data.get("description").and_then(|v| v.as_str());
-                                    let board = db.create_board(name, description).map_err(|e| e.to_string())?;
+                                    let board = db.create_board(name, description).await.map_err(|e| e.to_string())?;
                                     db.add_board_member(&board.id, &user_id, Role::Owner)
-                                        .map_err(|e| e.to_string())?;
+                                        .await.map_err(|e| e.to_string())?;
                                     Ok(format!("created board {}", board.id))
-                                })()
+                                }.await;
+                                res
                             } else {
                                 let min_role = if params.action == "delete_board" {
                                     Role::Owner
                                 } else {
                                     Role::Member
                                 };
-                                permissions::require_role(
+                                match permissions::require_role(
                                     &db, &params.board_id, &user_id, min_role,
-                                )
-                                .map_err(|e| e.to_string())
-                                .and_then(|_| server.handle_mutate(params).map_err(|e| e.to_string()))
+                                ).await {
+                                    Ok(_) => server.handle_mutate(params).await.map_err(|e| e.to_string()),
+                                    Err(e) => Err(e.to_string()),
+                                }
                             }
                         }
                     }
@@ -206,11 +210,12 @@ impl ServerHandler for McpSseHandler {
                     match serde_json::from_value::<super::BoardSyncParams>(args_value) {
                         Err(e) => Err(format!("invalid params: {e}")),
                         Ok(params) => {
-                            permissions::require_role(
+                            match permissions::require_role(
                                 &db, &params.board_id, &user_id, Role::Member,
-                            )
-                            .map_err(|e| e.to_string())
-                            .and_then(|_| server.handle_sync(params).map_err(|e| e.to_string()))
+                            ).await {
+                                Ok(_) => server.handle_sync(params).await.map_err(|e| e.to_string()),
+                                Err(e) => Err(e.to_string()),
+                            }
                         }
                     }
                 }

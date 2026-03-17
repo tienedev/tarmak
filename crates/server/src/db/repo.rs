@@ -35,8 +35,10 @@ fn parse_dt(s: &str) -> Result<chrono::DateTime<Utc>, rusqlite::Error> {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_board(&self, name: &str, description: Option<&str>) -> anyhow::Result<Board> {
-        self.with_conn(|conn| {
+    pub async fn create_board(&self, name: &str, description: Option<&str>) -> anyhow::Result<Board> {
+        let name = name.to_string();
+        let description = description.map(String::from);
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             conn.execute(
@@ -47,20 +49,22 @@ impl Db {
             .context("insert board")?;
             Ok(Board {
                 id,
-                name: name.to_string(),
-                description: description.map(String::from),
+                name,
+                description,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             })
         })
+        .await
     }
 
-    pub fn get_board(&self, id: &str) -> anyhow::Result<Option<Board>> {
-        self.with_conn(|conn| get_board_inner(conn, id))
+    pub async fn get_board(&self, id: &str) -> anyhow::Result<Option<Board>> {
+        let id = id.to_string();
+        self.with_conn(move |conn| get_board_inner(conn, &id)).await
     }
 
-    pub fn list_boards(&self) -> anyhow::Result<Vec<Board>> {
-        self.with_conn(|conn| {
+    pub async fn list_boards(&self) -> anyhow::Result<Vec<Board>> {
+        self.with_conn(move |conn| {
             let mut stmt =
                 conn.prepare("SELECT id, name, description, created_at, updated_at FROM boards ORDER BY created_at")?;
             let rows = stmt.query_map([], |row| {
@@ -78,32 +82,36 @@ impl Db {
             }
             Ok(boards)
         })
+        .await
     }
 
-    pub fn update_board(
+    pub async fn update_board(
         &self,
         id: &str,
         name: Option<&str>,
         description: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Board>> {
-        self.with_conn(|conn| {
+        let id = id.to_string();
+        let name = name.map(String::from);
+        let description = description.map(|d| d.map(String::from));
+        self.with_conn(move |conn| {
             let mut sets = Vec::new();
             let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
             if let Some(n) = name {
                 sets.push("name = ?");
-                values.push(Box::new(n.to_string()));
+                values.push(Box::new(n));
             }
             if let Some(d) = description {
                 sets.push("description = ?");
-                values.push(Box::new(d.map(|s| s.to_string())));
+                values.push(Box::new(d));
             }
 
             if !sets.is_empty() {
                 let now = now_iso();
                 sets.push("updated_at = ?");
                 values.push(Box::new(now));
-                values.push(Box::new(id.to_string()));
+                values.push(Box::new(id.clone()));
 
                 let sql = format!(
                     "UPDATE boards SET {} WHERE id = ?",
@@ -114,15 +122,18 @@ impl Db {
                 conn.execute(&sql, param_refs.as_slice())?;
             }
 
-            get_board_inner(conn, id)
+            get_board_inner(conn, &id)
         })
+        .await
     }
 
-    pub fn delete_board(&self, id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_board(&self, id: &str) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute("DELETE FROM boards WHERE id = ?1", params![id])?;
             Ok(affected > 0)
         })
+        .await
     }
 }
 
@@ -150,14 +161,17 @@ fn get_board_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Board>>
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_column(
+    pub async fn create_column(
         &self,
         board_id: &str,
         name: &str,
         wip_limit: Option<i64>,
         color: Option<&str>,
     ) -> anyhow::Result<Column> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        let name = name.to_string();
+        let color = color.map(String::from);
+        self.with_conn(move |conn| {
             let id = new_id();
             let pos: i64 = conn
                 .query_row(
@@ -174,18 +188,20 @@ impl Db {
             .context("insert column")?;
             Ok(Column {
                 id,
-                board_id: board_id.to_string(),
-                name: name.to_string(),
+                board_id,
+                name,
                 position: pos,
                 wip_limit,
-                color: color.map(String::from),
+                color,
                 archived: false,
             })
         })
+        .await
     }
 
-    pub fn list_columns(&self, board_id: &str) -> anyhow::Result<Vec<Column>> {
-        self.with_conn(|conn| {
+    pub async fn list_columns(&self, board_id: &str) -> anyhow::Result<Vec<Column>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, name, position, wip_limit, color, archived
                  FROM columns WHERE board_id = ?1 AND archived = 0 ORDER BY position",
@@ -207,16 +223,20 @@ impl Db {
             }
             Ok(cols)
         })
+        .await
     }
 
-    pub fn update_column(
+    pub async fn update_column(
         &self,
         id: &str,
         name: Option<&str>,
         wip_limit: Option<Option<i64>>,
         color: Option<Option<&str>>,
     ) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+        let id = id.to_string();
+        let name = name.map(String::from);
+        let color = color.map(|c| c.map(String::from));
+        self.with_conn(move |conn| {
             let mut affected = 0usize;
             if let Some(n) = name {
                 affected += conn.execute(
@@ -238,23 +258,28 @@ impl Db {
             }
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn move_column(&self, id: &str, new_position: i64) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn move_column(&self, id: &str, new_position: i64) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute(
                 "UPDATE columns SET position = ?1 WHERE id = ?2",
                 params![new_position, id],
             )?;
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn delete_column(&self, id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_column(&self, id: &str) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute("DELETE FROM columns WHERE id = ?1", params![id])?;
             Ok(affected > 0)
         })
+        .await
     }
 }
 
@@ -263,7 +288,7 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_task(
+    pub async fn create_task(
         &self,
         board_id: &str,
         column_id: &str,
@@ -272,7 +297,12 @@ impl Db {
         priority: Priority,
         assignee: Option<&str>,
     ) -> anyhow::Result<Task> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        let column_id = column_id.to_string();
+        let title = title.to_string();
+        let description = description.map(String::from);
+        let assignee = assignee.map(String::from);
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             let pos: i64 = conn
@@ -290,12 +320,12 @@ impl Db {
             .context("insert task")?;
             Ok(Task {
                 id,
-                board_id: board_id.to_string(),
-                column_id: column_id.to_string(),
-                title: title.to_string(),
-                description: description.map(String::from),
+                board_id,
+                column_id,
+                title,
+                description,
                 priority,
-                assignee: assignee.map(String::from),
+                assignee,
                 due_date: None,
                 position: pos,
                 created_at: Utc::now(),
@@ -303,14 +333,17 @@ impl Db {
                 archived: false,
             })
         })
+        .await
     }
 
-    pub fn get_task(&self, id: &str) -> anyhow::Result<Option<Task>> {
-        self.with_conn(|conn| get_task_inner(conn, id))
+    pub async fn get_task(&self, id: &str) -> anyhow::Result<Option<Task>> {
+        let id = id.to_string();
+        self.with_conn(move |conn| get_task_inner(conn, &id)).await
     }
 
-    pub fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
-        self.with_conn(|conn| {
+    pub async fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
                  FROM tasks WHERE board_id = ?1 AND archived = 0 ORDER BY position LIMIT ?2 OFFSET ?3",
@@ -318,11 +351,13 @@ impl Db {
             let rows = stmt.query_map(params![board_id, limit, offset], map_task_row)?;
             collect_rows(rows)
         })
+        .await
     }
 
     #[allow(dead_code)]
-    pub fn list_tasks_in_column(&self, column_id: &str) -> anyhow::Result<Vec<Task>> {
-        self.with_conn(|conn| {
+    pub async fn list_tasks_in_column(&self, column_id: &str) -> anyhow::Result<Vec<Task>> {
+        let column_id = column_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
                  FROM tasks WHERE column_id = ?1 AND archived = 0 ORDER BY position",
@@ -330,9 +365,10 @@ impl Db {
             let rows = stmt.query_map(params![column_id], map_task_row)?;
             collect_rows(rows)
         })
+        .await
     }
 
-    pub fn update_task(
+    pub async fn update_task(
         &self,
         id: &str,
         title: Option<&str>,
@@ -341,17 +377,22 @@ impl Db {
         assignee: Option<Option<&str>>,
         due_date: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Task>> {
-        self.with_conn(|conn| {
+        let id = id.to_string();
+        let title = title.map(String::from);
+        let description = description.map(|d| d.map(String::from));
+        let assignee = assignee.map(|a| a.map(String::from));
+        let due_date = due_date.map(|d| d.map(String::from));
+        self.with_conn(move |conn| {
             let mut sets = Vec::new();
             let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
             if let Some(t) = title {
                 sets.push("title = ?");
-                values.push(Box::new(t.to_string()));
+                values.push(Box::new(t));
             }
             if let Some(d) = description {
                 sets.push("description = ?");
-                values.push(Box::new(d.map(|s| s.to_string())));
+                values.push(Box::new(d));
             }
             if let Some(p) = priority {
                 sets.push("priority = ?");
@@ -359,18 +400,18 @@ impl Db {
             }
             if let Some(a) = assignee {
                 sets.push("assignee = ?");
-                values.push(Box::new(a.map(|s| s.to_string())));
+                values.push(Box::new(a));
             }
             if let Some(d) = due_date {
                 sets.push("due_date = ?");
-                values.push(Box::new(d.map(|s| s.to_string())));
+                values.push(Box::new(d));
             }
 
             if !sets.is_empty() {
                 let now = now_iso();
                 sets.push("updated_at = ?");
                 values.push(Box::new(now));
-                values.push(Box::new(id.to_string()));
+                values.push(Box::new(id.clone()));
 
                 let sql = format!(
                     "UPDATE tasks SET {} WHERE id = ?",
@@ -381,31 +422,37 @@ impl Db {
                 conn.execute(&sql, param_refs.as_slice())?;
             }
 
-            get_task_inner(conn, id)
+            get_task_inner(conn, &id)
         })
+        .await
     }
 
-    pub fn move_task(
+    pub async fn move_task(
         &self,
         id: &str,
         column_id: &str,
         position: i64,
     ) -> anyhow::Result<Option<Task>> {
-        self.with_conn(|conn| {
+        let id = id.to_string();
+        let column_id = column_id.to_string();
+        self.with_conn(move |conn| {
             let now = now_iso();
             conn.execute(
                 "UPDATE tasks SET column_id = ?1, position = ?2, updated_at = ?3 WHERE id = ?4",
                 params![column_id, position, now, id],
             )?;
-            get_task_inner(conn, id)
+            get_task_inner(conn, &id)
         })
+        .await
     }
 
-    pub fn delete_task(&self, id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_task(&self, id: &str) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
             Ok(affected > 0)
         })
+        .await
     }
 }
 
@@ -454,8 +501,11 @@ fn collect_rows(
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_label(&self, board_id: &str, name: &str, color: &str) -> anyhow::Result<Label> {
-        self.with_conn(|conn| {
+    pub async fn create_label(&self, board_id: &str, name: &str, color: &str) -> anyhow::Result<Label> {
+        let board_id = board_id.to_string();
+        let name = name.to_string();
+        let color = color.to_string();
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             conn.execute(
@@ -464,16 +514,18 @@ impl Db {
             ).context("insert label")?;
             Ok(Label {
                 id,
-                board_id: board_id.to_string(),
-                name: name.to_string(),
-                color: color.to_string(),
+                board_id,
+                name,
+                color,
                 created_at: Utc::now(),
             })
         })
+        .await
     }
 
-    pub fn list_labels(&self, board_id: &str) -> anyhow::Result<Vec<Label>> {
-        self.with_conn(|conn| {
+    pub async fn list_labels(&self, board_id: &str) -> anyhow::Result<Vec<Label>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, name, color, created_at FROM labels WHERE board_id = ?1 ORDER BY created_at",
             )?;
@@ -490,10 +542,12 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 
-    pub fn get_label(&self, id: &str) -> anyhow::Result<Option<Label>> {
-        self.with_conn(|conn| {
+    pub async fn get_label(&self, id: &str) -> anyhow::Result<Option<Label>> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, name, color, created_at FROM labels WHERE id = ?1",
             )?;
@@ -511,58 +565,72 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 
-    pub fn update_label(&self, id: &str, name: Option<&str>, color: Option<&str>) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn update_label(&self, id: &str, name: Option<&str>, color: Option<&str>) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        let name = name.map(String::from);
+        let color = color.map(String::from);
+        self.with_conn(move |conn| {
             let mut sets = Vec::new();
             let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
             if let Some(n) = name {
                 sets.push("name = ?");
-                values.push(Box::new(n.to_string()));
+                values.push(Box::new(n));
             }
             if let Some(c) = color {
                 sets.push("color = ?");
-                values.push(Box::new(c.to_string()));
+                values.push(Box::new(c));
             }
             if sets.is_empty() { return Ok(false); }
-            values.push(Box::new(id.to_string()));
+            values.push(Box::new(id));
             let sql = format!("UPDATE labels SET {} WHERE id = ?", sets.join(", "));
             let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
             let affected = conn.execute(&sql, param_refs.as_slice())?;
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn delete_label(&self, id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_label(&self, id: &str) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute("DELETE FROM labels WHERE id = ?1", params![id])?;
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn add_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<()> {
-        self.with_conn(|conn| {
+    pub async fn add_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<()> {
+        let task_id = task_id.to_string();
+        let label_id = label_id.to_string();
+        self.with_conn(move |conn| {
             conn.execute(
                 "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
                 params![task_id, label_id],
             ).context("add task label")?;
             Ok(())
         })
+        .await
     }
 
-    pub fn remove_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn remove_task_label(&self, task_id: &str, label_id: &str) -> anyhow::Result<bool> {
+        let task_id = task_id.to_string();
+        let label_id = label_id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute(
                 "DELETE FROM task_labels WHERE task_id = ?1 AND label_id = ?2",
                 params![task_id, label_id],
             )?;
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn get_task_labels(&self, task_id: &str) -> anyhow::Result<Vec<Label>> {
-        self.with_conn(|conn| {
+    pub async fn get_task_labels(&self, task_id: &str) -> anyhow::Result<Vec<Label>> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT l.id, l.board_id, l.name, l.color, l.created_at
                  FROM labels l
@@ -583,11 +651,13 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 
     /// Batch load labels for all tasks in a board (avoids N+1).
-    pub fn get_labels_for_board_tasks(&self, board_id: &str) -> anyhow::Result<Vec<(String, Label)>> {
-        self.with_conn(|conn| {
+    pub async fn get_labels_for_board_tasks(&self, board_id: &str) -> anyhow::Result<Vec<(String, Label)>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT tl.task_id, l.id, l.board_id, l.name, l.color, l.created_at
                  FROM task_labels tl
@@ -610,6 +680,7 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 }
 
@@ -618,8 +689,10 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_subtask(&self, task_id: &str, title: &str) -> anyhow::Result<Subtask> {
-        self.with_conn(|conn| {
+    pub async fn create_subtask(&self, task_id: &str, title: &str) -> anyhow::Result<Subtask> {
+        let task_id = task_id.to_string();
+        let title = title.to_string();
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             let position: i32 = conn
@@ -635,17 +708,19 @@ impl Db {
             ).context("insert subtask")?;
             Ok(Subtask {
                 id,
-                task_id: task_id.to_string(),
-                title: title.to_string(),
+                task_id,
+                title,
                 completed: false,
                 position,
                 created_at: Utc::now(),
             })
         })
+        .await
     }
 
-    pub fn list_subtasks(&self, task_id: &str) -> anyhow::Result<Vec<Subtask>> {
-        self.with_conn(|conn| {
+    pub async fn list_subtasks(&self, task_id: &str) -> anyhow::Result<Vec<Subtask>> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE task_id = ?1 ORDER BY position",
             )?;
@@ -663,10 +738,12 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 
-    pub fn get_subtask(&self, id: &str) -> anyhow::Result<Option<Subtask>> {
-        self.with_conn(|conn| {
+    pub async fn get_subtask(&self, id: &str) -> anyhow::Result<Option<Subtask>> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, task_id, title, completed, position, created_at FROM subtasks WHERE id = ?1",
             )?;
@@ -685,21 +762,24 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 
-    pub fn update_subtask(
+    pub async fn update_subtask(
         &self,
         id: &str,
         title: Option<&str>,
         completed: Option<bool>,
         position: Option<i32>,
     ) -> anyhow::Result<Option<Subtask>> {
-        self.with_conn(|conn| {
+        let id = id.to_string();
+        let title = title.map(String::from);
+        self.with_conn(move |conn| {
             let mut sets = Vec::new();
             let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
             if let Some(t) = title {
                 sets.push("title = ?");
-                values.push(Box::new(t.to_string()));
+                values.push(Box::new(t));
             }
             if let Some(c) = completed {
                 sets.push("completed = ?");
@@ -710,7 +790,7 @@ impl Db {
                 values.push(Box::new(p));
             }
             if !sets.is_empty() {
-                values.push(Box::new(id.to_string()));
+                values.push(Box::new(id.clone()));
                 let sql = format!("UPDATE subtasks SET {} WHERE id = ?", sets.join(", "));
                 let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
                 conn.execute(&sql, param_refs.as_slice())?;
@@ -734,18 +814,22 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 
-    pub fn delete_subtask(&self, id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_subtask(&self, id: &str) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute("DELETE FROM subtasks WHERE id = ?1", params![id])?;
             Ok(affected > 0)
         })
+        .await
     }
 
     /// Get subtask counts for all tasks in a board (avoids N+1).
-    pub fn get_subtask_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, SubtaskCount)>> {
-        self.with_conn(|conn| {
+    pub async fn get_subtask_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, SubtaskCount)>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT s.task_id, COUNT(*) as total, SUM(s.completed) as done
                  FROM subtasks s
@@ -763,6 +847,7 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 }
 
@@ -771,14 +856,17 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_custom_field(
+    pub async fn create_custom_field(
         &self,
         board_id: &str,
         name: &str,
         field_type: FieldType,
         config: Option<&str>,
     ) -> anyhow::Result<CustomField> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        let name = name.to_string();
+        let config = config.map(String::from);
+        self.with_conn(move |conn| {
             let id = new_id();
             let pos: i64 = conn
                 .query_row(
@@ -795,17 +883,19 @@ impl Db {
             .context("insert custom_field")?;
             Ok(CustomField {
                 id,
-                board_id: board_id.to_string(),
-                name: name.to_string(),
+                board_id,
+                name,
                 field_type,
-                config: config.map(String::from),
+                config,
                 position: pos,
             })
         })
+        .await
     }
 
-    pub fn list_custom_fields(&self, board_id: &str) -> anyhow::Result<Vec<CustomField>> {
-        self.with_conn(|conn| {
+    pub async fn list_custom_fields(&self, board_id: &str) -> anyhow::Result<Vec<CustomField>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, name, field_type, config, position
                  FROM custom_fields WHERE board_id = ?1 ORDER BY position",
@@ -827,15 +917,19 @@ impl Db {
             }
             Ok(out)
         })
+        .await
     }
 
-    pub fn set_custom_field_value(
+    pub async fn set_custom_field_value(
         &self,
         task_id: &str,
         field_id: &str,
         value: &str,
     ) -> anyhow::Result<TaskCustomFieldValue> {
-        self.with_conn(|conn| {
+        let task_id = task_id.to_string();
+        let field_id = field_id.to_string();
+        let value = value.to_string();
+        self.with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO task_custom_field_values (task_id, field_id, value)
                  VALUES (?1, ?2, ?3)
@@ -844,18 +938,20 @@ impl Db {
             )
             .context("upsert custom field value")?;
             Ok(TaskCustomFieldValue {
-                task_id: task_id.to_string(),
-                field_id: field_id.to_string(),
-                value: value.to_string(),
+                task_id,
+                field_id,
+                value,
             })
         })
+        .await
     }
 
-    pub fn get_custom_field_values(
+    pub async fn get_custom_field_values(
         &self,
         task_id: &str,
     ) -> anyhow::Result<Vec<TaskCustomFieldValue>> {
-        self.with_conn(|conn| {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT task_id, field_id, value
                  FROM task_custom_field_values WHERE task_id = ?1",
@@ -873,14 +969,16 @@ impl Db {
             }
             Ok(out)
         })
+        .await
     }
 
     /// Batch-load all custom field values for every task in a board (avoids N+1).
-    pub fn get_custom_field_values_for_board(
+    pub async fn get_custom_field_values_for_board(
         &self,
         board_id: &str,
     ) -> anyhow::Result<Vec<TaskCustomFieldValue>> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT tcfv.task_id, tcfv.field_id, tcfv.value
                  FROM task_custom_field_values tcfv
@@ -900,6 +998,7 @@ impl Db {
             }
             Ok(result)
         })
+        .await
     }
 }
 
@@ -910,8 +1009,8 @@ impl Db {
 impl Db {
     /// Get or create the "Local User" for no-auth development mode.
     #[allow(dead_code)]
-    pub fn get_or_create_local_user(&self) -> anyhow::Result<User> {
-        self.with_conn(|conn| {
+    pub async fn get_or_create_local_user(&self) -> anyhow::Result<User> {
+        self.with_conn(move |conn| {
             // Try to find the first non-agent user
             let existing = conn.query_row(
                 "SELECT id, name, email, avatar_url, is_agent, created_at
@@ -952,9 +1051,10 @@ impl Db {
                 Err(e) => Err(e.into()),
             }
         })
+        .await
     }
 
-    pub fn create_user(
+    pub async fn create_user(
         &self,
         name: &str,
         email: &str,
@@ -962,7 +1062,11 @@ impl Db {
         is_agent: bool,
         password_hash: Option<&str>,
     ) -> anyhow::Result<User> {
-        self.with_conn(|conn| {
+        let name = name.to_string();
+        let email = email.to_string();
+        let avatar_url = avatar_url.map(String::from);
+        let password_hash = password_hash.map(String::from);
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             conn.execute(
@@ -973,18 +1077,20 @@ impl Db {
             .context("insert user")?;
             Ok(User {
                 id,
-                name: name.to_string(),
-                email: email.to_string(),
-                avatar_url: avatar_url.map(String::from),
+                name,
+                email,
+                avatar_url,
                 is_agent,
                 created_at: Utc::now(),
             })
         })
+        .await
     }
 
     #[allow(dead_code)]
-    pub fn get_user_by_id(&self, id: &str) -> anyhow::Result<Option<User>> {
-        self.with_conn(|conn| {
+    pub async fn get_user_by_id(&self, id: &str) -> anyhow::Result<Option<User>> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, name, email, avatar_url, is_agent, created_at
                  FROM users WHERE id = ?1",
@@ -1005,10 +1111,12 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 
-    pub fn get_password_hash(&self, user_id: &str) -> anyhow::Result<Option<String>> {
-        self.with_conn(|conn| {
+    pub async fn get_password_hash(&self, user_id: &str) -> anyhow::Result<Option<String>> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT password_hash FROM users WHERE id = ?1",
             )?;
@@ -1020,10 +1128,12 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 
-    pub fn get_user_by_email(&self, email: &str) -> anyhow::Result<Option<User>> {
-        self.with_conn(|conn| {
+    pub async fn get_user_by_email(&self, email: &str) -> anyhow::Result<Option<User>> {
+        let email = email.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, name, email, avatar_url, is_agent, created_at
                  FROM users WHERE email = ?1",
@@ -1044,6 +1154,7 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 }
 
@@ -1052,13 +1163,16 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_comment(
+    pub async fn create_comment(
         &self,
         task_id: &str,
         user_id: &str,
         content: &str,
     ) -> anyhow::Result<Comment> {
-        self.with_conn(|conn| {
+        let task_id = task_id.to_string();
+        let user_id = user_id.to_string();
+        let content = content.to_string();
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             conn.execute(
@@ -1073,17 +1187,19 @@ impl Db {
                 .ok();
             Ok(Comment {
                 id,
-                task_id: task_id.to_string(),
-                user_id: user_id.to_string(),
+                task_id,
+                user_id,
                 user_name,
-                content: content.to_string(),
+                content,
                 created_at: Utc::now(),
             })
         })
+        .await
     }
 
-    pub fn list_comments(&self, task_id: &str) -> anyhow::Result<Vec<Comment>> {
-        self.with_conn(|conn| {
+    pub async fn list_comments(&self, task_id: &str) -> anyhow::Result<Vec<Comment>> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name
                  FROM comments c
@@ -1106,6 +1222,7 @@ impl Db {
             }
             Ok(out)
         })
+        .await
     }
 }
 
@@ -1114,14 +1231,18 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn create_api_key(
+    pub async fn create_api_key(
         &self,
         user_id: &str,
         name: &str,
         key_hash: &str,
         key_prefix: &str,
     ) -> anyhow::Result<ApiKey> {
-        self.with_conn(|conn| {
+        let user_id = user_id.to_string();
+        let name = name.to_string();
+        let key_hash = key_hash.to_string();
+        let key_prefix = key_prefix.to_string();
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             conn.execute(
@@ -1132,17 +1253,19 @@ impl Db {
             .context("insert api_key")?;
             Ok(ApiKey {
                 id,
-                user_id: user_id.to_string(),
-                name: name.to_string(),
-                key_prefix: key_prefix.to_string(),
+                user_id,
+                name,
+                key_prefix,
                 created_at: Utc::now(),
                 last_used_at: None,
             })
         })
+        .await
     }
 
-    pub fn list_api_keys(&self, user_id: &str) -> anyhow::Result<Vec<ApiKey>> {
-        self.with_conn(|conn| {
+    pub async fn list_api_keys(&self, user_id: &str) -> anyhow::Result<Vec<ApiKey>> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, user_id, name, key_prefix, created_at, last_used_at
                  FROM api_keys WHERE user_id = ?1 ORDER BY created_at",
@@ -1165,20 +1288,25 @@ impl Db {
             }
             Ok(out)
         })
+        .await
     }
 
-    pub fn delete_api_key(&self, id: &str, user_id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_api_key(&self, id: &str, user_id: &str) -> anyhow::Result<bool> {
+        let id = id.to_string();
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute(
                 "DELETE FROM api_keys WHERE id = ?1 AND user_id = ?2",
                 params![id, user_id],
             )?;
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn validate_api_key(&self, key_hash: &str) -> anyhow::Result<User> {
-        self.with_conn(|conn| {
+    pub async fn validate_api_key(&self, key_hash: &str) -> anyhow::Result<User> {
+        let key_hash = key_hash.to_string();
+        self.with_conn(move |conn| {
             let now = now_iso();
             conn.execute(
                 "UPDATE api_keys SET last_used_at = ?1 WHERE key_hash = ?2",
@@ -1206,6 +1334,7 @@ impl Db {
                 None => Err(anyhow::anyhow!("invalid API key")),
             }
         })
+        .await
     }
 }
 
@@ -1214,8 +1343,10 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn get_board_member(&self, board_id: &str, user_id: &str) -> anyhow::Result<Option<Role>> {
-        self.with_conn(|conn| {
+    pub async fn get_board_member(&self, board_id: &str, user_id: &str) -> anyhow::Result<Option<Role>> {
+        let board_id = board_id.to_string();
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             let result = conn.query_row(
                 "SELECT role FROM board_members WHERE board_id = ?1 AND user_id = ?2",
                 params![board_id, user_id],
@@ -1230,10 +1361,13 @@ impl Db {
                 Err(e) => Err(e.into()),
             }
         })
+        .await
     }
 
-    pub fn add_board_member(&self, board_id: &str, user_id: &str, role: Role) -> anyhow::Result<()> {
-        self.with_conn(|conn| {
+    pub async fn add_board_member(&self, board_id: &str, user_id: &str, role: Role) -> anyhow::Result<()> {
+        let board_id = board_id.to_string();
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             conn.execute(
                 "INSERT OR REPLACE INTO board_members (board_id, user_id, role)
                  VALUES (?1, ?2, ?3)",
@@ -1242,10 +1376,12 @@ impl Db {
             .context("insert board_member")?;
             Ok(())
         })
+        .await
     }
 
-    pub fn list_board_members(&self, board_id: &str) -> anyhow::Result<Vec<(User, Role)>> {
-        self.with_conn(|conn| {
+    pub async fn list_board_members(&self, board_id: &str) -> anyhow::Result<Vec<(User, Role)>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT u.id, u.name, u.email, u.avatar_url, u.is_agent, u.created_at, bm.role
                  FROM board_members bm
@@ -1271,10 +1407,12 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 
-    pub fn list_user_boards(&self, user_id: &str) -> anyhow::Result<Vec<Board>> {
-        self.with_conn(|conn| {
+    pub async fn list_user_boards(&self, user_id: &str) -> anyhow::Result<Vec<Board>> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT b.id, b.name, b.description, b.created_at, b.updated_at
                  FROM boards b
@@ -1295,6 +1433,7 @@ impl Db {
             for r in rows { out.push(r?); }
             Ok(out)
         })
+        .await
     }
 }
 
@@ -1303,7 +1442,7 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn log_activity(
+    pub async fn log_activity(
         &self,
         board_id: &str,
         task_id: Option<&str>,
@@ -1311,7 +1450,12 @@ impl Db {
         action: &str,
         details: Option<&str>,
     ) -> anyhow::Result<Activity> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        let task_id = task_id.map(String::from);
+        let user_id = user_id.to_string();
+        let action = action.to_string();
+        let details = details.map(String::from);
+        self.with_conn(move |conn| {
             let id = new_id();
             let now = now_iso();
             conn.execute(
@@ -1322,19 +1466,20 @@ impl Db {
             .context("insert activity")?;
             Ok(Activity {
                 id,
-                board_id: board_id.to_string(),
-                task_id: task_id.map(String::from),
-                user_id: user_id.to_string(),
-                action: action.to_string(),
-                details: details.map(String::from),
+                board_id,
+                task_id,
+                user_id,
+                action,
+                details,
                 created_at: Utc::now(),
             })
         })
+        .await
     }
 }
 
 impl Db {
-    pub fn list_activity(
+    pub async fn list_activity(
         &self,
         board_id: &str,
         action_filter: Option<&str>,
@@ -1342,7 +1487,10 @@ impl Db {
         limit: i64,
         offset: i64,
     ) -> anyhow::Result<Vec<ActivityEntry>> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        let action_filter = action_filter.map(String::from);
+        let user_filter = user_filter.map(String::from);
+        self.with_conn(move |conn| {
             let mut sql = String::from(
                 "SELECT a.id, a.board_id, a.task_id, a.user_id, COALESCE(u.name, 'Unknown') as user_name,
                         COALESCE(u.is_agent, 0) as is_agent,
@@ -1369,13 +1517,13 @@ impl Db {
             let mut stmt = conn.prepare(&sql)?;
 
             let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![
-                Box::new(board_id.to_string()),
+                Box::new(board_id),
             ];
             if let Some(action) = action_filter {
-                params_vec.push(Box::new(action.to_string()));
+                params_vec.push(Box::new(action));
             }
             if let Some(uid) = user_filter {
-                params_vec.push(Box::new(uid.to_string()));
+                params_vec.push(Box::new(uid));
             }
             params_vec.push(Box::new(limit));
             params_vec.push(Box::new(offset));
@@ -1402,6 +1550,7 @@ impl Db {
             }
             Ok(result)
         })
+        .await
     }
 }
 
@@ -1411,14 +1560,16 @@ impl Db {
 
 impl Db {
     /// Full-text search across tasks, comments, and subtasks for a board.
-    pub fn search_board(
+    pub async fn search_board(
         &self,
         board_id: &str,
         query: &str,
         limit: i64,
         include_archived: bool,
     ) -> anyhow::Result<Vec<SearchResult>> {
-        self.with_conn(|conn| {
+        let board_id = board_id.to_string();
+        let query = query.to_string();
+        self.with_conn(move |conn| {
             let archive_filter = if include_archived {
                 ""
             } else {
@@ -1452,6 +1603,7 @@ impl Db {
             }
             Ok(result)
         })
+        .await
     }
 }
 
@@ -1477,18 +1629,21 @@ fn sanitize_snippet(raw: &str) -> String {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub fn archive_task(&self, task_id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn archive_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let updated = conn.execute(
                 "UPDATE tasks SET archived = 1, updated_at = ?2 WHERE id = ?1",
                 rusqlite::params![task_id, now_iso()],
             )?;
             Ok(updated > 0)
         })
+        .await
     }
 
-    pub fn unarchive_task(&self, task_id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn unarchive_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let col_archived: bool = conn.query_row(
                 "SELECT c.archived FROM tasks t JOIN columns c ON c.id = t.column_id WHERE t.id = ?1",
                 rusqlite::params![task_id],
@@ -1520,10 +1675,12 @@ impl Db {
             )?;
             Ok(updated > 0)
         })
+        .await
     }
 
-    pub fn archive_column(&self, column_id: &str) -> anyhow::Result<i64> {
-        self.with_conn(|conn| {
+    pub async fn archive_column(&self, column_id: &str) -> anyhow::Result<i64> {
+        let column_id = column_id.to_string();
+        self.with_conn(move |conn| {
             let now = now_iso();
             conn.execute(
                 "UPDATE columns SET archived = 1 WHERE id = ?1",
@@ -1535,10 +1692,12 @@ impl Db {
             )?;
             Ok(task_count as i64)
         })
+        .await
     }
 
-    pub fn unarchive_column(&self, column_id: &str) -> anyhow::Result<i64> {
-        self.with_conn(|conn| {
+    pub async fn unarchive_column(&self, column_id: &str) -> anyhow::Result<i64> {
+        let column_id = column_id.to_string();
+        self.with_conn(move |conn| {
             let now = now_iso();
             conn.execute(
                 "UPDATE columns SET archived = 0 WHERE id = ?1",
@@ -1550,10 +1709,12 @@ impl Db {
             )?;
             Ok(task_count as i64)
         })
+        .await
     }
 
-    pub fn list_archived(&self, board_id: &str) -> anyhow::Result<(Vec<Task>, Vec<Column>)> {
-        self.with_conn(|conn| {
+    pub async fn list_archived(&self, board_id: &str) -> anyhow::Result<(Vec<Task>, Vec<Column>)> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived
                  FROM tasks WHERE board_id = ?1 AND archived = 1 ORDER BY updated_at DESC"
@@ -1581,6 +1742,7 @@ impl Db {
 
             Ok((tasks, columns))
         })
+        .await
     }
 }
 
@@ -1590,10 +1752,17 @@ impl Db {
 
 impl Db {
     #[allow(clippy::too_many_arguments)]
-    pub fn create_attachment(&self, id: &str, task_id: &str, board_id: &str,
+    pub async fn create_attachment(&self, id: &str, task_id: &str, board_id: &str,
         filename: &str, mime_type: &str, size_bytes: i64, storage_key: &str,
         uploaded_by: Option<&str>) -> anyhow::Result<Attachment> {
-        self.with_conn(|conn| {
+        let id = id.to_string();
+        let task_id = task_id.to_string();
+        let board_id = board_id.to_string();
+        let filename = filename.to_string();
+        let mime_type = mime_type.to_string();
+        let storage_key = storage_key.to_string();
+        let uploaded_by = uploaded_by.map(String::from);
+        self.with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO attachments (id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -1617,10 +1786,12 @@ impl Db {
             )?;
             Ok(att)
         })
+        .await
     }
 
-    pub fn list_attachments(&self, task_id: &str) -> anyhow::Result<Vec<Attachment>> {
-        self.with_conn(|conn| {
+    pub async fn list_attachments(&self, task_id: &str) -> anyhow::Result<Vec<Attachment>> {
+        let task_id = task_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by, created_at
                  FROM attachments WHERE task_id = ?1 ORDER BY created_at DESC"
@@ -1642,10 +1813,12 @@ impl Db {
             for r in rows { result.push(r?); }
             Ok(result)
         })
+        .await
     }
 
-    pub fn get_attachment(&self, attachment_id: &str) -> anyhow::Result<Option<Attachment>> {
-        self.with_conn(|conn| {
+    pub async fn get_attachment(&self, attachment_id: &str) -> anyhow::Result<Option<Attachment>> {
+        let attachment_id = attachment_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, task_id, board_id, filename, mime_type, size_bytes, storage_key, uploaded_by, created_at
                  FROM attachments WHERE id = ?1"
@@ -1668,20 +1841,24 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 
-    pub fn delete_attachment(&self, attachment_id: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn delete_attachment(&self, attachment_id: &str) -> anyhow::Result<bool> {
+        let attachment_id = attachment_id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute(
                 "DELETE FROM attachments WHERE id = ?1",
                 params![attachment_id],
             )?;
             Ok(affected > 0)
         })
+        .await
     }
 
-    pub fn get_attachment_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, i32)>> {
-        self.with_conn(|conn| {
+    pub async fn get_attachment_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, i32)>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT task_id, COUNT(*) as cnt FROM attachments
                  WHERE board_id = ?1
@@ -1694,6 +1871,7 @@ impl Db {
             for r in rows { result.push(r?); }
             Ok(result)
         })
+        .await
     }
 }
 
@@ -1703,25 +1881,49 @@ impl Db {
 
 impl Db {
     /// Update the password hash for a user.
-    pub fn set_password_hash(&self, user_id: &str, password_hash: &str) -> anyhow::Result<bool> {
-        self.with_conn(|conn| {
+    pub async fn set_password_hash(&self, user_id: &str, password_hash: &str) -> anyhow::Result<bool> {
+        let user_id = user_id.to_string();
+        let password_hash = password_hash.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute(
                 "UPDATE users SET password_hash = ?1 WHERE id = ?2",
                 params![password_hash, user_id],
             )?;
             Ok(affected > 0)
         })
+        .await
     }
 
     /// Delete all sessions for a user (e.g. after password reset).
-    pub fn delete_user_sessions(&self, user_id: &str) -> anyhow::Result<usize> {
-        self.with_conn(|conn| {
+    pub async fn delete_user_sessions(&self, user_id: &str) -> anyhow::Result<usize> {
+        let user_id = user_id.to_string();
+        self.with_conn(move |conn| {
             let affected = conn.execute(
                 "DELETE FROM sessions WHERE user_id = ?1",
                 params![user_id],
             )?;
             Ok(affected)
         })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Session cleanup
+// ---------------------------------------------------------------------------
+
+impl Db {
+    /// Delete all sessions that have expired. Returns the number of deleted rows.
+    pub async fn cleanup_expired_sessions(&self) -> anyhow::Result<usize> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.with_conn(move |conn| {
+            let count = conn.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?1",
+                rusqlite::params![now],
+            )?;
+            Ok(count)
+        })
+        .await
     }
 }
 
@@ -1731,8 +1933,10 @@ impl Db {
 
 impl Db {
     /// Save the encoded Y.Doc state for a board.
-    pub fn save_crdt_state(&self, board_id: &str, state: &[u8]) -> anyhow::Result<()> {
-        self.with_conn(|conn| {
+    pub async fn save_crdt_state(&self, board_id: &str, state: &[u8]) -> anyhow::Result<()> {
+        let board_id = board_id.to_string();
+        let state = state.to_vec();
+        self.with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO board_crdt_state (board_id, state, updated_at)
                  VALUES (?1, ?2, ?3)
@@ -1742,11 +1946,13 @@ impl Db {
             .context("save crdt state")?;
             Ok(())
         })
+        .await
     }
 
     /// Load the stored Y.Doc state for a board, if any.
-    pub fn load_crdt_state(&self, board_id: &str) -> anyhow::Result<Option<Vec<u8>>> {
-        self.with_conn(|conn| {
+    pub async fn load_crdt_state(&self, board_id: &str) -> anyhow::Result<Option<Vec<u8>>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT state FROM board_crdt_state WHERE board_id = ?1",
             )?;
@@ -1758,6 +1964,7 @@ impl Db {
                 None => Ok(None),
             }
         })
+        .await
     }
 }
 
@@ -1769,66 +1976,70 @@ impl Db {
 mod tests {
     use super::*;
 
-    fn test_db() -> Db {
-        Db::in_memory().expect("in-memory db")
+    async fn test_db() -> Db {
+        Db::in_memory().await.expect("in-memory db")
     }
 
     /// Helper: create a board, a user, a column, and return their IDs.
-    fn seed(db: &Db) -> (String, String, String) {
-        let board = db.create_board("Test Board", Some("desc")).unwrap();
+    async fn seed(db: &Db) -> (String, String, String) {
+        let board = db.create_board("Test Board", Some("desc")).await.unwrap();
         let user = db
             .create_user("Alice", "alice@example.com", None, false, None)
+            .await
             .unwrap();
         let col = db
             .create_column(&board.id, "To Do", None, None)
+            .await
             .unwrap();
         (board.id, user.id, col.id)
     }
 
     // ----- Boards ----------------------------------------------------------
 
-    #[test]
-    fn test_board_crud() {
-        let db = test_db();
+    #[tokio::test]
+    async fn test_board_crud() {
+        let db = test_db().await;
 
         // Create
-        let board = db.create_board("My Board", Some("A board")).unwrap();
+        let board = db.create_board("My Board", Some("A board")).await.unwrap();
         assert_eq!(board.name, "My Board");
         assert_eq!(board.description.as_deref(), Some("A board"));
 
         // Read
-        let fetched = db.get_board(&board.id).unwrap().expect("board exists");
+        let fetched = db.get_board(&board.id).await.unwrap().expect("board exists");
         assert_eq!(fetched.name, "My Board");
 
         // List
-        let boards = db.list_boards().unwrap();
+        let boards = db.list_boards().await.unwrap();
         assert_eq!(boards.len(), 1);
 
         // Update
         let updated = db
             .update_board(&board.id, Some("Renamed"), None)
+            .await
             .unwrap()
             .expect("board exists");
         assert_eq!(updated.name, "Renamed");
 
         // Delete
-        assert!(db.delete_board(&board.id).unwrap());
-        assert!(db.get_board(&board.id).unwrap().is_none());
+        assert!(db.delete_board(&board.id).await.unwrap());
+        assert!(db.get_board(&board.id).await.unwrap().is_none());
     }
 
     // ----- Columns ---------------------------------------------------------
 
-    #[test]
-    fn test_column_crud() {
-        let db = test_db();
-        let board = db.create_board("B", None).unwrap();
+    #[tokio::test]
+    async fn test_column_crud() {
+        let db = test_db().await;
+        let board = db.create_board("B", None).await.unwrap();
 
         // Auto-incrementing positions
-        let c1 = db.create_column(&board.id, "To Do", None, None).unwrap();
+        let c1 = db.create_column(&board.id, "To Do", None, None).await.unwrap();
         let c2 = db
             .create_column(&board.id, "In Progress", Some(3), Some("#00f"))
+            .await
             .unwrap();
-        let c3 = db.create_column(&board.id, "Done", None, None).unwrap();
+        let c3 = db.create_column(&board.id, "Done", None, None).await.unwrap();
 
         assert_eq!(c1.position, 0);
         assert_eq!(c2.position, 1);
@@ -1837,30 +2048,31 @@ mod tests {
         assert_eq!(c2.color.as_deref(), Some("#00f"));
 
         // List
-        let cols = db.list_columns(&board.id).unwrap();
+        let cols = db.list_columns(&board.id).await.unwrap();
         assert_eq!(cols.len(), 3);
 
         // Update
-        assert!(db.update_column(&c1.id, Some("Backlog"), None, None).unwrap());
+        assert!(db.update_column(&c1.id, Some("Backlog"), None, None).await.unwrap());
 
         // Move
-        assert!(db.move_column(&c3.id, 0).unwrap());
+        assert!(db.move_column(&c3.id, 0).await.unwrap());
 
         // Delete
-        assert!(db.delete_column(&c1.id).unwrap());
-        assert_eq!(db.list_columns(&board.id).unwrap().len(), 2);
+        assert!(db.delete_column(&c1.id).await.unwrap());
+        assert_eq!(db.list_columns(&board.id).await.unwrap().len(), 2);
     }
 
     // ----- Tasks -----------------------------------------------------------
 
-    #[test]
-    fn test_task_crud_and_move() {
-        let db = test_db();
-        let (board_id, _user_id, col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_task_crud_and_move() {
+        let db = test_db().await;
+        let (board_id, _user_id, col_id) = seed(&db).await;
 
         // Create two tasks -- positions auto-increment
         let t1 = db
             .create_task(&board_id, &col_id, "Task 1", None, Priority::Low, None)
+            .await
             .unwrap();
         let t2 = db
             .create_task(
@@ -1871,24 +2083,26 @@ mod tests {
                 Priority::Urgent,
                 Some("alice"),
             )
+            .await
             .unwrap();
         assert_eq!(t1.position, 0);
         assert_eq!(t2.position, 1);
         assert_eq!(t2.priority, Priority::Urgent);
 
         // Get
-        let fetched = db.get_task(&t1.id).unwrap().expect("task exists");
+        let fetched = db.get_task(&t1.id).await.unwrap().expect("task exists");
         assert_eq!(fetched.title, "Task 1");
 
         // List by board
-        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).unwrap().len(), 2);
+        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).await.unwrap().len(), 2);
 
         // List by column
-        assert_eq!(db.list_tasks_in_column(&col_id).unwrap().len(), 2);
+        assert_eq!(db.list_tasks_in_column(&col_id).await.unwrap().len(), 2);
 
         // Update
         let updated = db
             .update_task(&t1.id, Some("Task 1 Updated"), None, Some(Priority::High), None, None)
+            .await
             .unwrap()
             .expect("task exists");
         assert_eq!(updated.title, "Task 1 Updated");
@@ -1897,26 +2111,28 @@ mod tests {
         // Move to a new column
         let col2 = db
             .create_column(&board_id, "Done", None, None)
+            .await
             .unwrap();
-        let moved = db.move_task(&t1.id, &col2.id, 0).unwrap().expect("task exists");
+        let moved = db.move_task(&t1.id, &col2.id, 0).await.unwrap().expect("task exists");
         assert_eq!(moved.column_id, col2.id);
         assert_eq!(moved.position, 0);
 
         // Delete
-        assert!(db.delete_task(&t2.id).unwrap());
-        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).unwrap().len(), 1);
+        assert!(db.delete_task(&t2.id).await.unwrap());
+        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).await.unwrap().len(), 1);
     }
 
     // ----- Custom fields ---------------------------------------------------
 
-    #[test]
-    fn test_custom_fields() {
-        let db = test_db();
-        let (board_id, _user_id, col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_custom_fields() {
+        let db = test_db().await;
+        let (board_id, _user_id, col_id) = seed(&db).await;
 
         // Create field
         let field = db
             .create_custom_field(&board_id, "Story Points", FieldType::Number, None)
+            .await
             .unwrap();
         assert_eq!(field.name, "Story Points");
         assert_eq!(field.field_type, FieldType::Number);
@@ -1930,25 +2146,27 @@ mod tests {
                 FieldType::Enum,
                 Some(r#"{"options":["S1","S2"]}"#),
             )
+            .await
             .unwrap();
         assert_eq!(field2.position, 1);
 
         // List
-        let fields = db.list_custom_fields(&board_id).unwrap();
+        let fields = db.list_custom_fields(&board_id).await.unwrap();
         assert_eq!(fields.len(), 2);
 
         // Set value
         let task = db
             .create_task(&board_id, &col_id, "A task", None, Priority::Medium, None)
+            .await
             .unwrap();
-        db.set_custom_field_value(&task.id, &field.id, "5").unwrap();
-        db.set_custom_field_value(&task.id, &field2.id, "S1").unwrap();
+        db.set_custom_field_value(&task.id, &field.id, "5").await.unwrap();
+        db.set_custom_field_value(&task.id, &field2.id, "S1").await.unwrap();
 
         // Overwrite via upsert
-        db.set_custom_field_value(&task.id, &field.id, "8").unwrap();
+        db.set_custom_field_value(&task.id, &field.id, "8").await.unwrap();
 
         // Retrieve
-        let vals = db.get_custom_field_values(&task.id).unwrap();
+        let vals = db.get_custom_field_values(&task.id).await.unwrap();
         assert_eq!(vals.len(), 2);
         let sp = vals.iter().find(|v| v.field_id == field.id).unwrap();
         assert_eq!(sp.value, "8");
@@ -1956,59 +2174,106 @@ mod tests {
 
     // ----- Board Members ---------------------------------------------------
 
-    #[test]
-    fn test_board_member_crud() {
-        let db = test_db();
-        let board = db.create_board("B", None).unwrap();
-        let user = db.create_user("Alice", "alice@test.com", None, false, None).unwrap();
+    #[tokio::test]
+    async fn test_board_member_crud() {
+        let db = test_db().await;
+        let board = db.create_board("B", None).await.unwrap();
+        let user = db.create_user("Alice", "alice@test.com", None, false, None).await.unwrap();
 
-        assert!(db.get_board_member(&board.id, &user.id).unwrap().is_none());
+        assert!(db.get_board_member(&board.id, &user.id).await.unwrap().is_none());
 
-        db.add_board_member(&board.id, &user.id, Role::Owner).unwrap();
-        let role = db.get_board_member(&board.id, &user.id).unwrap().unwrap();
+        db.add_board_member(&board.id, &user.id, Role::Owner).await.unwrap();
+        let role = db.get_board_member(&board.id, &user.id).await.unwrap().unwrap();
         assert_eq!(role, Role::Owner);
 
-        let boards = db.list_user_boards(&user.id).unwrap();
+        let boards = db.list_user_boards(&user.id).await.unwrap();
         assert_eq!(boards.len(), 1);
     }
 
     // ----- API Keys --------------------------------------------------------
 
-    #[test]
-    fn test_api_key_crud() {
-        let db = test_db();
-        let user = db.create_user("Alice", "alice@example.com", None, false, None).unwrap();
+    #[tokio::test]
+    async fn test_api_key_crud() {
+        let db = test_db().await;
+        let user = db.create_user("Alice", "alice@example.com", None, false, None).await.unwrap();
 
-        let key = db.create_api_key(&user.id, "My Key", "hash123", "ok_abc").unwrap();
+        let key = db.create_api_key(&user.id, "My Key", "hash123", "ok_abc").await.unwrap();
         assert_eq!(key.name, "My Key");
 
-        let keys = db.list_api_keys(&user.id).unwrap();
+        let keys = db.list_api_keys(&user.id).await.unwrap();
         assert_eq!(keys.len(), 1);
 
-        let found = db.validate_api_key("hash123").unwrap();
+        let found = db.validate_api_key("hash123").await.unwrap();
         assert_eq!(found.id, user.id);
 
-        assert!(db.delete_api_key(&key.id, &user.id).unwrap());
-        assert_eq!(db.list_api_keys(&user.id).unwrap().len(), 0);
+        assert!(db.delete_api_key(&key.id, &user.id).await.unwrap());
+        assert_eq!(db.list_api_keys(&user.id).await.unwrap().len(), 0);
     }
 
     // ----- Comments --------------------------------------------------------
 
-    #[test]
-    fn test_comments() {
-        let db = test_db();
-        let (board_id, user_id, col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_comments() {
+        let db = test_db().await;
+        let (board_id, user_id, col_id) = seed(&db).await;
 
         let task = db
             .create_task(&board_id, &col_id, "Commentable", None, Priority::Medium, None)
+            .await
             .unwrap();
 
-        db.create_comment(&task.id, &user_id, "First comment").unwrap();
-        db.create_comment(&task.id, &user_id, "Second comment").unwrap();
+        db.create_comment(&task.id, &user_id, "First comment").await.unwrap();
+        db.create_comment(&task.id, &user_id, "Second comment").await.unwrap();
 
-        let comments = db.list_comments(&task.id).unwrap();
+        let comments = db.list_comments(&task.id).await.unwrap();
         assert_eq!(comments.len(), 2);
         assert_eq!(comments[0].content, "First comment");
         assert_eq!(comments[1].content, "Second comment");
+    }
+
+    // ----- Session cleanup -------------------------------------------------
+
+    #[tokio::test]
+    async fn cleanup_expired_sessions_removes_old() {
+        let db = Db::in_memory().await.unwrap();
+        let user = db.create_user("test", "test@test.com", None, false, Some("hash")).await.unwrap();
+
+        let token = crate::auth::generate_token();
+        let token_hash = crate::auth::hash_token(&token);
+        let expired = (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        db.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), user.id, token_hash, expired],
+            )?;
+            Ok(())
+        }).await.unwrap();
+
+        let count = db.cleanup_expired_sessions().await.unwrap();
+        assert_eq!(count, 1);
+
+        let count = db.cleanup_expired_sessions().await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn concurrent_reads() {
+        let db = test_db().await;
+        let board = db.create_board("Concurrent", None).await.unwrap();
+
+        // Spawn 10 concurrent reads
+        let mut handles = vec![];
+        for _ in 0..10 {
+            let db = db.clone();
+            let board_id = board.id.clone();
+            handles.push(tokio::spawn(async move {
+                db.get_board(&board_id).await.unwrap()
+            }));
+        }
+
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(result.is_some());
+        }
     }
 }

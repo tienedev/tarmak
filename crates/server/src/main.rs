@@ -25,30 +25,63 @@ async fn main() -> anyhow::Result<()> {
         let email = args
             .get(pos + 1)
             .ok_or_else(|| anyhow::anyhow!("Usage: kanwise --reset-password <email>"))?;
-        reset_password(email)
+        reset_password(email).await
     } else {
         run_http_server().await
     }
 }
 
-fn reset_password(email: &str) -> anyhow::Result<()> {
+async fn reset_password(email: &str) -> anyhow::Result<()> {
     let db_path =
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
-    let db = db::Db::new(&db_path)?;
+    let db = db::Db::new(&db_path).await?;
 
     let user = db
-        .get_user_by_email(email)?
+        .get_user_by_email(email)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("No user found with email: {email}"))?;
 
     let temp_password = &auth::generate_token()[..16];
     let password_hash = auth::hash_password(temp_password)?;
-    db.set_password_hash(&user.id, &password_hash)?;
-    db.delete_user_sessions(&user.id)?;
+    db.set_password_hash(&user.id, &password_hash).await?;
+    db.delete_user_sessions(&user.id).await?;
 
     println!("Password reset for: {} ({})", user.name, email);
     println!("New password: {temp_password}");
 
     Ok(())
+}
+
+fn spawn_cleanup_tasks(db: db::Db, rate_limiter: api::rate_limit::RateLimiter) {
+    let db_clone = db.clone();
+    // Session cleanup — every hour
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            match db_clone.cleanup_expired_sessions().await {
+                Ok(count) if count > 0 => {
+                    tracing::info!("Purged {count} expired sessions");
+                }
+                Err(e) => {
+                    tracing::warn!("Session cleanup failed: {e}");
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // Rate limiter sweep — every 5 minutes
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            let removed = rate_limiter.sweep();
+            if removed > 0 {
+                tracing::debug!("Rate limiter: removed {removed} stale IPs");
+            }
+        }
+    });
 }
 
 async fn run_http_server() -> anyhow::Result<()> {
@@ -61,7 +94,7 @@ async fn run_http_server() -> anyhow::Result<()> {
 
     tracing::info!(db_path = %db_path, "Starting kanwise");
 
-    let db = db::Db::new(&db_path)?;
+    let db = db::Db::new(&db_path).await?;
     let sync_state = Arc::new(SyncState::new(db.clone()));
 
     let ws_routes = Router::new()
@@ -83,7 +116,10 @@ async fn run_http_server() -> anyhow::Result<()> {
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
         .allow_headers([HeaderName::from_static("content-type"), HeaderName::from_static("authorization")]);
 
-    let app = api::router(db)
+    let rate_limiter = api::rate_limit::RateLimiter::new(10, 60);
+    spawn_cleanup_tasks(db.clone(), rate_limiter.clone());
+
+    let app = api::router(db, rate_limiter)
         .nest("/ws", ws_routes)
         .fallback(static_files::static_handler)
         .layer(cors)
@@ -120,16 +156,17 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
 
     let db_path =
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
-    let db = db::Db::new(&db_path)?;
+    let db = db::Db::new(&db_path).await?;
 
-    use std::io::{BufRead, Write};
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    let stdin = BufReader::new(tokio::io::stdin());
+    let mut stdout = tokio::io::stdout();
 
     let server = mcp::KanbanMcpServer::new(db);
 
-    for line in stdin.lock().lines() {
-        let line = line?;
+    let mut lines = stdin.lines();
+    while let Some(line) = lines.next_line().await? {
         if line.is_empty() {
             continue;
         }
@@ -247,7 +284,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .get("include_archived")
                                 .and_then(|v| v.as_bool()),
                         };
-                        server.handle_query(qp).map_err(|e| e.to_string())
+                        server.handle_query(qp).await.map_err(|e| e.to_string())
                     }
                     "board_mutate" => {
                         let mp = mcp::BoardMutateParams {
@@ -264,7 +301,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .cloned()
                                 .unwrap_or(serde_json::json!({})),
                         };
-                        server.handle_mutate(mp).map_err(|e| e.to_string())
+                        server.handle_mutate(mp).await.map_err(|e| e.to_string())
                     }
                     "board_sync" => {
                         let sp = mcp::BoardSyncParams {
@@ -281,7 +318,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
                         };
-                        server.handle_sync(sp).map_err(|e| e.to_string())
+                        server.handle_sync(sp).await.map_err(|e| e.to_string())
                     }
                     "board_ask" => {
                         let ap = mcp::BoardAskParams {
@@ -298,7 +335,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
                         };
-                        server.handle_ask(ap).map_err(|e| e.to_string())
+                        server.handle_ask(ap).await.map_err(|e| e.to_string())
                     }
                     _ => Err(format!("Unknown tool: {tool_name}")),
                 };
@@ -326,9 +363,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                         "message": format!("Method not found: {method}")
                     }
                 });
-                let mut out = stdout.lock();
-                writeln!(out, "{}", serde_json::to_string(&response)?)?;
-                out.flush()?;
+                let out = serde_json::to_string(&response)?;
+                stdout.write_all(out.as_bytes()).await?;
+                stdout.write_all(b"\n").await?;
+                stdout.flush().await?;
                 continue;
             }
         };
@@ -339,9 +377,10 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                 "id": id,
                 "result": result,
             });
-            let mut out = stdout.lock();
-            writeln!(out, "{}", serde_json::to_string(&response)?)?;
-            out.flush()?;
+            let out = serde_json::to_string(&response)?;
+            stdout.write_all(out.as_bytes()).await?;
+            stdout.write_all(b"\n").await?;
+            stdout.flush().await?;
         }
     }
 

@@ -11,7 +11,7 @@ use crate::db::models::Priority;
 ///
 /// Base fields: id, col, title, desc, pri, who, pos
 /// Plus one field per custom field (using the field name).
-pub fn task_schema(db: &Db, board_id: &str) -> Result<kbf::Schema> {
+pub async fn task_schema(db: &Db, board_id: &str) -> Result<kbf::Schema> {
     let base = vec![
         "id".to_string(),
         "col".to_string(),
@@ -27,6 +27,7 @@ pub fn task_schema(db: &Db, board_id: &str) -> Result<kbf::Schema> {
 
     let custom_fields = db
         .list_custom_fields(board_id)
+        .await
         .context("list custom fields for task schema")?;
 
     let mut fields = base;
@@ -67,10 +68,11 @@ pub fn board_schema() -> kbf::Schema {
 }
 
 /// Encode all columns for a board in KBF format.
-pub fn encode_board_columns(db: &Db, board_id: &str) -> Result<String> {
+pub async fn encode_board_columns(db: &Db, board_id: &str) -> Result<String> {
     let schema = column_schema();
     let columns = db
         .list_columns(board_id)
+        .await
         .context("list columns for KBF encoding")?;
 
     let rows: Vec<kbf::Row> = columns
@@ -90,19 +92,22 @@ pub fn encode_board_columns(db: &Db, board_id: &str) -> Result<String> {
 }
 
 /// Encode all tasks for a board in KBF format, including custom field values.
-pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
-    let schema = task_schema(db, board_id)?;
+pub async fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
+    let schema = task_schema(db, board_id).await?;
     let tasks = db
         .list_tasks(board_id, i64::MAX, 0)
+        .await
         .context("list tasks for KBF encoding")?;
 
     let custom_fields = db
         .list_custom_fields(board_id)
+        .await
         .context("list custom fields for KBF encoding")?;
 
     // Batch load all custom field values for this board (avoids N+1)
     let all_cf_values = if !custom_fields.is_empty() {
         db.get_custom_field_values_for_board(board_id)
+            .await
             .context("batch load custom field values")?
     } else {
         Vec::new()
@@ -116,14 +121,14 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
     }
 
     // Batch load labels per task
-    let label_pairs = db.get_labels_for_board_tasks(board_id).context("batch load labels")?;
+    let label_pairs = db.get_labels_for_board_tasks(board_id).await.context("batch load labels")?;
     let mut labels_by_task: HashMap<&str, Vec<&str>> = HashMap::new();
     for (task_id, label) in &label_pairs {
         labels_by_task.entry(task_id.as_str()).or_default().push(label.id.as_str());
     }
 
     // Batch load subtask counts
-    let subtask_counts = db.get_subtask_counts_for_board(board_id).context("batch load subtask counts")?;
+    let subtask_counts = db.get_subtask_counts_for_board(board_id).await.context("batch load subtask counts")?;
     let mut counts_by_task: HashMap<&str, &crate::db::models::SubtaskCount> = HashMap::new();
     for (task_id, count) in &subtask_counts {
         counts_by_task.insert(task_id.as_str(), count);
@@ -183,9 +188,9 @@ pub fn encode_board_tasks(db: &Db, board_id: &str) -> Result<String> {
 }
 
 /// Encode all labels for a board in KBF format.
-pub fn encode_board_labels(db: &Db, board_id: &str) -> Result<String> {
+pub async fn encode_board_labels(db: &Db, board_id: &str) -> Result<String> {
     let schema = label_schema();
-    let labels = db.list_labels(board_id).context("list labels for KBF encoding")?;
+    let labels = db.list_labels(board_id).await.context("list labels for KBF encoding")?;
     let rows: Vec<kbf::Row> = labels
         .iter()
         .map(|l| vec![l.id.clone(), l.name.clone(), l.color.clone()])
@@ -194,9 +199,9 @@ pub fn encode_board_labels(db: &Db, board_id: &str) -> Result<String> {
 }
 
 /// Encode all subtasks for a specific task in KBF format.
-pub fn encode_task_subtasks(db: &Db, task_id: &str) -> Result<String> {
+pub async fn encode_task_subtasks(db: &Db, task_id: &str) -> Result<String> {
     let schema = subtask_schema();
-    let subtasks = db.list_subtasks(task_id).context("list subtasks for KBF encoding")?;
+    let subtasks = db.list_subtasks(task_id).await.context("list subtasks for KBF encoding")?;
     let rows: Vec<kbf::Row> = subtasks
         .iter()
         .map(|s| {
@@ -213,9 +218,10 @@ pub fn encode_task_subtasks(db: &Db, task_id: &str) -> Result<String> {
 }
 
 /// Encode board metadata (info) in KBF format.
-pub fn encode_board_info(db: &Db, board_id: &str) -> Result<String> {
+pub async fn encode_board_info(db: &Db, board_id: &str) -> Result<String> {
     let board = db
-        .get_board(board_id)?
+        .get_board(board_id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("board not found: {}", board_id))?;
 
     let schema = board_schema();
@@ -229,9 +235,9 @@ pub fn encode_board_info(db: &Db, board_id: &str) -> Result<String> {
 }
 
 /// Encode all boards in KBF format.
-pub fn encode_boards_list(db: &Db) -> Result<String> {
+pub async fn encode_boards_list(db: &Db) -> Result<String> {
     let schema = board_schema();
-    let boards = db.list_boards().context("list boards")?;
+    let boards = db.list_boards().await.context("list boards")?;
 
     let rows: Vec<kbf::Row> = boards
         .iter()
@@ -248,11 +254,11 @@ pub fn encode_boards_list(db: &Db) -> Result<String> {
 }
 
 /// Encode a full board snapshot: info + columns + tasks, separated by blank lines.
-pub fn encode_board_all(db: &Db, board_id: &str) -> Result<String> {
-    let info = encode_board_info(db, board_id)?;
-    let cols = encode_board_columns(db, board_id)?;
-    let labels = encode_board_labels(db, board_id)?;
-    let tasks = encode_board_tasks(db, board_id)?;
+pub async fn encode_board_all(db: &Db, board_id: &str) -> Result<String> {
+    let info = encode_board_info(db, board_id).await?;
+    let cols = encode_board_columns(db, board_id).await?;
+    let labels = encode_board_labels(db, board_id).await?;
+    let tasks = encode_board_tasks(db, board_id).await?;
 
     Ok(format!("{}\n\n{}\n\n{}\n\n{}", info, cols, labels, tasks))
 }
@@ -263,8 +269,8 @@ pub fn search_schema() -> kbf::Schema {
 }
 
 /// Encode search results in KBF format.
-pub fn encode_search_results(db: &Db, board_id: &str, query: &str) -> Result<String> {
-    let results = db.search_board(board_id, query, 20, false).context("search board")?;
+pub async fn encode_search_results(db: &Db, board_id: &str, query: &str) -> Result<String> {
+    let results = db.search_board(board_id, query, 20, false).await.context("search board")?;
     let schema = search_schema();
     let rows: Vec<kbf::Row> = results
         .iter()
@@ -290,24 +296,25 @@ mod tests {
     use super::*;
     use crate::db::models::{FieldType, Priority};
 
-    fn test_db() -> Db {
-        Db::in_memory().expect("in-memory db")
+    async fn test_db() -> Db {
+        Db::in_memory().await.expect("in-memory db")
     }
 
-    fn seed(db: &Db) -> (String, String) {
-        let board = db.create_board("Test Board", Some("A test board")).unwrap();
+    async fn seed(db: &Db) -> (String, String) {
+        let board = db.create_board("Test Board", Some("A test board")).await.unwrap();
         let col = db
             .create_column(&board.id, "To Do", Some(5), Some("#ff0"))
+            .await
             .unwrap();
         (board.id, col.id)
     }
 
-    #[test]
-    fn test_task_schema_base_fields() {
-        let db = test_db();
-        let (board_id, _) = seed(&db);
+    #[tokio::test]
+    async fn test_task_schema_base_fields() {
+        let db = test_db().await;
+        let (board_id, _) = seed(&db).await;
 
-        let schema = task_schema(&db, &board_id).unwrap();
+        let schema = task_schema(&db, &board_id).await.unwrap();
         assert_eq!(schema.entity, "task");
         assert_eq!(schema.version, 2);
         assert_eq!(
@@ -316,36 +323,40 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_task_schema_with_custom_fields() {
-        let db = test_db();
-        let (board_id, _) = seed(&db);
+    #[tokio::test]
+    async fn test_task_schema_with_custom_fields() {
+        let db = test_db().await;
+        let (board_id, _) = seed(&db).await;
 
         db.create_custom_field(&board_id, "points", FieldType::Number, None)
+            .await
             .unwrap();
         db.create_custom_field(&board_id, "sprint", FieldType::Text, None)
+            .await
             .unwrap();
 
-        let schema = task_schema(&db, &board_id).unwrap();
+        let schema = task_schema(&db, &board_id).await.unwrap();
         assert_eq!(
             schema.fields,
             vec!["id", "col", "title", "desc", "pri", "who", "pos", "due", "labels", "subtasks", "points", "sprint"]
         );
     }
 
-    #[test]
-    fn test_encode_board_tasks_basic() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_encode_board_tasks_basic() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
 
         let t1 = db
             .create_task(&board_id, &col_id, "Design login", None, Priority::High, Some("alice"))
+            .await
             .unwrap();
         let t2 = db
             .create_task(&board_id, &col_id, "Fix bug", Some("Urgent fix"), Priority::Low, None)
+            .await
             .unwrap();
 
-        let encoded = encode_board_tasks(&db, &board_id).unwrap();
+        let encoded = encode_board_tasks(&db, &board_id).await.unwrap();
         let lines: Vec<&str> = encoded.lines().collect();
 
         // First line is the schema header
@@ -363,21 +374,23 @@ mod tests {
         assert!(lines[2].contains("|l|")); // low priority short code
     }
 
-    #[test]
-    fn test_encode_board_tasks_with_custom_field_values() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_encode_board_tasks_with_custom_field_values() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
 
         let field = db
             .create_custom_field(&board_id, "points", FieldType::Number, None)
+            .await
             .unwrap();
 
         let task = db
             .create_task(&board_id, &col_id, "Task A", None, Priority::Medium, None)
+            .await
             .unwrap();
-        db.set_custom_field_value(&task.id, &field.id, "5").unwrap();
+        db.set_custom_field_value(&task.id, &field.id, "5").await.unwrap();
 
-        let encoded = encode_board_tasks(&db, &board_id).unwrap();
+        let encoded = encode_board_tasks(&db, &board_id).await.unwrap();
         let lines: Vec<&str> = encoded.lines().collect();
 
         assert_eq!(lines[0], "#task@v2:id,col,title,desc,pri,who,pos,due,labels,subtasks,points");
@@ -385,15 +398,15 @@ mod tests {
         assert!(lines[1].ends_with("|5"), "Expected row to end with |5, got: {}", lines[1]);
     }
 
-    #[test]
-    fn test_encode_board_columns() {
-        let db = test_db();
-        let (board_id, _col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_encode_board_columns() {
+        let db = test_db().await;
+        let (board_id, _col_id) = seed(&db).await;
 
         // seed already created one column; add another
-        db.create_column(&board_id, "Done", None, None).unwrap();
+        db.create_column(&board_id, "Done", None, None).await.unwrap();
 
-        let encoded = encode_board_columns(&db, &board_id).unwrap();
+        let encoded = encode_board_columns(&db, &board_id).await.unwrap();
         let lines: Vec<&str> = encoded.lines().collect();
 
         assert_eq!(lines[0], "#col@v1:id,name,pos,wip,color");
@@ -403,13 +416,13 @@ mod tests {
         assert!(lines[2].contains("|Done|"));
     }
 
-    #[test]
-    fn test_encode_boards_list() {
-        let db = test_db();
-        db.create_board("Board A", Some("First")).unwrap();
-        db.create_board("Board B", None).unwrap();
+    #[tokio::test]
+    async fn test_encode_boards_list() {
+        let db = test_db().await;
+        db.create_board("Board A", Some("First")).await.unwrap();
+        db.create_board("Board B", None).await.unwrap();
 
-        let encoded = encode_boards_list(&db).unwrap();
+        let encoded = encode_boards_list(&db).await.unwrap();
         let lines: Vec<&str> = encoded.lines().collect();
 
         assert_eq!(lines[0], "#board@v1:id,name,desc");
@@ -417,12 +430,12 @@ mod tests {
         assert!(lines[2].contains("|Board B|"));
     }
 
-    #[test]
-    fn test_encode_board_info() {
-        let db = test_db();
-        let board = db.create_board("My Board", Some("description")).unwrap();
+    #[tokio::test]
+    async fn test_encode_board_info() {
+        let db = test_db().await;
+        let board = db.create_board("My Board", Some("description")).await.unwrap();
 
-        let encoded = encode_board_info(&db, &board.id).unwrap();
+        let encoded = encode_board_info(&db, &board.id).await.unwrap();
         let lines: Vec<&str> = encoded.lines().collect();
 
         assert_eq!(lines[0], "#board@v1:id,name,desc");
@@ -430,22 +443,23 @@ mod tests {
         assert!(lines[1].contains("|My Board|description"));
     }
 
-    #[test]
-    fn test_encode_board_info_not_found() {
-        let db = test_db();
-        let result = encode_board_info(&db, "nonexistent");
+    #[tokio::test]
+    async fn test_encode_board_info_not_found() {
+        let db = test_db().await;
+        let result = encode_board_info(&db, "nonexistent").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
     }
 
-    #[test]
-    fn test_encode_board_all() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_encode_board_all() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
         db.create_task(&board_id, &col_id, "A task", None, Priority::Medium, None)
+            .await
             .unwrap();
 
-        let encoded = encode_board_all(&db, &board_id).unwrap();
+        let encoded = encode_board_all(&db, &board_id).await.unwrap();
 
         // Should contain all four section headers separated by blank lines
         assert!(encoded.contains("#board@v1:"));
@@ -456,16 +470,16 @@ mod tests {
         assert!(encoded.contains("\n\n"));
     }
 
-    #[test]
-    fn test_encode_empty_board() {
-        let db = test_db();
-        let board = db.create_board("Empty", None).unwrap();
+    #[tokio::test]
+    async fn test_encode_empty_board() {
+        let db = test_db().await;
+        let board = db.create_board("Empty", None).await.unwrap();
 
-        let tasks = encode_board_tasks(&db, &board.id).unwrap();
+        let tasks = encode_board_tasks(&db, &board.id).await.unwrap();
         // Should just be the schema header, no data rows
         assert_eq!(tasks, "#task@v2:id,col,title,desc,pri,who,pos,due,labels,subtasks");
 
-        let cols = encode_board_columns(&db, &board.id).unwrap();
+        let cols = encode_board_columns(&db, &board.id).await.unwrap();
         assert_eq!(cols, "#col@v1:id,name,pos,wip,color");
     }
 

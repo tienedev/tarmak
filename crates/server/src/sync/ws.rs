@@ -110,15 +110,15 @@ pub async fn ws_handler(
 
     let user = if token.starts_with("ok_") {
         let key_hash = crate::auth::hash_token(&token);
-        state.db.validate_api_key(&key_hash)
+        state.db.validate_api_key(&key_hash).await
     } else {
-        crate::auth::validate_session(&state.db, &token)
+        crate::auth::validate_session(&state.db, &token).await
     };
 
     match user {
         Ok(u) => {
             // Verify the user is a member of this board.
-            match state.db.get_board_member(&board_id, &u.id) {
+            match state.db.get_board_member(&board_id, &u.id).await {
                 Ok(Some(_)) => ws.on_upgrade(move |socket| handle_socket(socket, board_id, state)).into_response(),
                 _ => StatusCode::FORBIDDEN.into_response(),
             }
@@ -190,7 +190,7 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
                     // Debounced persistence: at most once per PERSIST_DEBOUNCE interval
                     if state.should_persist(&board_id).await {
                         let state_bytes = BoardDocManager::encode_full_state(&doc);
-                        if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes) {
+                        if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes).await {
                             tracing::warn!("Failed to persist CRDT state for board {board_id}: {e}");
                         }
                         state.mark_persisted(&board_id).await;
@@ -207,7 +207,7 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
 
     // Final persist on disconnect to ensure no updates are lost
     let state_bytes = BoardDocManager::encode_full_state(&doc);
-    if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes) {
+    if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes).await {
         tracing::warn!("Failed to persist final CRDT state for board {board_id}: {e}");
     }
 
@@ -227,7 +227,7 @@ mod tests {
     /// SyncState can create broadcast channels on demand.
     #[tokio::test]
     async fn broadcast_channel_creation() {
-        let db = Db::in_memory().expect("in-memory db");
+        let db = Db::in_memory().await.expect("in-memory db");
         let state = SyncState::new(db);
         let tx1 = state.get_channel("b1").await;
         let tx2 = state.get_channel("b1").await;
@@ -238,7 +238,7 @@ mod tests {
     /// Broadcasting when nobody is listening should not panic.
     #[tokio::test]
     async fn broadcast_no_receivers() {
-        let db = Db::in_memory().expect("in-memory db");
+        let db = Db::in_memory().await.expect("in-memory db");
         let state = SyncState::new(db);
         state.broadcast("phantom", vec![1, 2, 3]).await;
         // No panic = success.

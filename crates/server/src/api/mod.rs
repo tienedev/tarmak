@@ -31,7 +31,7 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 /// Build the full API router with all resource routes.
-pub fn router(db: Db) -> Router {
+pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
     let board_item = Router::new()
         .route("/", get(boards::get).put(boards::update).delete(boards::delete));
 
@@ -105,13 +105,12 @@ pub fn router(db: Db) -> Router {
         .route("/", get(api_keys::list).post(api_keys::create))
         .route("/{key_id}", axum::routing::delete(api_keys::delete));
 
-    // Public auth routes — rate-limited (10 requests per minute per IP)
-    let auth_limiter = rate_limit::RateLimiter::new(10, 60);
+    // Public auth routes — rate-limited (uses the shared rate limiter)
     let auth_public = Router::new()
         .route("/register", post(auth::register))
         .route("/login", post(auth::login))
         .layer(axum::middleware::from_fn(rate_limit::rate_limit_middleware))
-        .layer(axum::Extension(auth_limiter));
+        .layer(axum::Extension(rate_limiter));
 
     // All protected routes under one middleware layer: boards, mcp, api-keys,
     // and the authenticated auth endpoints (me, invite, accept).

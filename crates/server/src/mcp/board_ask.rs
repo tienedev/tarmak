@@ -19,32 +19,32 @@ impl AskEngine {
         Self { db }
     }
 
-    pub fn answer(&self, board_id: &str, question: &str, format: &str) -> Result<String> {
+    pub async fn answer(&self, board_id: &str, question: &str, format: &str) -> Result<String> {
         let q = question.to_lowercase();
 
         if matches_pattern(&q, &["overdue", "late", "past due", "en retard"]) {
-            self.query_overdue(board_id, format)
+            self.query_overdue(board_id, format).await
         } else if matches_pattern(&q, &["due this week", "due soon", "cette semaine"]) {
-            self.query_due_range(board_id, 7, format)
+            self.query_due_range(board_id, 7, format).await
         } else if matches_pattern(&q, &["due today", "aujourd'hui"]) {
-            self.query_due_range(board_id, 0, format)
+            self.query_due_range(board_id, 0, format).await
         } else if matches_pattern(&q, &["unassigned", "no assignee", "sans assignee"]) {
-            self.query_unassigned(board_id, format)
+            self.query_unassigned(board_id, format).await
         } else if matches_pattern(&q, &["no label", "without label", "sans label"]) {
-            self.query_no_labels(board_id, format)
+            self.query_no_labels(board_id, format).await
         } else if matches_pattern(&q, &["blocked", "stale", "stuck"]) {
-            self.query_stale(board_id, 3, format)
+            self.query_stale(board_id, 3, format).await
         } else if matches_pattern(&q, &["stats", "summary", "overview", "résumé"]) {
-            self.query_stats(board_id)
+            self.query_stats(board_id).await
         } else if matches_pattern(&q, &["high priority", "urgent", "priorité"]) {
-            self.query_high_priority(board_id, format)
+            self.query_high_priority(board_id, format).await
         } else if matches_pattern(&q, &["no due", "without date", "sans date"]) {
-            self.query_no_due_date(board_id, format)
+            self.query_no_due_date(board_id, format).await
         } else if matches_pattern(&q, &["archived", "archives", "archivé"]) {
-            self.query_archived(board_id, format)
+            self.query_archived(board_id, format).await
         } else {
             // Fallback: FTS5 search
-            self.search_fallback(board_id, question, format)
+            self.search_fallback(board_id, question, format).await
         }
     }
 
@@ -52,8 +52,9 @@ impl AskEngine {
     // Query methods
     // -----------------------------------------------------------------------
 
-    fn query_overdue(&self, board_id: &str, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_overdue(&self, board_id: &str, format: &str) -> Result<String> {
+        let board_id = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
@@ -61,12 +62,13 @@ impl AskEngine {
                  ORDER BY due_date ASC",
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
-        self.format_tasks(&tasks, "overdue tasks", format, board_id)
+        }).await?;
+        self.format_tasks(&tasks, "overdue tasks", format, tasks.first().map(|t| t.board_id.as_str()).unwrap_or("")).await
     }
 
-    fn query_due_range(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_due_range(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
+        let board_id_owned = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let end_expr = if days == 0 {
                 "date('now')".to_string()
             } else {
@@ -79,27 +81,29 @@ impl AskEngine {
                  ORDER BY due_date ASC"
             );
             let mut stmt = conn.prepare(&sql)?;
-            Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+        }).await?;
         let label = if days == 0 { "tasks due today" } else { "tasks due this week" };
-        self.format_tasks(&tasks, label, format, board_id)
+        self.format_tasks(&tasks, label, format, board_id).await
     }
 
-    fn query_unassigned(&self, board_id: &str, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_unassigned(&self, board_id: &str, format: &str) -> Result<String> {
+        let board_id_owned = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
                  WHERE board_id = ?1 AND archived = 0 AND (assignee IS NULL OR assignee = '')
                  ORDER BY created_at DESC",
             )?;
-            Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
-        self.format_tasks(&tasks, "unassigned tasks", format, board_id)
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+        }).await?;
+        self.format_tasks(&tasks, "unassigned tasks", format, board_id).await
     }
 
-    fn query_no_labels(&self, board_id: &str, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_no_labels(&self, board_id: &str, format: &str) -> Result<String> {
+        let board_id_owned = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT t.id, t.board_id, t.column_id, t.title, t.description, t.priority, t.assignee, t.due_date, t.position, t.created_at, t.updated_at
                  FROM tasks t
@@ -107,13 +111,14 @@ impl AskEngine {
                  WHERE t.board_id = ?1 AND t.archived = 0 AND tl.task_id IS NULL
                  ORDER BY t.created_at DESC",
             )?;
-            Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
-        self.format_tasks(&tasks, "tasks with no labels", format, board_id)
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+        }).await?;
+        self.format_tasks(&tasks, "tasks with no labels", format, board_id).await
     }
 
-    fn query_stale(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_stale(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
+        let board_id_owned = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let sql = format!(
                 "SELECT t.id, t.board_id, t.column_id, t.title, t.description, t.priority, t.assignee, t.due_date, t.position, t.created_at, t.updated_at
                  FROM tasks t
@@ -125,39 +130,41 @@ impl AskEngine {
                  ORDER BY t.updated_at ASC"
             );
             let mut stmt = conn.prepare(&sql)?;
-            Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
-        self.format_tasks(&tasks, "stale tasks", format, board_id)
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+        }).await?;
+        self.format_tasks(&tasks, "stale tasks", format, board_id).await
     }
 
-    fn query_high_priority(&self, board_id: &str, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_high_priority(&self, board_id: &str, format: &str) -> Result<String> {
+        let board_id_owned = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
                  WHERE board_id = ?1 AND archived = 0 AND priority IN ('high', 'urgent')
                  ORDER BY CASE priority WHEN 'urgent' THEN 0 ELSE 1 END, created_at DESC",
             )?;
-            Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
-        self.format_tasks(&tasks, "high priority tasks", format, board_id)
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+        }).await?;
+        self.format_tasks(&tasks, "high priority tasks", format, board_id).await
     }
 
-    fn query_no_due_date(&self, board_id: &str, format: &str) -> Result<String> {
-        let tasks = self.db.with_conn(|conn| {
+    async fn query_no_due_date(&self, board_id: &str, format: &str) -> Result<String> {
+        let board_id_owned = board_id.to_string();
+        let tasks = self.db.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
                  WHERE board_id = ?1 AND archived = 0 AND due_date IS NULL
                  ORDER BY created_at DESC",
             )?;
-            Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
-        })?;
-        self.format_tasks(&tasks, "tasks with no due date", format, board_id)
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+        }).await?;
+        self.format_tasks(&tasks, "tasks with no due date", format, board_id).await
     }
 
-    fn query_archived(&self, board_id: &str, format: &str) -> Result<String> {
-        let (tasks, columns) = self.db.list_archived(board_id)?;
+    async fn query_archived(&self, board_id: &str, format: &str) -> Result<String> {
+        let (tasks, columns) = self.db.list_archived(board_id).await?;
         match format {
             "json" => {
                 let result = serde_json::json!({
@@ -167,7 +174,7 @@ impl AskEngine {
                 Ok(serde_json::to_string(&result)?)
             }
             "kbf" => {
-                let schema = kbf_bridge::task_schema(&self.db, board_id)?;
+                let schema = kbf_bridge::task_schema(&self.db, board_id).await?;
                 let task_rows: Vec<kbf::Row> = tasks
                     .iter()
                     .map(|t| {
@@ -232,11 +239,12 @@ impl AskEngine {
         }
     }
 
-    fn query_stats(&self, board_id: &str) -> Result<String> {
-        self.db.with_conn(|conn| {
+    async fn query_stats(&self, board_id: &str) -> Result<String> {
+        let board_id = board_id.to_string();
+        self.db.with_conn(move |conn| {
             let board_name: String = conn.query_row(
                 "SELECT name FROM boards WHERE id = ?1",
-                [board_id],
+                [&board_id],
                 |r| r.get(0),
             ).unwrap_or_else(|_| "Unknown".to_string());
 
@@ -250,7 +258,7 @@ impl AskEngine {
                  ORDER BY c.position",
             )?;
             let col_counts: Vec<(String, i64)> = stmt
-                .query_map([board_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .query_map([&board_id], |row| Ok((row.get(0)?, row.get(1)?)))?
                 .filter_map(|r| r.ok())
                 .collect();
 
@@ -263,21 +271,21 @@ impl AskEngine {
             // Overdue count
             let overdue: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date < date('now')",
-                [board_id],
+                [&board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
 
             // Due this week
             let due_week: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= date('now', '+7 days')",
-                [board_id],
+                [&board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
 
             // High/urgent priority
             let high_prio: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND priority IN ('high', 'urgent')",
-                [board_id],
+                [&board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
 
@@ -288,14 +296,14 @@ impl AskEngine {
                  FROM subtasks s
                  INNER JOIN tasks t ON t.id = s.task_id
                  WHERE t.board_id = ?1 AND t.archived = 0",
-                [board_id],
+                [&board_id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             ).unwrap_or((0, 0));
 
             // Unassigned
             let unassigned: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM tasks WHERE board_id = ?1 AND archived = 0 AND (assignee IS NULL OR assignee = '')",
-                [board_id],
+                [&board_id],
                 |r| r.get(0),
             ).unwrap_or(0);
 
@@ -322,19 +330,19 @@ impl AskEngine {
             }
 
             Ok(lines.join("\n"))
-        })
+        }).await
     }
 
-    fn search_fallback(&self, board_id: &str, question: &str, format: &str) -> Result<String> {
+    async fn search_fallback(&self, board_id: &str, question: &str, format: &str) -> Result<String> {
         match format {
-            "kbf" => kbf_bridge::encode_search_results(&self.db, board_id, question),
+            "kbf" => kbf_bridge::encode_search_results(&self.db, board_id, question).await,
             "json" => {
-                let results = self.db.search_board(board_id, question, 20, false)?;
+                let results = self.db.search_board(board_id, question, 20, false).await?;
                 Ok(serde_json::to_string(&results)?)
             }
             _ => {
                 // text format
-                let results = self.db.search_board(board_id, question, 20, false)?;
+                let results = self.db.search_board(board_id, question, 20, false).await?;
                 if results.is_empty() {
                     return Ok(format!("No results found for \"{}\"", question));
                 }
@@ -392,11 +400,11 @@ impl AskEngine {
         Ok(result)
     }
 
-    fn format_tasks(&self, tasks: &[Task], label: &str, format: &str, board_id: &str) -> Result<String> {
+    async fn format_tasks(&self, tasks: &[Task], label: &str, format: &str, board_id: &str) -> Result<String> {
         match format {
             "json" => Ok(serde_json::to_string(tasks).context("serialize tasks")?),
             "kbf" => {
-                let schema = kbf_bridge::task_schema(&self.db, board_id)?;
+                let schema = kbf_bridge::task_schema(&self.db, board_id).await?;
                 let rows: Vec<kbf::Row> = tasks
                     .iter()
                     .map(|t| {
@@ -445,13 +453,13 @@ mod tests {
     use super::*;
     use crate::db::models::Priority;
 
-    fn test_db() -> Db {
-        Db::in_memory().expect("in-memory db")
+    async fn test_db() -> Db {
+        Db::in_memory().await.expect("in-memory db")
     }
 
-    fn seed(db: &Db) -> (String, String) {
-        let board = db.create_board("Test Board", Some("A test")).unwrap();
-        let col = db.create_column(&board.id, "To Do", None, None).unwrap();
+    async fn seed(db: &Db) -> (String, String) {
+        let board = db.create_board("Test Board", Some("A test")).await.unwrap();
+        let col = db.create_column(&board.id, "To Do", None, None).await.unwrap();
         (board.id, col.id)
     }
 
@@ -462,88 +470,88 @@ mod tests {
         assert!(!matches_pattern("random question", &["overdue", "late"]));
     }
 
-    #[test]
-    fn test_ask_stats() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
-        db.create_task(&board_id, &col_id, "Task A", None, Priority::High, Some("alice")).unwrap();
-        db.create_task(&board_id, &col_id, "Task B", None, Priority::Low, None).unwrap();
+    #[tokio::test]
+    async fn test_ask_stats() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
+        db.create_task(&board_id, &col_id, "Task A", None, Priority::High, Some("alice")).await.unwrap();
+        db.create_task(&board_id, &col_id, "Task B", None, Priority::Low, None).await.unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "give me a summary", "text").unwrap();
+        let result = engine.answer(&board_id, "give me a summary", "text").await.unwrap();
         assert!(result.contains("summary"));
         assert!(result.contains("2 tasks total"));
     }
 
-    #[test]
-    fn test_ask_unassigned() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
-        db.create_task(&board_id, &col_id, "Orphan", None, Priority::Medium, None).unwrap();
-        db.create_task(&board_id, &col_id, "Owned", None, Priority::Medium, Some("bob")).unwrap();
+    #[tokio::test]
+    async fn test_ask_unassigned() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
+        db.create_task(&board_id, &col_id, "Orphan", None, Priority::Medium, None).await.unwrap();
+        db.create_task(&board_id, &col_id, "Owned", None, Priority::Medium, Some("bob")).await.unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "show unassigned tasks", "text").unwrap();
+        let result = engine.answer(&board_id, "show unassigned tasks", "text").await.unwrap();
         assert!(result.contains("Orphan"));
         assert!(!result.contains("Owned"));
     }
 
-    #[test]
-    fn test_ask_high_priority() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
-        db.create_task(&board_id, &col_id, "Critical", None, Priority::Urgent, None).unwrap();
-        db.create_task(&board_id, &col_id, "Normal", None, Priority::Medium, None).unwrap();
+    #[tokio::test]
+    async fn test_ask_high_priority() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
+        db.create_task(&board_id, &col_id, "Critical", None, Priority::Urgent, None).await.unwrap();
+        db.create_task(&board_id, &col_id, "Normal", None, Priority::Medium, None).await.unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "urgent tasks", "text").unwrap();
+        let result = engine.answer(&board_id, "urgent tasks", "text").await.unwrap();
         assert!(result.contains("Critical"));
         assert!(!result.contains("Normal"));
     }
 
-    #[test]
-    fn test_ask_json_format() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
-        db.create_task(&board_id, &col_id, "Task X", None, Priority::High, None).unwrap();
+    #[tokio::test]
+    async fn test_ask_json_format() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
+        db.create_task(&board_id, &col_id, "Task X", None, Priority::High, None).await.unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "high priority", "json").unwrap();
+        let result = engine.answer(&board_id, "high priority", "json").await.unwrap();
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["title"], "Task X");
     }
 
-    #[test]
-    fn test_ask_kbf_format() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
-        db.create_task(&board_id, &col_id, "KBF Task", None, Priority::Urgent, None).unwrap();
+    #[tokio::test]
+    async fn test_ask_kbf_format() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
+        db.create_task(&board_id, &col_id, "KBF Task", None, Priority::Urgent, None).await.unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "urgent", "kbf").unwrap();
+        let result = engine.answer(&board_id, "urgent", "kbf").await.unwrap();
         assert!(result.starts_with("#task@v2:"));
         assert!(result.contains("KBF Task"));
     }
 
-    #[test]
-    fn test_ask_fallback_search() {
-        let db = test_db();
-        let (board_id, col_id) = seed(&db);
-        db.create_task(&board_id, &col_id, "Authentication module", Some("Fix the login bug"), Priority::Medium, None).unwrap();
+    #[tokio::test]
+    async fn test_ask_fallback_search() {
+        let db = test_db().await;
+        let (board_id, col_id) = seed(&db).await;
+        db.create_task(&board_id, &col_id, "Authentication module", Some("Fix the login bug"), Priority::Medium, None).await.unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "Authentication", "text").unwrap();
+        let result = engine.answer(&board_id, "Authentication", "text").await.unwrap();
         assert!(result.contains("Authentication"));
     }
 
-    #[test]
-    fn test_ask_no_results() {
-        let db = test_db();
-        let (board_id, _col_id) = seed(&db);
+    #[tokio::test]
+    async fn test_ask_no_results() {
+        let db = test_db().await;
+        let (board_id, _col_id) = seed(&db).await;
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "show unassigned", "text").unwrap();
+        let result = engine.answer(&board_id, "show unassigned", "text").await.unwrap();
         assert!(result.contains("No unassigned"));
     }
 }

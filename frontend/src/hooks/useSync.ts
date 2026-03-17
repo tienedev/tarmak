@@ -4,14 +4,16 @@ import type { WebsocketProvider } from 'y-websocket'
 import { createSyncProvider } from '@/lib/sync'
 import { useAuthStore } from '@/stores/auth'
 
+export type SyncStatus = 'connected' | 'connecting' | 'disconnected'
+
 interface SyncState {
   doc: Y.Doc | null
   provider: WebsocketProvider | null
-  connected: boolean
+  status: SyncStatus
 }
 
 export function useSync(boardId: string | null): SyncState {
-  const [connected, setConnected] = useState(false)
+  const [status, setStatus] = useState<SyncStatus>('disconnected')
   const providerRef = useRef<WebsocketProvider | null>(null)
   const docRef = useRef<Y.Doc | null>(null)
   const token = useAuthStore((s) => s.token)
@@ -30,8 +32,8 @@ export function useSync(boardId: string | null): SyncState {
       }
     }
 
-    const onStatus = ({ status }: { status: string }) => {
-      setConnected(status === 'connected')
+    const onStatus = ({ status: s }: { status: SyncStatus }) => {
+      setStatus(s)
     }
 
     provider.on('status', onStatus)
@@ -42,13 +44,13 @@ export function useSync(boardId: string | null): SyncState {
       doc.destroy()
       docRef.current = null
       providerRef.current = null
-      setConnected(false)
+      setStatus('disconnected')
     }
   }, [boardId, token])
 
   return {
     doc: docRef.current,
     provider: providerRef.current,
-    connected,
+    status,
   }
 }

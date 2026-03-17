@@ -15,7 +15,8 @@ axum = { version = "0.8", features = ["ws", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.34", features = ["bundled"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+tokio-rusqlite = "0.6.1"
 yrs = "0.22"
 rmcp = { version = "0.1", features = ["server", "transport-sse-server", "transport-io"] }
 tower = "0.5"

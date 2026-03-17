@@ -56,25 +56,25 @@ pub async fn list(
     Path(board_id): Path<String>,
     Query(params): Query<ListTasksParams>,
 ) -> Result<Json<Vec<TaskWithRelations>>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Viewer).await?;
     let limit = params.limit.unwrap_or(100).min(500);
     let offset = params.offset.unwrap_or(0).max(0);
-    let tasks = db.list_tasks(&board_id, limit, offset)?;
+    let tasks = db.list_tasks(&board_id, limit, offset).await?;
 
     // Batch load labels and subtask counts
-    let label_pairs = db.get_labels_for_board_tasks(&board_id)?;
+    let label_pairs = db.get_labels_for_board_tasks(&board_id).await?;
     let mut labels_by_task: HashMap<String, Vec<_>> = HashMap::new();
     for (task_id, label) in label_pairs {
         labels_by_task.entry(task_id).or_default().push(label);
     }
 
-    let subtask_counts = db.get_subtask_counts_for_board(&board_id)?;
+    let subtask_counts = db.get_subtask_counts_for_board(&board_id).await?;
     let mut counts_by_task: HashMap<String, SubtaskCount> = HashMap::new();
     for (task_id, count) in subtask_counts {
         counts_by_task.insert(task_id, count);
     }
 
-    let attachment_counts = db.get_attachment_counts_for_board(&board_id)?;
+    let attachment_counts = db.get_attachment_counts_for_board(&board_id).await?;
     let mut att_counts_by_task: HashMap<String, i32> = HashMap::new();
     for (task_id, count) in attachment_counts {
         att_counts_by_task.insert(task_id, count);
@@ -99,7 +99,7 @@ pub async fn create(
     Path(board_id): Path<String>,
     Json(body): Json<CreateTask>,
 ) -> Result<Json<Task>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     validation::validate_title(&body.title)?;
     let task = db.create_task(
         &board_id,
@@ -108,14 +108,14 @@ pub async fn create(
         None,
         body.priority,
         None,
-    )?;
+    ).await?;
     let _ = db.log_activity(
         &board_id,
         Some(&task.id),
         &user.id,
         "task_created",
         Some(&serde_json::json!({"title": &task.title}).to_string()),
-    );
+    ).await;
     Ok(Json(task))
 }
 
@@ -124,20 +124,21 @@ pub async fn get(
     AuthUser(user): AuthUser,
     Path((board_id, tid)): Path<(String, String)>,
 ) -> Result<Json<TaskWithRelations>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Viewer)?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Viewer).await?;
     let task = db
-        .get_task(&tid)?
+        .get_task(&tid)
+        .await?
         .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     if task.board_id != board_id {
         return Err(ApiError::NotFound("task not found".into()));
     }
-    let labels = db.get_task_labels(&tid)?;
-    let subtasks = db.list_subtasks(&tid)?;
+    let labels = db.get_task_labels(&tid).await?;
+    let subtasks = db.list_subtasks(&tid).await?;
     let subtask_count = SubtaskCount {
         completed: subtasks.iter().filter(|s| s.completed).count() as i32,
         total: subtasks.len() as i32,
     };
-    let attachment_count = db.list_attachments(&tid)?.len() as i32;
+    let attachment_count = db.list_attachments(&tid).await?.len() as i32;
     Ok(Json(TaskWithRelations { task, labels, subtask_count, attachment_count }))
 }
 
@@ -147,8 +148,8 @@ pub async fn update(
     Path((board_id, tid)): Path<(String, String)>,
     Json(body): Json<UpdateTask>,
 ) -> Result<Json<Task>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let existing = db.get_task(&tid)?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let existing = db.get_task(&tid).await?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     if existing.board_id != board_id {
         return Err(ApiError::NotFound("task not found".into()));
     }
@@ -163,7 +164,8 @@ pub async fn update(
             body.priority,
             assignee,
             due_date,
-        )?
+        )
+        .await?
         .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     let _ = db.log_activity(
         &board_id,
@@ -171,7 +173,7 @@ pub async fn update(
         &user.id,
         "task_updated",
         Some(&serde_json::json!({"title": &task.title}).to_string()),
-    );
+    ).await;
     // Log due_date changes
     if body.due_date.is_some() {
         let action = if task.due_date.is_some() { "due_date_set" } else { "due_date_removed" };
@@ -180,7 +182,7 @@ pub async fn update(
         } else {
             serde_json::json!({"task_title": &task.title})
         };
-        let _ = db.log_activity(&board_id, Some(&tid), &user.id, action, Some(&details.to_string()));
+        let _ = db.log_activity(&board_id, Some(&tid), &user.id, action, Some(&details.to_string())).await;
     }
     Ok(Json(task))
 }
@@ -191,13 +193,14 @@ pub async fn move_task(
     Path((board_id, tid)): Path<(String, String)>,
     Json(body): Json<MoveTask>,
 ) -> Result<Json<Task>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let existing = db.get_task(&tid)?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let existing = db.get_task(&tid).await?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     if existing.board_id != board_id {
         return Err(ApiError::NotFound("task not found".into()));
     }
     let task = db
-        .move_task(&tid, &body.column_id, body.position)?
+        .move_task(&tid, &body.column_id, body.position)
+        .await?
         .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     let _ = db.log_activity(
         &board_id,
@@ -205,7 +208,7 @@ pub async fn move_task(
         &user.id,
         "task_moved",
         Some(&serde_json::json!({"title": &task.title, "to_column_id": &body.column_id}).to_string()),
-    );
+    ).await;
     Ok(Json(task))
 }
 
@@ -214,12 +217,12 @@ pub async fn delete(
     AuthUser(user): AuthUser,
     Path((board_id, tid)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    permissions::require_role(&db, &board_id, &user.id, Role::Member)?;
-    let existing = db.get_task(&tid)?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let existing = db.get_task(&tid).await?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     if existing.board_id != board_id {
         return Err(ApiError::NotFound("task not found".into()));
     }
-    let deleted = db.delete_task(&tid)?;
+    let deleted = db.delete_task(&tid).await?;
     if !deleted {
         return Err(ApiError::NotFound("task not found".into()));
     }
@@ -229,6 +232,6 @@ pub async fn delete(
         &user.id,
         "task_deleted",
         Some(&serde_json::json!({"title": &existing.title}).to_string()),
-    );
+    ).await;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

@@ -47,10 +47,12 @@ pub async fn auth_middleware(
                 // API key
                 let key_hash = auth::hash_token(t);
                 db.validate_api_key(&key_hash)
+                    .await
                     .map_err(|_| StatusCode::UNAUTHORIZED)?
             } else {
                 // Session token
                 auth::validate_session(&db, t)
+                    .await
                     .map_err(|_| StatusCode::UNAUTHORIZED)?
             };
             req.extensions_mut().insert(AuthUser(user));

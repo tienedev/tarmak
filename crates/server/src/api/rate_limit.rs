@@ -10,9 +10,6 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// Maximum number of tracked IPs before forced cleanup.
-const MAX_TRACKED_IPS: usize = 10_000;
-
 /// Simple in-memory per-IP rate limiter.
 #[derive(Clone)]
 pub struct RateLimiter {
@@ -38,20 +35,30 @@ impl RateLimiter {
         let timestamps = map.entry(ip.to_string()).or_default();
         timestamps.retain(|t| now.duration_since(*t) < window);
 
-        let allowed = if timestamps.len() >= self.max_requests {
+        if timestamps.len() >= self.max_requests {
             false
         } else {
             timestamps.push(now);
             true
-        };
+        }
+    }
 
-        // Probabilistic cleanup of stale entries (~1 in 256 calls)
-        // or forced cleanup when map exceeds size limit
-        if rand::random::<u8>() == 0 || map.len() > MAX_TRACKED_IPS {
-            map.retain(|_, v| !v.is_empty());
+    /// Remove all stale entries: prune old timestamps, then drop empty entries.
+    /// Returns the number of IPs removed.
+    pub fn sweep(&self) -> usize {
+        let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        let window = std::time::Duration::from_secs(self.window_secs);
+
+        // First pass: prune old timestamps from all entries
+        for timestamps in map.values_mut() {
+            timestamps.retain(|t| now.duration_since(*t) < window);
         }
 
-        allowed
+        // Second pass: remove entries with no remaining timestamps
+        let before = map.len();
+        map.retain(|_, v| !v.is_empty());
+        before - map.len()
     }
 }
 
@@ -86,4 +93,26 @@ pub async fn rate_limit_middleware(
             .into_response();
     }
     next.run(req).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sweep_removes_stale_entries() {
+        let limiter = RateLimiter::new(10, 1); // 1-second window
+        assert!(limiter.check("1.2.3.4"));
+        assert!(limiter.check("5.6.7.8"));
+        assert_eq!(limiter.sweep(), 0);
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        assert_eq!(limiter.sweep(), 2);
+    }
+
+    #[test]
+    fn sweep_preserves_active_entries() {
+        let limiter = RateLimiter::new(10, 60); // 60-second window
+        assert!(limiter.check("active-ip"));
+        assert_eq!(limiter.sweep(), 0);
+    }
 }
