@@ -21,8 +21,17 @@ import { SearchBar } from '@/components/board/SearchBar'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { useHotkeys } from '@/hooks/useHotkeys'
-import { Archive, ArrowLeft, Columns3, GanttChart, History, List, Settings2 } from 'lucide-react'
+import { Archive, ArrowLeft, Columns3, Copy, GanttChart, History, List, Settings2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { useNotificationStore } from '@/stores/notifications'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash
@@ -47,6 +56,10 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [duplicateOpen, setDuplicateOpen] = useState(false)
+  const [duplicateName, setDuplicateName] = useState('')
+  const [duplicateIncludeTasks, setDuplicateIncludeTasks] = useState(true)
+  const [duplicating, setDuplicating] = useState(false)
 
   // Real-time sync and presence
   const { provider, status } = useSync(boardId)
@@ -127,6 +140,24 @@ export function BoardPage({ boardId }: BoardPageProps) {
       case 'shortcuts': setShortcutsOpen(true); break
     }
   }, [])
+
+  const handleDuplicateBoard = async () => {
+    if (!duplicateName.trim() || duplicating) return
+    setDuplicating(true)
+    try {
+      const board = await useBoardStore.getState().duplicateBoard(
+        boardId,
+        duplicateName.trim(),
+        duplicateIncludeTasks,
+      )
+      setDuplicateOpen(false)
+      window.location.hash = `#/boards/${board.id}`
+    } catch {
+      useNotificationStore.getState().add('Failed to duplicate board')
+    } finally {
+      setDuplicating(false)
+    }
+  }
 
   if (loading && !currentBoard) {
     return (
@@ -242,6 +273,20 @@ export function BoardPage({ boardId }: BoardPageProps) {
           variant="ghost"
           size="xs"
           className="gap-1.5 text-xs text-muted-foreground"
+          aria-label="Duplicate board"
+          onClick={() => {
+            setDuplicateName(`Copy of ${currentBoard.name}`)
+            setDuplicateIncludeTasks(true)
+            setDuplicateOpen(true)
+          }}
+        >
+          <Copy className="size-3.5" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="xs"
+          className="gap-1.5 text-xs text-muted-foreground"
           aria-label="Board settings"
           onClick={() => setSettingsOpen(true)}
         >
@@ -302,6 +347,42 @@ export function BoardPage({ boardId }: BoardPageProps) {
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onAction={handlePaletteAction} />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      <Dialog open={duplicateOpen} onOpenChange={(open) => { if (!open) setDuplicateOpen(false) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Duplicate board</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Board name</label>
+              <Input
+                value={duplicateName}
+                onChange={(e) => setDuplicateName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleDuplicateBoard() }}
+                autoFocus
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={duplicateIncludeTasks}
+                onChange={(e) => setDuplicateIncludeTasks(e.target.checked)}
+                className="rounded"
+              />
+              Include tasks
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleDuplicateBoard} disabled={!duplicateName.trim() || duplicating}>
+              {duplicating ? 'Duplicating...' : 'Duplicate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConnectionStatus status={status} />
     </div>
