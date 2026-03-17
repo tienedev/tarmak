@@ -61,6 +61,7 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
         .route("/unarchive", post(archive::unarchive_task))
         .nest("/fields", task_fields)
         .route("/comments", get(comments::list).post(comments::create))
+        .route("/comments/{cid}", put(comments::update).delete(comments::delete))
         .nest("/labels", task_labels)
         .nest("/subtasks", task_subtasks)
         .route("/attachments", get(attachments::list).post(attachments::upload))
