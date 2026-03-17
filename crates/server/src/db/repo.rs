@@ -1969,6 +1969,138 @@ impl Db {
 }
 
 // ---------------------------------------------------------------------------
+// Export helpers
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub async fn list_users(&self) -> anyhow::Result<Vec<User>> {
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, email, avatar_url, is_agent, created_at
+                 FROM users ORDER BY created_at",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                let is_agent: i64 = row.get(4)?;
+                Ok(User {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    email: row.get(2)?,
+                    avatar_url: row.get(3)?,
+                    is_agent: is_agent != 0,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            let mut users = Vec::new();
+            for r in rows {
+                users.push(r?);
+            }
+            Ok(users)
+        })
+        .await
+    }
+
+    pub async fn get_all_columns_for_board(&self, board_id: &str) -> anyhow::Result<Vec<Column>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, name, position, wip_limit, color, archived
+                 FROM columns WHERE board_id = ?1 ORDER BY position",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                Ok(Column {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    name: row.get(2)?,
+                    position: row.get(3)?,
+                    wip_limit: row.get(4)?,
+                    color: row.get(5)?,
+                    archived: row.get::<_, i64>(6)? != 0,
+                })
+            })?;
+            let mut cols = Vec::new();
+            for r in rows {
+                cols.push(r?);
+            }
+            Ok(cols)
+        })
+        .await
+    }
+
+    pub async fn get_all_tasks_for_board(&self, board_id: &str) -> anyhow::Result<Vec<Task>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, column_id, title, description, priority,
+                        assignee, due_date, position, created_at, updated_at, archived
+                 FROM tasks WHERE board_id = ?1 ORDER BY position",
+            )?;
+            let rows = stmt.query_map(params![board_id], map_task_row)?;
+            collect_rows(rows)
+        })
+        .await
+    }
+
+    pub async fn get_comments_for_board(&self, board_id: &str) -> anyhow::Result<Vec<Comment>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name
+                 FROM comments c
+                 JOIN tasks t ON t.id = c.task_id
+                 LEFT JOIN users u ON u.id = c.user_id
+                 WHERE t.board_id = ?1
+                 ORDER BY c.created_at",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                Ok(Comment {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    user_id: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    user_name: row.get(5)?,
+                })
+            })?;
+            let mut comments = Vec::new();
+            for r in rows {
+                comments.push(r?);
+            }
+            Ok(comments)
+        })
+        .await
+    }
+
+    pub async fn get_subtasks_for_board(&self, board_id: &str) -> anyhow::Result<Vec<Subtask>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT s.id, s.task_id, s.title, s.completed, s.position, s.created_at
+                 FROM subtasks s
+                 JOIN tasks t ON t.id = s.task_id
+                 WHERE t.board_id = ?1
+                 ORDER BY s.position",
+            )?;
+            let rows = stmt.query_map(params![board_id], |row| {
+                Ok(Subtask {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    title: row.get(2)?,
+                    completed: row.get::<_, i32>(3)? != 0,
+                    position: row.get(4)?,
+                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
+                })
+            })?;
+            let mut subtasks = Vec::new();
+            for r in rows {
+                subtasks.push(r?);
+            }
+            Ok(subtasks)
+        })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -2275,5 +2407,72 @@ mod tests {
             let result = handle.await.unwrap();
             assert!(result.is_some());
         }
+    }
+
+    // ----- Export helpers ---------------------------------------------------
+
+    #[tokio::test]
+    async fn list_users_returns_all() {
+        let db = test_db().await;
+        db.create_user("Alice", "a@test.com", None, false, Some("hash")).await.unwrap();
+        db.create_user("Bob", "b@test.com", None, true, None).await.unwrap();
+        let users = db.list_users().await.unwrap();
+        assert_eq!(users.len(), 2);
+        assert_eq!(users[0].name, "Alice");
+        assert!(users[1].is_agent);
+    }
+
+    #[tokio::test]
+    async fn get_all_columns_for_board_includes_archived() {
+        let db = test_db().await;
+        let board = db.create_board("Test", None).await.unwrap();
+        db.create_column(&board.id, "Active", None, None).await.unwrap();
+        let col2 = db.create_column(&board.id, "Archived", None, None).await.unwrap();
+        db.archive_column(&col2.id).await.unwrap();
+
+        // list_columns excludes archived
+        let cols = db.list_columns(&board.id).await.unwrap();
+        assert_eq!(cols.len(), 1);
+
+        // get_all_columns_for_board includes archived
+        let all_cols = db.get_all_columns_for_board(&board.id).await.unwrap();
+        assert_eq!(all_cols.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn get_all_tasks_for_board_includes_archived() {
+        let db = test_db().await;
+        let (board_id, _user_id, col_id) = seed(&db).await;
+        let task = db.create_task(&board_id, &col_id, "Task 1", None, Priority::Medium, None).await.unwrap();
+        db.archive_task(&task.id).await.unwrap();
+        db.create_task(&board_id, &col_id, "Task 2", None, Priority::Low, None).await.unwrap();
+
+        let all = db.get_all_tasks_for_board(&board_id).await.unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn get_comments_for_board_returns_all() {
+        let db = test_db().await;
+        let (board_id, user_id, col_id) = seed(&db).await;
+        let t1 = db.create_task(&board_id, &col_id, "T1", None, Priority::Medium, None).await.unwrap();
+        let t2 = db.create_task(&board_id, &col_id, "T2", None, Priority::Medium, None).await.unwrap();
+        db.create_comment(&t1.id, &user_id, "Comment 1").await.unwrap();
+        db.create_comment(&t2.id, &user_id, "Comment 2").await.unwrap();
+
+        let comments = db.get_comments_for_board(&board_id).await.unwrap();
+        assert_eq!(comments.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn get_subtasks_for_board_returns_all() {
+        let db = test_db().await;
+        let (board_id, _user_id, col_id) = seed(&db).await;
+        let t1 = db.create_task(&board_id, &col_id, "T1", None, Priority::Medium, None).await.unwrap();
+        db.create_subtask(&t1.id, "Sub 1").await.unwrap();
+        db.create_subtask(&t1.id, "Sub 2").await.unwrap();
+
+        let subtasks = db.get_subtasks_for_board(&board_id).await.unwrap();
+        assert_eq!(subtasks.len(), 2);
     }
 }
