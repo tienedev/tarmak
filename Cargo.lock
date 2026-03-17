@@ -829,6 +829,7 @@ dependencies = [
  "axum",
  "chrono",
  "clap",
+ "dashmap",
  "futures",
  "hex",
  "kbf",
@@ -1624,6 +1625,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
