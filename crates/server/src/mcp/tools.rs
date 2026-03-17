@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use crate::db::Db;
 use crate::db::models::{FieldType, Priority};
+use crate::notifications::{self, NotifTx, parse_mentions};
 
 use super::kbf_bridge;
 
@@ -64,11 +65,12 @@ pub struct BoardAskParams {
 /// The kanban MCP server holding a database connection.
 pub struct KanbanMcpServer {
     db: Db,
+    notif_tx: NotifTx,
 }
 
 impl KanbanMcpServer {
-    pub fn new(db: Db) -> Self {
-        Self { db }
+    pub fn new(db: Db, notif_tx: NotifTx) -> Self {
+        Self { db, notif_tx }
     }
 
     // -----------------------------------------------------------------------
@@ -261,6 +263,21 @@ impl KanbanMcpServer {
                     .db
                     .update_task(task_id, title, description, priority, assignee, due_date).await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
+
+                // Assignment notification trigger
+                let new_assignee = task.assignee.as_deref().unwrap_or("");
+                let old_assignee = existing.assignee.as_deref().unwrap_or("");
+                if !new_assignee.is_empty() && new_assignee != old_assignee {
+                    if let Ok(Some(assignee_user)) = self.db.get_user_by_name(new_assignee).await {
+                        let title = format!("You were assigned to \"{}\"", task.title);
+                        if let Ok(notif) = self.db.create_notification(
+                            &assignee_user.id, board_id, Some(&task.id), "assignment", &title, None,
+                        ).await {
+                            notifications::broadcast(&self.notif_tx, &notif);
+                        }
+                    }
+                }
+
                 Ok(format!("updated task {}", task.id))
             }
             "move_task" => {
@@ -387,6 +404,26 @@ impl KanbanMcpServer {
                 let content = json_str(data, "content")?;
 
                 let comment = self.db.create_comment(task_id, user_id, content).await?;
+
+                // Comment + mention notification triggers
+                let mentioned_ids = parse_mentions(content);
+                let participants = self.db.get_task_participant_ids(task_id).await.unwrap_or_default();
+
+                for pid in &participants {
+                    if pid == user_id || mentioned_ids.contains(pid) { continue; }
+                    let title = format!("New comment on \"{}\"", existing.title);
+                    if let Ok(notif) = self.db.create_notification(pid, board_id, Some(task_id), "comment", &title, None).await {
+                        notifications::broadcast(&self.notif_tx, &notif);
+                    }
+                }
+                for mid in &mentioned_ids {
+                    if mid == user_id { continue; }
+                    let title = format!("You were mentioned in \"{}\"", existing.title);
+                    if let Ok(notif) = self.db.create_notification(mid, board_id, Some(task_id), "mention", &title, None).await {
+                        notifications::broadcast(&self.notif_tx, &notif);
+                    }
+                }
+
                 Ok(format!("added comment {}", comment.id))
             }
             "update_comment" => {
@@ -755,7 +792,7 @@ fn json_str<'a>(data: &'a Value, field: &str) -> Result<&'a str> {
 // ---------------------------------------------------------------------------
 
 pub mod api {
-    use axum::{Json, extract::State};
+    use axum::{Json, Extension, extract::State};
     use serde_json::Value;
 
     use crate::api::error::ApiError;
@@ -763,11 +800,13 @@ pub mod api {
     use crate::api::permissions;
     use crate::db::Db;
     use crate::db::models::Role;
+    use crate::notifications::NotifTx;
     use super::*;
 
     pub async fn query(
         State(db): State<Db>,
         AuthUser(user): AuthUser,
+        Extension(notif_tx): Extension<NotifTx>,
         Json(params): Json<BoardQueryParams>,
     ) -> Result<Json<Value>, ApiError> {
         if params.board_id == "list" {
@@ -782,7 +821,7 @@ pub mod api {
             return Ok(Json(serde_json::json!({ "result": result })));
         }
         permissions::require_role(&db, &params.board_id, &user.id, Role::Viewer).await?;
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, notif_tx);
         let result = server.handle_query(params).await?;
         Ok(Json(serde_json::json!({ "result": result })))
     }
@@ -790,6 +829,7 @@ pub mod api {
     pub async fn mutate(
         State(db): State<Db>,
         AuthUser(user): AuthUser,
+        Extension(notif_tx): Extension<NotifTx>,
         Json(params): Json<BoardMutateParams>,
     ) -> Result<Json<Value>, ApiError> {
         if params.action == "create_board" {
@@ -806,7 +846,7 @@ pub mod api {
         let min_role = if params.action == "delete_board" { Role::Owner } else { Role::Member };
         permissions::require_role(&db, &params.board_id, &user.id, min_role).await?;
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, notif_tx);
         let result = server.handle_mutate(params).await?;
         Ok(Json(serde_json::json!({ "result": result })))
     }
@@ -814,10 +854,11 @@ pub mod api {
     pub async fn sync(
         State(db): State<Db>,
         AuthUser(user): AuthUser,
+        Extension(notif_tx): Extension<NotifTx>,
         Json(params): Json<BoardSyncParams>,
     ) -> Result<Json<Value>, ApiError> {
         permissions::require_role(&db, &params.board_id, &user.id, Role::Member).await?;
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, notif_tx);
         let result = server.handle_sync(params).await?;
         Ok(Json(serde_json::json!({ "result": result })))
     }
@@ -825,10 +866,11 @@ pub mod api {
     pub async fn ask(
         State(db): State<Db>,
         AuthUser(user): AuthUser,
+        Extension(notif_tx): Extension<NotifTx>,
         Json(params): Json<BoardAskParams>,
     ) -> Result<Json<Value>, ApiError> {
         permissions::require_role(&db, &params.board_id, &user.id, Role::Viewer).await?;
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, notif_tx);
         let result = server.handle_ask(params).await?;
         Ok(Json(serde_json::json!({ "result": result })))
     }
@@ -845,6 +887,11 @@ mod tests {
 
     async fn test_db() -> Db {
         Db::in_memory().await.expect("in-memory db")
+    }
+
+    fn test_notif_tx() -> NotifTx {
+        let (sender, _) = tokio::sync::broadcast::channel(16);
+        NotifTx(sender)
     }
 
     async fn seed(db: &Db) -> (String, String) {
@@ -866,7 +913,7 @@ mod tests {
         db.create_board("Board A", None).await.unwrap();
         db.create_board("Board B", Some("desc")).await.unwrap();
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_query(BoardQueryParams {
                 board_id: "list".into(),
@@ -889,7 +936,7 @@ mod tests {
         let db = test_db().await;
         db.create_board("Board A", None).await.unwrap();
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_query(BoardQueryParams {
                 board_id: "list".into(),
@@ -916,7 +963,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_query(BoardQueryParams {
                 board_id: board_id.clone(),
@@ -943,7 +990,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_query(BoardQueryParams {
                 board_id: board_id.clone(),
@@ -971,7 +1018,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_query(BoardQueryParams {
                 board_id: board_id.clone(),
@@ -996,7 +1043,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, _) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_query(BoardQueryParams {
                 board_id: board_id.clone(),
@@ -1018,7 +1065,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, _) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server.handle_query(BoardQueryParams {
             board_id,
             scope: None,
@@ -1041,7 +1088,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1071,7 +1118,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1098,7 +1145,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1129,7 +1176,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1158,7 +1205,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1177,7 +1224,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, _) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1203,7 +1250,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1221,7 +1268,7 @@ mod tests {
     async fn test_mutate_create_board() {
         let db = test_db().await;
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: String::new(), // not used for create_board
@@ -1245,7 +1292,7 @@ mod tests {
         let db = test_db().await;
         let board = db.create_board("Old Name", None).await.unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         server
             .handle_mutate(BoardMutateParams {
                 board_id: board.id.clone(),
@@ -1264,7 +1311,7 @@ mod tests {
         let db = test_db().await;
         let board = db.create_board("Doomed Board", None).await.unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         server
             .handle_mutate(BoardMutateParams {
                 board_id: board.id.clone(),
@@ -1290,7 +1337,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1313,7 +1360,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, _) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1345,7 +1392,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_mutate(BoardMutateParams {
                 board_id: board_id.clone(),
@@ -1368,7 +1415,7 @@ mod tests {
     #[tokio::test]
     async fn test_mutate_unknown_action() {
         let db = test_db().await;
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server.handle_mutate(BoardMutateParams {
             board_id: "any".into(),
             action: "explode".into(),
@@ -1384,7 +1431,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, _) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server.handle_mutate(BoardMutateParams {
             board_id,
             action: "create_task".into(),
@@ -1408,7 +1455,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_sync(BoardSyncParams {
                 board_id: board_id.clone(),
@@ -1434,7 +1481,7 @@ mod tests {
 
         let delta = format!(">{}.title=New Title", task.id);
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_sync(BoardSyncParams {
                 board_id: board_id.clone(),
@@ -1463,7 +1510,7 @@ mod tests {
 
         let delta = format!(">{}-", task.id);
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_sync(BoardSyncParams {
                 board_id: board_id.clone(),
@@ -1485,7 +1532,7 @@ mod tests {
 
         let delta = format!(">{col_id}|Created via sync|some desc|h|alice|0+");
 
-        let server = KanbanMcpServer::new(db.clone());
+        let server = KanbanMcpServer::new(db.clone(), test_notif_tx());
         let result = server
             .handle_sync(BoardSyncParams {
                 board_id: board_id.clone(),
@@ -1508,7 +1555,7 @@ mod tests {
         let db = test_db().await;
         let (board_id, _) = seed(&db).await;
 
-        let server = KanbanMcpServer::new(db);
+        let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
             .handle_sync(BoardSyncParams {
                 board_id: board_id.clone(),

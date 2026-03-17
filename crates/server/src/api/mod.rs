@@ -26,13 +26,14 @@ use axum::{
 use crate::db::Db;
 use crate::mcp::tools::api as mcp_api;
 use crate::mcp::sse as mcp_sse;
+use crate::notifications::NotifTx;
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "status": "ok" }))
 }
 
 /// Build the full API router with all resource routes.
-pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
+pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) -> Router {
     let board_item = Router::new()
         .route("/", get(boards::get).put(boards::update).delete(boards::delete));
 
@@ -100,7 +101,7 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter) -> Router {
         .route("/mutate", post(mcp_api::mutate))
         .route("/sync", post(mcp_api::sync))
         .route("/ask", post(mcp_api::ask))
-        .nest("/sse", mcp_sse::sse_router(db.clone()));
+        .nest("/sse", mcp_sse::sse_router(db.clone(), notif_tx));
 
     // API key management routes
     let api_key_routes = Router::new()

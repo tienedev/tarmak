@@ -42,6 +42,7 @@ use crate::api::middleware::AuthUser;
 use crate::api::permissions;
 use crate::db::Db;
 use crate::db::models::Role;
+use crate::notifications::NotifTx;
 use super::KanbanMcpServer;
 
 // ---------------------------------------------------------------------------
@@ -106,9 +107,9 @@ pub struct McpSseHandler {
 }
 
 impl McpSseHandler {
-    fn new(db: Db, user_id: String) -> Self {
+    fn new(db: Db, user_id: String, notif_tx: NotifTx) -> Self {
         Self {
-            server: Arc::new(KanbanMcpServer::new(db.clone())),
+            server: Arc::new(KanbanMcpServer::new(db.clone(), notif_tx)),
             db,
             user_id,
         }
@@ -243,6 +244,7 @@ struct SseAppState {
     txs: TxStore,
     db: Db,
     post_path: Arc<str>,
+    notif_tx: NotifTx,
 }
 
 fn new_session_id() -> SessionId {
@@ -314,7 +316,7 @@ async fn sse_handler(
     };
 
     // Create handler and spawn the rmcp service
-    let handler = McpSseHandler::new(app.db.clone(), user.id.clone());
+    let handler = McpSseHandler::new(app.db.clone(), user.id.clone(), app.notif_tx.clone());
     let txs_cleanup = app.txs.clone();
     let session_cleanup = session.clone();
     tokio::spawn(async move {
@@ -433,11 +435,12 @@ impl Stream for SseServerTransport {
 /// Endpoints:
 /// - `GET  /`        -> SSE event stream
 /// - `POST /message` -> client JSON-RPC messages
-pub fn sse_router(db: Db) -> Router<Db> {
+pub fn sse_router(db: Db, notif_tx: NotifTx) -> Router<Db> {
     let state = SseAppState {
         txs: Default::default(),
         db,
         post_path: Arc::from("/api/v1/mcp/sse/message"),
+        notif_tx,
     };
 
     Router::new()
