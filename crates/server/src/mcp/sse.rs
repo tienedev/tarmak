@@ -71,7 +71,7 @@ fn tool_definitions() -> Vec<Tool> {
                 "type": "object",
                 "properties": {
                     "board_id": { "type": "string", "description": "Board ID" },
-                    "action": { "type": "string", "enum": ["create_task","update_task","move_task","delete_task","create_column","update_column","delete_column","create_board","update_board","delete_board","set_field_value","create_field","add_comment","update_comment","delete_comment"] },
+                    "action": { "type": "string", "enum": ["create_task","update_task","move_task","delete_task","duplicate_task","create_column","update_column","delete_column","create_board","update_board","delete_board","set_field_value","create_field","add_comment","update_comment","delete_comment"] },
                     "data": { "type": "object", "description": "Action-specific data" }
                 },
                 "required": ["board_id", "action", "data"]
