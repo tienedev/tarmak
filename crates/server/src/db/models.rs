@@ -227,6 +227,7 @@ pub struct Comment {
     pub user_name: Option<String>,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

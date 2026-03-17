@@ -389,6 +389,36 @@ impl KanbanMcpServer {
                 let comment = self.db.create_comment(task_id, user_id, content).await?;
                 Ok(format!("added comment {}", comment.id))
             }
+            "update_comment" => {
+                let comment_id = json_str(data, "comment_id")?;
+                let comment = self.db.get_comment(comment_id).await?
+                    .ok_or_else(|| anyhow::anyhow!("comment not found: {comment_id}"))?;
+                let task = self.db.get_task(&comment.task_id).await?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {}", comment.task_id))?;
+                if task.board_id != *board_id {
+                    bail!("comment's task does not belong to board {board_id}");
+                }
+                let content = json_str(data, "content")?;
+                let updated = self.db.update_comment(comment_id, content).await?
+                    .ok_or_else(|| anyhow::anyhow!("failed to update comment {comment_id}"))?;
+                let _ = self.db.log_activity(board_id, Some(&comment.task_id), &comment.user_id, "comment_updated",
+                    Some(&serde_json::json!({"task_id": &comment.task_id, "comment_id": comment_id}).to_string())).await;
+                Ok(format!("updated comment {}", updated.id))
+            }
+            "delete_comment" => {
+                let comment_id = json_str(data, "comment_id")?;
+                let comment = self.db.get_comment(comment_id).await?
+                    .ok_or_else(|| anyhow::anyhow!("comment not found: {comment_id}"))?;
+                let task = self.db.get_task(&comment.task_id).await?
+                    .ok_or_else(|| anyhow::anyhow!("task not found: {}", comment.task_id))?;
+                if task.board_id != *board_id {
+                    bail!("comment's task does not belong to board {board_id}");
+                }
+                self.db.delete_comment(comment_id).await?;
+                let _ = self.db.log_activity(board_id, Some(&comment.task_id), &comment.user_id, "comment_deleted",
+                    Some(&serde_json::json!({"task_id": &comment.task_id, "comment_id": comment_id}).to_string())).await;
+                Ok(format!("deleted comment {comment_id}"))
+            }
             // ----- Labels -----
             "create_label" => {
                 let name = json_str(data, "name")?;

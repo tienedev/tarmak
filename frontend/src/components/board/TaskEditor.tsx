@@ -22,6 +22,7 @@ import {
   Trash2,
   Send,
   ChevronRight,
+  Pencil,
   User as UserIcon,
 } from 'lucide-react'
 import { LabelPicker } from '@/components/board/LabelPicker'
@@ -61,8 +62,10 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [comments, setComments] = useState<Comment[]>([])
   const [commentsOpen, setCommentsOpen] = useState(false)
-  const [newComment, setNewComment] = useState('')
+  const [newCommentHtml, setNewCommentHtml] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editingCommentHtml, setEditingCommentHtml] = useState('')
   const [saving, setSaving] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -167,20 +170,47 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     [currentBoard, task.id, addNotification],
   )
 
+  const isEmptyHtml = (html: string) => !html.replace(/<[^>]*>/g, '').trim()
+
   const handleAddComment = async () => {
-    if (!newComment.trim() || !currentBoard || !user || submittingComment) return
+    if (isEmptyHtml(newCommentHtml) || !currentBoard || !user || submittingComment) return
     setSubmittingComment(true)
     try {
       const comment = await api.createComment(currentBoard.id, task.id, {
-        content: newComment.trim(),
+        content: newCommentHtml,
       })
       setComments((prev) => [...prev, comment])
-      setNewComment('')
+      setNewCommentHtml('')
       addNotification(`Comment added to "${task.title}"`)
     } catch {
       addNotification('Failed to add comment')
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (isEmptyHtml(editingCommentHtml) || !currentBoard) return
+    try {
+      const updated = await api.updateComment(currentBoard.id, task.id, commentId, {
+        content: editingCommentHtml,
+      })
+      setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)))
+      setEditingCommentId(null)
+      setEditingCommentHtml('')
+    } catch {
+      addNotification('Failed to update comment')
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!currentBoard) return
+    if (!window.confirm('Delete this comment?')) return
+    try {
+      await api.deleteComment(currentBoard.id, task.id, commentId)
+      setComments((prev) => prev.filter((c) => c.id !== commentId))
+    } catch {
+      addNotification('Failed to delete comment')
     }
   }
 
@@ -422,16 +452,70 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
             {comments.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {comments.map((comment) => (
-                  <div key={comment.id} className="rounded-lg bg-muted/50 px-3 py-2">
+                  <div key={comment.id} className="group rounded-lg bg-muted/50 px-3 py-2">
                     <div className="mb-1 flex items-center gap-2">
                       <div className="flex size-5 items-center justify-center rounded-full bg-muted text-[0.55rem] font-semibold uppercase text-muted-foreground">
                         {(comment.user_name ?? comment.user_id ?? '?').slice(0, 2).toUpperCase()}
                       </div>
                       <span className="text-[0.65rem] text-muted-foreground">
                         {formatTimestamp(comment.created_at)}
+                        {comment.updated_at && <span className="ml-1">(edited)</span>}
                       </span>
+                      {comment.user_id === user?.id && editingCommentId !== comment.id && (
+                        <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-6"
+                            onClick={() => {
+                              setEditingCommentId(comment.id)
+                              setEditingCommentHtml(comment.content)
+                            }}
+                          >
+                            <Pencil className="size-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-6"
+                            onClick={() => handleDeleteComment(comment.id)}
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm leading-relaxed text-foreground">{comment.content}</p>
+                    {editingCommentId === comment.id ? (
+                      <div>
+                        <TiptapEditor
+                          content={editingCommentHtml}
+                          onChange={setEditingCommentHtml}
+                          placeholder="Edit comment..."
+                          boardId={currentBoard?.id}
+                          taskId={task.id}
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <Button size="sm" onClick={() => handleUpdateComment(comment.id)}>
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingCommentId(null)
+                              setEditingCommentHtml('')
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: comment.content }}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -439,27 +523,24 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
               <p className="text-xs text-muted-foreground/50">No comments yet</p>
             )}
 
-            <div className="flex gap-2">
-              <Input
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleAddComment()
-                  }
-                }}
-                placeholder="Add a comment..."
-                className="flex-1 text-sm"
+            <div className="mt-1">
+              <TiptapEditor
+                content={newCommentHtml}
+                onChange={setNewCommentHtml}
+                placeholder="Write a comment..."
+                boardId={currentBoard?.id}
+                taskId={task.id}
               />
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleAddComment}
-                disabled={!newComment.trim() || submittingComment}
-              >
-                <Send className="size-3.5" />
-              </Button>
+              <div className="mt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={handleAddComment}
+                  disabled={isEmptyHtml(newCommentHtml) || submittingComment}
+                >
+                  <Send className="size-3.5 mr-1.5" />
+                  {submittingComment ? 'Sending...' : 'Comment'}
+                </Button>
+              </div>
             </div>
           </div>
         )}

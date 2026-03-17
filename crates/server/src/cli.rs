@@ -87,6 +87,7 @@ pub struct ExportedComment {
     pub user_name: Option<String>,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -306,6 +307,7 @@ pub async fn export_board(board_id: &str, output: Option<String>) -> anyhow::Res
                 user_name: c.user_name,
                 content: c.content,
                 created_at: c.created_at,
+                updated_at: c.updated_at,
             })
             .collect(),
         custom_fields: custom_fields
@@ -554,14 +556,15 @@ pub async fn import_board(file: &str, owner_email: &str) -> anyhow::Result<()> {
                     &owner_id
                 };
                 tx.execute(
-                    "INSERT INTO comments (id, task_id, user_id, content, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "INSERT INTO comments (id, task_id, user_id, content, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     rusqlite::params![
                         new_id,
                         new_task_id,
                         effective_user_id,
                         comment.content,
                         comment.created_at.to_rfc3339(),
+                        comment.updated_at.map(|dt| dt.to_rfc3339()),
                     ],
                 )?;
             }
@@ -744,6 +747,7 @@ mod tests {
                     user_name: c.user_name,
                     content: c.content,
                     created_at: c.created_at,
+                    updated_at: c.updated_at,
                 })
                 .collect(),
             custom_fields: custom_fields

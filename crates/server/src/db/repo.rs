@@ -1,6 +1,6 @@
 use anyhow::Context;
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use super::Db;
@@ -1192,6 +1192,7 @@ impl Db {
                 user_name,
                 content,
                 created_at: Utc::now(),
+                updated_at: None,
             })
         })
         .await
@@ -1201,7 +1202,7 @@ impl Db {
         let task_id = task_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
-                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name
+                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name, c.updated_at
                  FROM comments c
                  LEFT JOIN users u ON u.id = c.user_id
                  WHERE c.task_id = ?1 ORDER BY c.created_at",
@@ -1214,6 +1215,10 @@ impl Db {
                     content: row.get(3)?,
                     created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     user_name: row.get(5)?,
+                    updated_at: row.get::<_, Option<String>>(6)?
+                        .as_deref()
+                        .map(parse_dt)
+                        .transpose()?,
                 })
             })?;
             let mut out = Vec::new();
@@ -1221,6 +1226,87 @@ impl Db {
                 out.push(r?);
             }
             Ok(out)
+        })
+        .await
+    }
+
+    pub async fn get_comment(&self, comment_id: &str) -> anyhow::Result<Option<Comment>> {
+        let comment_id = comment_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name, c.updated_at
+                 FROM comments c
+                 LEFT JOIN users u ON u.id = c.user_id
+                 WHERE c.id = ?1",
+            )?;
+            let comment = stmt
+                .query_row(params![comment_id], |row| {
+                    Ok(Comment {
+                        id: row.get(0)?,
+                        task_id: row.get(1)?,
+                        user_id: row.get(2)?,
+                        content: row.get(3)?,
+                        created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                        user_name: row.get(5)?,
+                        updated_at: row.get::<_, Option<String>>(6)?
+                            .as_deref()
+                            .map(parse_dt)
+                            .transpose()?,
+                    })
+                })
+                .optional()?;
+            Ok(comment)
+        })
+        .await
+    }
+
+    pub async fn update_comment(&self, comment_id: &str, content: &str) -> anyhow::Result<Option<Comment>> {
+        let comment_id = comment_id.to_string();
+        let content = content.to_string();
+        self.with_conn(move |conn| {
+            let now = now_iso();
+            let rows = conn.execute(
+                "UPDATE comments SET content = ?1, updated_at = ?2 WHERE id = ?3",
+                params![content, now, comment_id],
+            )?;
+            if rows == 0 {
+                return Ok(None);
+            }
+            let mut stmt = conn.prepare(
+                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name, c.updated_at
+                 FROM comments c
+                 LEFT JOIN users u ON u.id = c.user_id
+                 WHERE c.id = ?1",
+            )?;
+            let comment = stmt
+                .query_row(params![comment_id], |row| {
+                    Ok(Comment {
+                        id: row.get(0)?,
+                        task_id: row.get(1)?,
+                        user_id: row.get(2)?,
+                        content: row.get(3)?,
+                        created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                        user_name: row.get(5)?,
+                        updated_at: row.get::<_, Option<String>>(6)?
+                            .as_deref()
+                            .map(parse_dt)
+                            .transpose()?,
+                    })
+                })
+                .optional()?;
+            Ok(comment)
+        })
+        .await
+    }
+
+    pub async fn delete_comment(&self, comment_id: &str) -> anyhow::Result<bool> {
+        let comment_id = comment_id.to_string();
+        self.with_conn(move |conn| {
+            let rows = conn.execute(
+                "DELETE FROM comments WHERE id = ?1",
+                params![comment_id],
+            )?;
+            Ok(rows > 0)
         })
         .await
     }
@@ -2044,7 +2130,7 @@ impl Db {
         let board_id = board_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
-                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name
+                "SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, u.name, c.updated_at
                  FROM comments c
                  JOIN tasks t ON t.id = c.task_id
                  LEFT JOIN users u ON u.id = c.user_id
@@ -2059,6 +2145,10 @@ impl Db {
                     content: row.get(3)?,
                     created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     user_name: row.get(5)?,
+                    updated_at: row.get::<_, Option<String>>(6)?
+                        .as_deref()
+                        .map(parse_dt)
+                        .transpose()?,
                 })
             })?;
             let mut comments = Vec::new();

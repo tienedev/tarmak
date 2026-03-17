@@ -116,6 +116,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  updateComment: (
+    boardId: string,
+    taskId: string,
+    commentId: string,
+    data: { content: string },
+  ) =>
+    request<Comment>(`/boards/${boardId}/tasks/${taskId}/comments/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteComment: (boardId: string, taskId: string, commentId: string) =>
+    request<{ deleted: boolean }>(
+      `/boards/${boardId}/tasks/${taskId}/comments/${commentId}`,
+      { method: 'DELETE' },
+    ),
 
   // Auth
   register: (data: { name: string; email: string; password: string }) =>
@@ -369,6 +384,7 @@ export interface Comment {
   user_name?: string
   content: string
   created_at: string
+  updated_at: string | null
 }
 
 export interface AuthResponse {

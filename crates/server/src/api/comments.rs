@@ -17,6 +17,11 @@ pub struct CreateComment {
     pub content: String,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateComment {
+    pub content: String,
+}
+
 // ---- Handlers --------------------------------------------------------------
 
 pub async fn list(
@@ -40,4 +45,40 @@ pub async fn create(
     let _ = db.log_activity(&board_id, Some(&tid), &user.id, "comment_added",
         Some(&serde_json::json!({"task_id": &tid}).to_string())).await;
     Ok(Json(comment))
+}
+
+pub async fn update(
+    State(db): State<Db>,
+    AuthUser(user): AuthUser,
+    Path((board_id, tid, cid)): Path<(String, String, String)>,
+    Json(body): Json<UpdateComment>,
+) -> Result<Json<Comment>, ApiError> {
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let comment = db.get_comment(&cid).await?
+        .ok_or(ApiError::NotFound("comment not found".into()))?;
+    if comment.user_id != user.id {
+        return Err(ApiError::Forbidden("not the comment author".into()));
+    }
+    let updated = db.update_comment(&cid, &body.content).await?
+        .ok_or(ApiError::NotFound("comment not found".into()))?;
+    let _ = db.log_activity(&board_id, Some(&tid), &user.id, "comment_updated",
+        Some(&serde_json::json!({"task_id": &tid, "comment_id": &cid}).to_string())).await;
+    Ok(Json(updated))
+}
+
+pub async fn delete(
+    State(db): State<Db>,
+    AuthUser(user): AuthUser,
+    Path((board_id, tid, cid)): Path<(String, String, String)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let comment = db.get_comment(&cid).await?
+        .ok_or(ApiError::NotFound("comment not found".into()))?;
+    if comment.user_id != user.id {
+        return Err(ApiError::Forbidden("not the comment author".into()));
+    }
+    db.delete_comment(&cid).await?;
+    let _ = db.log_activity(&board_id, Some(&tid), &user.id, "comment_deleted",
+        Some(&serde_json::json!({"task_id": &tid, "comment_id": &cid}).to_string())).await;
+    Ok(Json(serde_json::json!({"deleted": true})))
 }
