@@ -190,17 +190,16 @@ pub async fn update(
     if body.assignee.is_some() {
         let new_assignee = task.assignee.as_deref().unwrap_or("");
         let old_assignee = existing.assignee.as_deref().unwrap_or("");
-        if !new_assignee.is_empty() && new_assignee != old_assignee {
-            // Resolve assignee name to user_id
-            if let Ok(Some(assignee_user)) = db.get_user_by_name(new_assignee).await {
-                if assignee_user.id != user.id {
-                    let title = format!("You were assigned to \"{}\"", task.title);
-                    if let Ok(notif) = db.create_notification(
-                        &assignee_user.id, &board_id, Some(&tid), "assignment", &title, None,
-                    ).await {
-                        notifications::broadcast(&tx, &notif);
-                    }
-                }
+        if !new_assignee.is_empty()
+            && new_assignee != old_assignee
+            && let Ok(Some(assignee_user)) = db.get_user_by_name(new_assignee).await
+            && assignee_user.id != user.id
+        {
+            let title = format!("You were assigned to \"{}\"", task.title);
+            if let Ok(notif) = db.create_notification(
+                &assignee_user.id, &board_id, Some(&tid), "assignment", &title, None,
+            ).await {
+                notifications::broadcast(&tx, &notif);
             }
         }
     }

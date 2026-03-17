@@ -38,6 +38,7 @@ pub fn parse_mentions(html: &str) -> Vec<String> {
 
 /// Create notification for each recipient, broadcast each.
 /// Skips `exclude_user_id` (typically the actor).
+#[allow(dead_code, clippy::too_many_arguments)]
 pub async fn notify_users(
     db: &Db,
     tx: &NotifTx,

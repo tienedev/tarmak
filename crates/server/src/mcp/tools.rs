@@ -267,14 +267,15 @@ impl KanbanMcpServer {
                 // Assignment notification trigger
                 let new_assignee = task.assignee.as_deref().unwrap_or("");
                 let old_assignee = existing.assignee.as_deref().unwrap_or("");
-                if !new_assignee.is_empty() && new_assignee != old_assignee {
-                    if let Ok(Some(assignee_user)) = self.db.get_user_by_name(new_assignee).await {
-                        let title = format!("You were assigned to \"{}\"", task.title);
-                        if let Ok(notif) = self.db.create_notification(
-                            &assignee_user.id, board_id, Some(&task.id), "assignment", &title, None,
-                        ).await {
-                            notifications::broadcast(&self.notif_tx, &notif);
-                        }
+                if !new_assignee.is_empty()
+                    && new_assignee != old_assignee
+                    && let Ok(Some(assignee_user)) = self.db.get_user_by_name(new_assignee).await
+                {
+                    let title = format!("You were assigned to \"{}\"", task.title);
+                    if let Ok(notif) = self.db.create_notification(
+                        &assignee_user.id, board_id, Some(&task.id), "assignment", &title, None,
+                    ).await {
+                        notifications::broadcast(&self.notif_tx, &notif);
                     }
                 }
 

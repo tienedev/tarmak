@@ -2321,14 +2321,14 @@ impl Db {
                 .query_row("SELECT assignee FROM tasks WHERE id = ?1", params![task_id], |r| r.get(0))
                 .optional()?
                 .flatten();
-            if let Some(a) = assignee {
-                if !a.is_empty() {
-                    let uid: Option<String> = conn
-                        .query_row("SELECT id FROM users WHERE name = ?1", params![a], |r| r.get(0))
-                        .optional()?;
-                    if let Some(uid) = uid {
-                        ids.push(uid);
-                    }
+            if let Some(a) = assignee
+                && !a.is_empty()
+            {
+                let uid: Option<String> = conn
+                    .query_row("SELECT id FROM users WHERE name = ?1", params![a], |r| r.get(0))
+                    .optional()?;
+                if let Some(uid) = uid {
+                    ids.push(uid);
                 }
             }
             let mut stmt = conn.prepare(
