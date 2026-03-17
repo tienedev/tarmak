@@ -1,5 +1,5 @@
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
 };
 use serde::Deserialize;
@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use crate::db::Db;
 use crate::db::models::{Priority, Role, SubtaskCount, Task, TaskWithRelations};
+use crate::notifications::{self, NotifTx};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
@@ -145,6 +146,7 @@ pub async fn get(
 pub async fn update(
     State(db): State<Db>,
     AuthUser(user): AuthUser,
+    Extension(tx): Extension<NotifTx>,
     Path((board_id, tid)): Path<(String, String)>,
     Json(body): Json<UpdateTask>,
 ) -> Result<Json<Task>, ApiError> {
@@ -183,6 +185,24 @@ pub async fn update(
             serde_json::json!({"task_title": &task.title})
         };
         let _ = db.log_activity(&board_id, Some(&tid), &user.id, action, Some(&details.to_string())).await;
+    }
+    // Trigger assignment notification
+    if body.assignee.is_some() {
+        let new_assignee = task.assignee.as_deref().unwrap_or("");
+        let old_assignee = existing.assignee.as_deref().unwrap_or("");
+        if !new_assignee.is_empty() && new_assignee != old_assignee {
+            // Resolve assignee name to user_id
+            if let Ok(Some(assignee_user)) = db.get_user_by_name(new_assignee).await {
+                if assignee_user.id != user.id {
+                    let title = format!("You were assigned to \"{}\"", task.title);
+                    if let Ok(notif) = db.create_notification(
+                        &assignee_user.id, &board_id, Some(&tid), "assignment", &title, None,
+                    ).await {
+                        notifications::broadcast(&tx, &notif);
+                    }
+                }
+            }
+        }
     }
     Ok(Json(task))
 }
