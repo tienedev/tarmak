@@ -36,13 +36,18 @@ No FTS5 index needed — notifications are queried by user_id, not searched.
 
 Central notification service with two responsibilities:
 
-1. **In-process broadcast** — A `tokio::broadcast::Sender<(String, Notification)>` shared via app state. When a notification is created, it's sent on this channel. SSE connections subscribe and filter by `user_id`.
+1. **In-process broadcast** — A `tokio::broadcast::Sender<(String, Notification)>` shared via Axum `Extension` layer (not `State` — the existing `State` is `Db`). This follows the same pattern as `SseAppState` in `mcp/sse.rs`. Wrap the sender in an `Arc` newtype:
+   ```rust
+   #[derive(Clone)]
+   pub struct NotifTx(pub tokio::broadcast::Sender<(String, Notification)>);
+   ```
+   Handlers extract it via `Extension(tx): Extension<NotifTx>`. SSE connections subscribe via `tx.0.subscribe()` and filter by `user_id`.
 
 2. **Mention parser** — Extract user IDs from Tiptap HTML. Tiptap's mention extension renders:
    ```html
    <span data-type="mention" data-id="USER_ID" class="mention">@Name</span>
    ```
-   The parser uses a simple regex on `data-id` attributes within mention spans. No full HTML parser needed.
+   The parser uses a regex to extract user IDs: `r#"<span[^>]*data-type="mention"[^>]*data-id="([^"]+)"[^>]*>"#`. No full HTML parser needed. Tiptap's output is well-formed and consistent.
 
 ### Db methods (`crates/server/src/db/repo.rs`)
 
@@ -70,18 +75,21 @@ The `mark_notification_read` method takes `user_id` to ensure a user can only ma
 ### Notification model (`crates/server/src/db/models.rs`)
 
 ```rust
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Notification {
     pub id: String,
     pub user_id: String,
     pub board_id: String,
     pub task_id: Option<String>,
-    pub r#type: String,
+    pub notification_type: String,  // 'mention' | 'assignment' | 'deadline' | 'comment'
     pub title: String,
     pub body: Option<String>,
     pub read: bool,
     pub created_at: DateTime<Utc>,
 }
+```
+
+Use `notification_type` instead of `r#type` to avoid the raw identifier syntax. The DB column remains `type`; the field is renamed only in the Rust struct (use `#[serde(rename = "type")]` if the JSON API needs `"type"` as the key).
 ```
 
 ## 3. Backend — API
@@ -128,7 +136,13 @@ Returns `{ "updated": N }`.
 GET /api/v1/notifications/stream
 ```
 
-Requires authentication via `Authorization: Bearer <token>` header or `?token=` query param (for EventSource which doesn't support headers).
+Authentication: The browser's `EventSource` API does not support custom headers. To avoid exposing the JWT in a query parameter (security risk: server logs, browser history), use a **short-lived ticket** approach:
+
+1. Client calls `POST /api/v1/notifications/stream-ticket` (authenticated via JWT header) → returns `{ "ticket": "<random-token>" }` valid for 60 seconds, single-use.
+2. Client opens `EventSource("/api/v1/notifications/stream?ticket=<ticket>")`.
+3. Server validates the ticket, resolves the user, deletes the ticket, and starts streaming.
+
+Tickets are stored in-memory (`DashMap<String, (String, Instant)>` — ticket → (user_id, expiry)). No DB table needed.
 
 The handler:
 1. Authenticates the user
@@ -151,11 +165,14 @@ let notifications = Router::new()
     .route("/unread-count", get(notifications::unread_count))
     .route("/read-all", patch(notifications::mark_all_read))
     .route("/{id}/read", patch(notifications::mark_read))
-    .route("/stream", get(notifications::stream));
+    .route("/stream", get(notifications::stream))
+    .route("/stream-ticket", post(notifications::create_stream_ticket));
 
 // Add under /api/v1
 .nest("/notifications", notifications)
 ```
+
+Note: `/read-all` is registered before `/{id}/read` to ensure the literal matches before the capture. Axum 0.7+ handles this correctly with this ordering.
 
 ## 4. Triggers
 
@@ -171,18 +188,25 @@ In the `update` handler, when `assignee` changes:
 ### Comment trigger (`crates/server/src/api/comments.rs`)
 
 In the `create` handler, after creating the comment:
-- Fetch board members
-- For each member who is NOT the comment author:
+- Determine **task participants**: the task assignee (if set) + users who previously commented on this task (deduplicated)
+- For each participant who is NOT the comment author:
   - Create notification: type=`comment`, title=`"{user.name} commented on \"{task.title}\""`, with board_id and task_id
 - Send on broadcast channel
 
+Note: Only task participants are notified, not all board members. This avoids noise on active boards.
+
 ### Mention trigger (`crates/server/src/api/comments.rs`)
 
-In the `create` and `update` handlers:
+In the `create` handler:
 - Parse mention spans from the comment HTML content using the mention parser
 - For each mentioned user_id that is NOT the comment author:
   - Create notification: type=`mention`, title=`"{user.name} mentioned you in \"{task.title}\""`, with board_id and task_id
 - Mention notifications replace the generic comment notification for that user (don't send both)
+
+In the `update` handler:
+- Parse mentions from the **new** content and compare against mentions in the **old** content (fetched before update)
+- Only create mention notifications for **newly added** mentions (avoid duplicates on edit)
+- Send on broadcast channel
 
 ### Deadline trigger (`crates/server/src/background.rs`)
 
@@ -211,6 +235,7 @@ Add `@tiptap/extension-mention` to `frontend/package.json`.
   - Renders a dropdown list with member names
   - On select, inserts `<span data-type="mention" data-id="USER_ID">@Name</span>`
 - The mention extension needs `boardId` to know which board's members to suggest — this prop already exists on TiptapEditor
+- The mention extension should be enabled whenever `boardId` is available, independently of `taskId` (the file-drop extension gates on both, but mentions only need the board's member list)
 
 ### Mention suggestion component (`frontend/src/components/editor/MentionList.tsx`, new)
 
@@ -257,7 +282,7 @@ The SSE connection:
 - Fetch notifications on popover open
 - Badge shows `unreadCount` from store
 - Click on a notification → `router.push(/boards/{board_id})` and open the task if task_id is set
-- Keep existing UI structure (popover, scroll area, mark as read, dismiss)
+- Keep existing UI structure (popover, scroll area, mark as read). The existing "dismiss" (X) button becomes "mark as read" — no server-side delete for notifications
 
 ### API client (`frontend/src/lib/api.ts`)
 
@@ -284,9 +309,12 @@ markAllNotificationsRead(): Promise<{ updated: number }>
 
 ## 7. Main wiring (`crates/server/src/main.rs`)
 
-- Create the broadcast channel at startup: `tokio::broadcast::channel::<(String, Notification)>(256)`
-- Pass the `Sender` into app state (accessible by handlers and background tasks)
-- Spawn the deadline background task
+- Add `mod notifications;` and `mod background;` module declarations
+- Create the broadcast channel at startup: `let (notif_tx, _) = tokio::broadcast::channel::<(String, Notification)>(256);`
+- Add `Extension(NotifTx(notif_tx.clone()))` layer to the router (alongside existing `.with_state(db)`)
+- Pass `notif_tx.clone()` and `db.clone()` to the background deadline task
+- Spawn the deadline background task: `tokio::spawn(background::deadline_checker(db.clone(), notif_tx.clone()))`
+- If a receiver lags behind (buffer full), the SSE handler should log and skip missed notifications (not disconnect)
 
 ## Files Modified
 
@@ -300,7 +328,7 @@ markAllNotificationsRead(): Promise<{ updated: number }>
 | `crates/server/src/api/mod.rs` | Notification routes |
 | `crates/server/src/api/tasks.rs` | Assignment trigger |
 | `crates/server/src/api/comments.rs` | Comment + mention triggers |
-| `crates/server/src/background.rs` | Deadline check background task |
+| `crates/server/src/background.rs` | **New** — Deadline check background task |
 | `crates/server/src/main.rs` | Wire broadcast channel + deadline task |
 | `crates/server/src/mcp/tools.rs` | Notification triggers in board_mutate |
 | `frontend/package.json` | Add `@tiptap/extension-mention` |
@@ -310,7 +338,7 @@ markAllNotificationsRead(): Promise<{ updated: number }>
 | `frontend/src/components/editor/TiptapEditor.tsx` | Mention extension integration |
 | `frontend/src/components/editor/MentionList.tsx` | **New** — suggestion dropdown component |
 
-**Total:** 17 files (14 modified, 3 new).
+**Total:** 17 files (13 modified, 4 new).
 
 ## Out of Scope
 
@@ -323,7 +351,7 @@ markAllNotificationsRead(): Promise<{ updated: number }>
 ## Success Criteria
 
 1. Assignment change creates notification for the assignee
-2. New comment creates notifications for board members
+2. New comment creates notifications for task participants (assignee + previous commenters)
 3. @mention in comment creates targeted mention notification (replaces generic comment notif for that user)
 4. Tasks due within 24h generate deadline notification for assignee (no duplicates)
 5. SSE stream delivers notifications in real-time
