@@ -1,6 +1,5 @@
 import { useNotificationStore } from '@/stores/notifications'
 import type { ServerNotification } from '@/lib/api'
-import { useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import {
   Popover,
@@ -27,7 +26,6 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export function NotificationBell() {
-  const navigate = useNavigate()
   const { notifications, markRead, markAllRead, dismiss, unreadCount, fetch, connectSSE, disconnectSSE, fetchUnreadCount } =
     useNotificationStore()
   // unreadCount is now a plain number, not a function
@@ -76,7 +74,7 @@ export function NotificationBell() {
                 <div
                   key={notif.id}
                   onClick={() => {
-                    if (notif.board_id) navigate(`/boards/${notif.board_id}`)
+                    if (notif.board_id) window.location.hash = `#/boards/${notif.board_id}`
                     if (!notif.read) markRead(notif.id)
                   }}
                   className={cn(
