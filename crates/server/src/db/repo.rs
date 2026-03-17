@@ -597,6 +597,7 @@ impl Db {
         .await
     }
 
+    #[allow(clippy::type_complexity)]
     pub async fn duplicate_board(
         &self,
         board_id: &str,
