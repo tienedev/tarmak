@@ -19,6 +19,7 @@ import { CustomFieldValue } from '@/components/fields/CustomFieldValue'
 import { cn } from '@/lib/utils'
 import {
   Archive,
+  Copy,
   Trash2,
   Send,
   ChevronRight,
@@ -234,6 +235,16 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
       onClose()
     } catch {
       addNotification('Failed to delete task')
+    }
+  }
+
+  const handleDuplicate = async () => {
+    if (!currentBoard) return
+    try {
+      await useBoardStore.getState().duplicateTask(currentBoard.id, task.id)
+      onClose()
+    } catch {
+      addNotification('Failed to duplicate task')
     }
   }
 
@@ -553,6 +564,10 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
           {saving ? 'Saving...' : 'Auto-saved'}
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={handleDuplicate} className="gap-1.5 text-muted-foreground">
+            <Copy className="size-3.5" />
+            Duplicate
+          </Button>
           <Button variant="ghost" size="sm" onClick={handleArchive} className="gap-1.5 text-muted-foreground">
             <Archive className="size-3.5" />
             Archive
