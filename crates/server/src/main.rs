@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod background;
 mod cli;
 mod db;
 mod mcp;
@@ -188,6 +189,8 @@ async fn run_http_server() -> anyhow::Result<()> {
     let (notif_sender, _) = tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
     let notif_tx = notifications::NotifTx(notif_sender);
     let ticket_store = api::notifications::TicketStore::default();
+
+    tokio::spawn(background::deadline_checker(db.clone(), notif_tx.clone()));
 
     let app = api::router(db, rate_limiter)
         .layer(axum::Extension(notif_tx.clone()))
