@@ -43,6 +43,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v6(conn).context("applying migration v6")?;
     }
 
+    if current < 7 {
+        v7(conn).context("applying migration v7")?;
+    }
+
     Ok(())
 }
 
@@ -429,6 +433,32 @@ fn v6(conn: &Connection) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// V7 -- updated_at on comments + FTS5 update trigger for comments
+// ---------------------------------------------------------------------------
+
+fn v7(conn: &Connection) -> anyhow::Result<()> {
+    let tx = conn.unchecked_transaction().context("begin v7 transaction")?;
+    tx.execute_batch(
+        "
+        ALTER TABLE comments ADD COLUMN updated_at TEXT;
+
+        CREATE TRIGGER IF NOT EXISTS search_idx_comment_update AFTER UPDATE ON comments BEGIN
+            DELETE FROM search_index WHERE entity_type = 'comment' AND entity_id = OLD.id;
+            INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+            VALUES ('comment', NEW.id,
+                (SELECT board_id FROM tasks WHERE id = NEW.task_id),
+                NEW.task_id, NEW.content);
+        END;
+
+        INSERT INTO schema_version (version) VALUES (7);
+        ",
+    )
+    .context("v7 migration")?;
+    tx.commit().context("commit v7")?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -445,7 +475,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 6);
+        assert_eq!(ver, 7);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -484,6 +514,9 @@ mod tests {
             .unwrap();
         conn.execute_batch("SELECT 1 FROM attachments LIMIT 0")
             .unwrap();
+        // v7 updated_at on comments
+        conn.execute_batch("SELECT updated_at FROM comments LIMIT 0")
+            .unwrap();
     }
 
     #[test]
@@ -496,7 +529,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 6);
+        assert_eq!(ver, 7);
     }
 
     #[test]
@@ -507,7 +540,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 6);
+        assert_eq!(ver, 7);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();
