@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import Mention from "@tiptap/extension-mention";
 import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
+import tippy, { type Instance as TippyInstance } from "tippy.js";
 import { FileBlock } from "./FileBlockNode";
+import { MentionList } from "./MentionList";
+import type { MentionListRef } from "./MentionList";
 import { api } from "@/lib/api";
+import { useBoardStore } from "@/stores/board";
 import {
   Bold,
   Italic,
@@ -36,6 +41,45 @@ interface TiptapEditorProps {
 export function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
+}
+
+function createMentionSuggestion(members: { id: string; name: string }[]) {
+  return {
+    items: ({ query }: { query: string }) =>
+      members
+        .filter((m) => m.name.toLowerCase().includes(query.toLowerCase()))
+        .slice(0, 5),
+    render: () => {
+      let component: ReactRenderer<MentionListRef> | null = null;
+      let popup: TippyInstance[] | null = null;
+      return {
+        onStart: (props: any) => {
+          component = new ReactRenderer(MentionList, {
+            props,
+            editor: props.editor,
+          });
+          popup = tippy("body", {
+            getReferenceClientRect: props.clientRect,
+            appendTo: () => document.body,
+            content: component.element,
+            showOnCreate: true,
+            interactive: true,
+            trigger: "manual",
+            placement: "bottom-start",
+          });
+        },
+        onUpdate: (props: any) => {
+          component?.updateProps(props);
+          popup?.[0]?.setProps({ getReferenceClientRect: props.clientRect });
+        },
+        onKeyDown: (props: any) => component?.ref?.onKeyDown(props) ?? false,
+        onExit: () => {
+          popup?.[0]?.destroy();
+          component?.destroy();
+        },
+      };
+    },
+  };
 }
 
 function createFileDropExtension(boardId: string, taskId: string) {
@@ -122,6 +166,8 @@ export function TiptapEditor({
   boardId,
   taskId,
 }: TiptapEditorProps) {
+  const members = useBoardStore((s) => s.members);
+
   // Use a ref for onChange so the editor instance doesn't get recreated
   // every time the parent re-renders with a new callback reference.
   const onChangeRef = useRef(onChange);
@@ -144,6 +190,16 @@ export function TiptapEditor({
       Placeholder.configure({ placeholder }),
       Image.configure({ inline: false, allowBase64: false }),
       FileBlock,
+      ...(boardId
+        ? [
+            Mention.configure({
+              HTMLAttributes: { class: "mention" },
+              suggestion: createMentionSuggestion(
+                members.map((m) => ({ id: m.id, name: m.name })),
+              ),
+            }),
+          ]
+        : []),
       ...(boardId && taskId
         ? [createFileDropExtension(boardId, taskId)]
         : []),
