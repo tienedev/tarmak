@@ -3,6 +3,7 @@ mod auth;
 mod cli;
 mod db;
 mod mcp;
+mod notifications;
 mod static_files;
 mod sync;
 

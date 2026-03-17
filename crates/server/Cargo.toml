@@ -27,6 +27,7 @@ hex.workspace = true
 mime_guess.workspace = true
 argon2.workspace = true
 clap.workspace = true
+regex.workspace = true
 futures = "0.3"
 tokio-stream = "0.1"
 tokio-util = "0.7"
