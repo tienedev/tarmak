@@ -62,6 +62,79 @@ export async function createColumn(page: Page, boardId: string, name: string, co
   return (await res.json()) as { id: string }
 }
 
+/** Get auth token from localStorage. */
+export async function getToken(page: Page): Promise<string> {
+  return (await page.evaluate(() => localStorage.getItem('token')))!
+}
+
+/** Create a task via API. Returns task with id. */
+export async function createTask(
+  page: Page,
+  boardId: string,
+  columnId: string,
+  title: string,
+  priority?: string,
+) {
+  const token = await getToken(page)
+  const res = await page.request.post(`${API}/boards/${boardId}/tasks`, {
+    data: { title, column_id: columnId, priority: priority ?? 'medium' },
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return (await res.json()) as { id: string; title: string }
+}
+
+/** Create a label via API. Returns label with id. */
+export async function createLabel(
+  page: Page,
+  boardId: string,
+  name: string,
+  color: string,
+) {
+  const token = await getToken(page)
+  const res = await page.request.post(`${API}/boards/${boardId}/labels`, {
+    data: { name, color },
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return (await res.json()) as { id: string; name: string }
+}
+
+/** Assign a label to a task via API. */
+export async function addTaskLabel(
+  page: Page,
+  boardId: string,
+  taskId: string,
+  labelId: string,
+) {
+  const token = await getToken(page)
+  await page.request.post(`${API}/boards/${boardId}/tasks/${taskId}/labels`, {
+    data: { label_id: labelId },
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+/** Create a subtask via API. */
+export async function createSubtask(
+  page: Page,
+  boardId: string,
+  taskId: string,
+  title: string,
+) {
+  const token = await getToken(page)
+  const res = await page.request.post(`${API}/boards/${boardId}/tasks/${taskId}/subtasks`, {
+    data: { title },
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return (await res.json()) as { id: string; title: string }
+}
+
+/** Create a task via UI (requires being on a board page with a column). */
+export async function createTaskViaUI(page: Page, title: string) {
+  await main(page).getByRole('button', { name: 'Add task' }).click()
+  await page.getByPlaceholder('Task title...').fill(title)
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(main(page).getByText(title)).toBeVisible()
+}
+
 /** Scope selector helper — returns the main content area. */
 export function main(page: Page) {
   return page.getByRole('main')

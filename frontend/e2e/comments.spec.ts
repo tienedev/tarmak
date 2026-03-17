@@ -1,0 +1,111 @@
+import { test, expect } from '@playwright/test'
+import {
+  registerAndLogin,
+  createBoard,
+  createColumn,
+  createTask,
+  getToken,
+  main,
+} from './helpers'
+
+test.describe('Comments', () => {
+  let boardId: string
+  let columnId: string
+
+  test.beforeEach(async ({ page }) => {
+    await registerAndLogin(page, 'comment')
+    const board = await createBoard(page, 'Comment Board')
+    boardId = board.id
+    const col = await createColumn(page, boardId, 'To Do')
+    columnId = col.id
+    await page.reload()
+    await expect(main(page).getByText('To Do')).toBeVisible()
+  })
+
+  test('comments section is collapsed by default', async ({ page }) => {
+    await createTask(page, boardId, columnId, 'Cmt Task')
+    await page.reload()
+    await main(page).getByText('Cmt Task').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    await expect(page.getByRole('dialog').getByText('Comments')).toBeVisible()
+    // Comment input should not be visible when collapsed
+    await expect(page.getByRole('dialog').getByText('No comments yet')).not.toBeVisible()
+  })
+
+  test('can expand comments section and see empty state', async ({ page }) => {
+    await createTask(page, boardId, columnId, 'Empty Cmt Task')
+    await page.reload()
+    await main(page).getByText('Empty Cmt Task').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    await page.getByRole('dialog').getByText('Comments').click()
+    await expect(page.getByRole('dialog').getByText('No comments yet')).toBeVisible()
+  })
+
+  test('can add a comment', async ({ page }) => {
+    await createTask(page, boardId, columnId, 'Add Cmt Task')
+    await page.reload()
+    await main(page).getByText('Add Cmt Task').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    // Expand comments
+    await page.getByRole('dialog').getByText('Comments').click()
+    await expect(page.getByRole('dialog').getByText('No comments yet')).toBeVisible()
+
+    // Type in the Tiptap editor (contenteditable div)
+    const editor = page.getByRole('dialog').locator('.tiptap').last()
+    await editor.click()
+    await editor.fill('Hello from E2E test')
+
+    // Click Comment button
+    await page.getByRole('dialog').getByRole('button', { name: /comment/i }).click()
+
+    // Comment should appear
+    await expect(page.getByRole('dialog').getByText('Hello from E2E test')).toBeVisible()
+    // "No comments yet" should be gone
+    await expect(page.getByRole('dialog').getByText('No comments yet')).not.toBeVisible()
+  })
+
+  test('shows existing comments from API', async ({ page }) => {
+    const task = await createTask(page, boardId, columnId, 'Existing Cmt')
+    const token = await getToken(page)
+
+    // Create comment via API
+    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/comments`, {
+      data: { content: '<p>API comment</p>' },
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    await page.reload()
+    await main(page).getByText('Existing Cmt').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    // Expand comments
+    await page.getByRole('dialog').getByText('Comments').click()
+
+    await expect(page.getByRole('dialog').getByText('API comment')).toBeVisible()
+  })
+
+  test('comment count badge shows after adding comments', async ({ page }) => {
+    const task = await createTask(page, boardId, columnId, 'Badge Task')
+    const token = await getToken(page)
+
+    // Create 2 comments via API
+    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/comments`, {
+      data: { content: '<p>Comment 1</p>' },
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/comments`, {
+      data: { content: '<p>Comment 2</p>' },
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    await page.reload()
+    await main(page).getByText('Badge Task').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    // The comments header should show a badge with "2"
+    await expect(page.getByRole('dialog').getByText('2')).toBeVisible()
+  })
+})
