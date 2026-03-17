@@ -53,6 +53,8 @@ interface BoardState {
   moveColumn: (boardId: string, columnId: string, position: number) => Promise<void>
   archiveColumn: (boardId: string, columnId: string) => Promise<void>
   unarchiveColumn: (boardId: string, columnId: string) => Promise<void>
+  duplicateTask: (boardId: string, taskId: string) => Promise<Task>
+  duplicateBoard: (boardId: string, name: string, includeTasks?: boolean) => Promise<Board>
   clearCurrentBoard: () => void
 }
 
@@ -190,6 +192,25 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       set({ error: message })
       throw err
     }
+  },
+
+  duplicateTask: async (boardId: string, taskId: string) => {
+    const task = await api.duplicateTask(boardId, taskId)
+    // Refetch all tasks to get correct positions after shift
+    const tasks = await api.listTasks(boardId)
+    set({ tasks })
+    notify(`Task "${task.title}" created`)
+    return task
+  },
+
+  duplicateBoard: async (boardId: string, name: string, includeTasks?: boolean) => {
+    const board = await api.duplicateBoard(boardId, {
+      name,
+      include_tasks: includeTasks ?? true,
+    })
+    set({ boards: [...get().boards, board] })
+    notify(`Board "${board.name}" created`)
+    return board
   },
 
   createLabel: async (boardId: string, name: string, color: string) => {

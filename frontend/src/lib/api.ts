@@ -36,6 +36,11 @@ export const api = {
   getBoard: (id: string) => request<Board>(`/boards/${id}`),
   deleteBoard: (id: string) =>
     request<void>(`/boards/${id}`, { method: 'DELETE' }),
+  duplicateBoard: (boardId: string, data: { name: string; include_tasks?: boolean }) =>
+    request<Board>(`/boards/${boardId}/duplicate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // Columns
   listColumns: (boardId: string) =>
@@ -82,6 +87,8 @@ export const api = {
     }),
   deleteTask: (boardId: string, taskId: string) =>
     request<void>(`/boards/${boardId}/tasks/${taskId}`, { method: 'DELETE' }),
+  duplicateTask: (boardId: string, taskId: string) =>
+    request<Task>(`/boards/${boardId}/tasks/${taskId}/duplicate`, { method: 'POST' }),
 
   // Custom Fields
   listFields: (boardId: string) =>

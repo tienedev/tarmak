@@ -12,7 +12,7 @@ Validated on 2026-03-16. Each lot gets its own spec → plan → implementation 
 | Background tasks cleanup | Tache Tokio periodique pour purger les sessions expirees et les entrees rate-limiter stales | `crates/server/src/auth/mod.rs`, `crates/server/src/api/rate_limit.rs` |
 | WebSocket reconnect client | Reconnexion automatique avec backoff exponentiel quand le WS se deconnecte | `frontend/src/lib/sync.ts`, `frontend/src/hooks/useSync.ts` |
 
-**Statut** : En cours de spec
+**Statut** : Fait (PR #14, #15, #16, #17)
 
 ---
 
@@ -29,7 +29,7 @@ Validated on 2026-03-16. Each lot gets its own spec → plan → implementation 
 | CLI `kanwise users list` | Lister les utilisateurs enregistres |
 | Documentation ops | Guide backup/restore, config reverse proxy (nginx/caddy), monitoring/health, upgrade entre versions, limites connues |
 
-**Statut** : A faire
+**Statut** : Partiellement fait (export/import existent dans cli.rs). Backup, restore, users list et docs ops restent a faire.
 
 ---
 
@@ -40,12 +40,13 @@ Validated on 2026-03-16. Each lot gets its own spec → plan → implementation 
 | Chantier | Description |
 |----------|-------------|
 | Notifications persistantes | Table `notifications` en DB, types : mention, assignation, deadline J-1, nouveau commentaire |
-| Notification delivery | Push via WebSocket existant + polling fallback |
+| Notification delivery | SSE avec stream-ticket auth + polling fallback |
 | UI notifications | Badge dans la nav, panneau de notifications, marquer comme lu |
 | Triggers | Declencheurs automatiques lors des mutations (assignation, mention @user dans commentaire, deadline proche) |
-| Markdown commentaires | Utiliser Tiptap dans les commentaires (comme les descriptions de tache) |
+| Markdown commentaires | Utiliser Tiptap dans les commentaires (comme les descriptions de tache), edit/delete |
+| @mentions | Autocomplete Tiptap dans les commentaires avec les membres du board |
 
-**Statut** : A faire
+**Statut** : Fait (PR #20 lot 3b, PR #21 lot 3a)
 
 ---
 

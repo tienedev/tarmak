@@ -608,6 +608,39 @@ impl KanbanMcpServer {
                 self.db.delete_subtask(subtask_id).await?;
                 Ok(format!("deleted subtask {subtask_id}"))
             }
+            // ----- Duplicate -----
+            "duplicate_task" => {
+                let task_id = json_str(data, "task_id")?;
+                let result = self.db.duplicate_task(task_id, board_id).await?;
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let _ = self.db.log_activity(
+                    board_id,
+                    Some(&result.task.id),
+                    user_id,
+                    "task_duplicated",
+                    Some(&serde_json::json!({"source_task_id": task_id, "title": result.task.title}).to_string()),
+                ).await;
+                Ok(format!("duplicated task {} as {}", task_id, result.task.id))
+            }
+            "duplicate_board" => {
+                let name = json_str(data, "name")?;
+                crate::api::validation::validate_title(name)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                let include_tasks = data
+                    .get("include_tasks")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let board = self.db.duplicate_board(board_id, name, include_tasks, user_id).await?;
+                let _ = self.db.log_activity(
+                    &board.id,
+                    None,
+                    user_id,
+                    "board_duplicated",
+                    Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
+                ).await;
+                Ok(format!("duplicated board {} as {}", board_id, board.id))
+            }
             other => bail!("unknown action: {other}"),
         }
     }

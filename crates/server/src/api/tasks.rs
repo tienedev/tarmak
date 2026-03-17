@@ -254,3 +254,20 @@ pub async fn delete(
     ).await;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
+
+pub async fn duplicate(
+    State(db): State<Db>,
+    AuthUser(user): AuthUser,
+    Path((board_id, task_id)): Path<(String, String)>,
+) -> Result<Json<TaskWithRelations>, ApiError> {
+    permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
+    let result = db.duplicate_task(&task_id, &board_id).await?;
+    let _ = db.log_activity(
+        &board_id,
+        Some(&result.task.id),
+        &user.id,
+        "task_duplicated",
+        Some(&serde_json::json!({"source_task_id": task_id, "title": result.task.title}).to_string()),
+    ).await;
+    Ok(Json(result))
+}

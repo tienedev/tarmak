@@ -454,6 +454,339 @@ impl Db {
         })
         .await
     }
+
+    pub async fn duplicate_task(
+        &self,
+        task_id: &str,
+        board_id: &str,
+    ) -> anyhow::Result<TaskWithRelations> {
+        let task_id = task_id.to_string();
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
+            let tx = conn.transaction()?;
+
+            // 1. Read source task, verify board and not archived
+            let src: Task = tx
+                .query_row(
+                    "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived FROM tasks WHERE id = ?1 AND board_id = ?2",
+                    params![task_id, board_id],
+                    map_task_row,
+                )
+                .context("Task not found")?;
+
+            if src.archived {
+                anyhow::bail!("Cannot duplicate an archived task");
+            }
+
+            // 2. Shift positions of subsequent tasks in the same column
+            tx.execute(
+                "UPDATE tasks SET position = position + 1 WHERE column_id = ?1 AND position > ?2 AND archived = 0",
+                params![src.column_id, src.position],
+            )?;
+
+            // 3. Create new task
+            let new_task_id = new_id();
+            let now = now_iso();
+            let now_dt = Utc::now();
+            let new_title = format!("Copy of {}", src.title);
+            let new_position = src.position + 1;
+
+            tx.execute(
+                "INSERT INTO tasks (id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, NULL, ?7, ?8, ?9, 0)",
+                params![new_task_id, board_id, src.column_id, new_title, src.description, src.priority.as_str(), new_position, now, now],
+            )?;
+
+            // 4. Copy task_labels
+            let label_ids: Vec<String> = {
+                let mut label_stmt = tx.prepare(
+                    "SELECT label_id FROM task_labels WHERE task_id = ?1"
+                )?;
+                label_stmt
+                    .query_map(params![task_id], |row| row.get(0))?
+                    .collect::<Result<_, _>>()?
+            };
+            for lid in &label_ids {
+                tx.execute(
+                    "INSERT INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                    params![new_task_id, lid],
+                )?;
+            }
+
+            // 5. Copy subtasks (reset completed to false)
+            let subtasks: Vec<(String, i32)> = {
+                let mut sub_stmt = tx.prepare(
+                    "SELECT title, position FROM subtasks WHERE task_id = ?1 ORDER BY position"
+                )?;
+                sub_stmt
+                    .query_map(params![task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<Result<_, _>>()?
+            };
+            for (sub_title, sub_pos) in &subtasks {
+                tx.execute(
+                    "INSERT INTO subtasks (id, task_id, title, completed, position, created_at) VALUES (?1, ?2, ?3, 0, ?4, ?5)",
+                    params![new_id(), new_task_id, sub_title, sub_pos, now],
+                )?;
+            }
+
+            // 6. Copy task_custom_field_values (table has only task_id, field_id, value -- composite PK)
+            let field_vals: Vec<(String, String)> = {
+                let mut fv_stmt = tx.prepare(
+                    "SELECT field_id, value FROM task_custom_field_values WHERE task_id = ?1"
+                )?;
+                fv_stmt
+                    .query_map(params![task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<Result<_, _>>()?
+            };
+            for (fid, val) in &field_vals {
+                tx.execute(
+                    "INSERT INTO task_custom_field_values (task_id, field_id, value) VALUES (?1, ?2, ?3)",
+                    params![new_task_id, fid, val],
+                )?;
+            }
+
+            // Build labels for response
+            let labels: Vec<Label> = label_ids
+                .iter()
+                .filter_map(|lid| {
+                    tx.query_row(
+                        "SELECT id, board_id, name, color, created_at FROM labels WHERE id = ?1",
+                        params![lid],
+                        |row| {
+                            Ok(Label {
+                                id: row.get(0)?,
+                                board_id: row.get(1)?,
+                                name: row.get(2)?,
+                                color: row.get(3)?,
+                                created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                            })
+                        },
+                    )
+                    .ok()
+                })
+                .collect();
+
+            let subtask_count = SubtaskCount {
+                total: subtasks.len() as i32,
+                completed: 0,
+            };
+
+            let task = Task {
+                id: new_task_id,
+                board_id,
+                column_id: src.column_id,
+                title: new_title,
+                description: src.description,
+                priority: src.priority,
+                assignee: None,
+                due_date: None,
+                position: new_position,
+                created_at: now_dt,
+                updated_at: now_dt,
+                archived: false,
+            };
+
+            tx.commit()?;
+
+            Ok(TaskWithRelations {
+                task,
+                labels,
+                subtask_count,
+                attachment_count: 0,
+            })
+        })
+        .await
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub async fn duplicate_board(
+        &self,
+        board_id: &str,
+        new_name: &str,
+        include_tasks: bool,
+        owner_id: &str,
+    ) -> anyhow::Result<Board> {
+        let board_id = board_id.to_string();
+        let new_name = new_name.to_string();
+        let owner_id = owner_id.to_string();
+        self.with_conn(move |conn| {
+            let tx = conn.transaction()?;
+            let now = now_iso();
+            let now_dt = Utc::now();
+
+            // 1. Verify source board exists
+            tx.query_row("SELECT id FROM boards WHERE id = ?1", params![board_id], |_| Ok(()))
+                .context("Source board not found")?;
+
+            // 2. Create new board
+            let new_board_id = new_id();
+            tx.execute(
+                "INSERT INTO boards (id, name, description, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4)",
+                params![new_board_id, new_name, now, now],
+            )?;
+
+            // 3. Add owner (board_members has only board_id, user_id, role — no id/created_at)
+            tx.execute(
+                "INSERT OR REPLACE INTO board_members (board_id, user_id, role) VALUES (?1, ?2, 'owner')",
+                params![new_board_id, owner_id],
+            )?;
+
+            // 4. Copy columns (skip archived)
+            let mut col_map = std::collections::HashMap::new();
+            {
+                let mut stmt = tx.prepare(
+                    "SELECT id, name, position, wip_limit, color FROM columns WHERE board_id = ?1 AND archived = 0 ORDER BY position"
+                )?;
+                let cols: Vec<(String, String, i64, Option<i64>, Option<String>)> = stmt
+                    .query_map(params![board_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                    })?
+                    .collect::<Result<_, _>>()?;
+                for (old_id, name, pos, wip, color) in cols {
+                    let nid = new_id();
+                    tx.execute(
+                        "INSERT INTO columns (id, board_id, name, position, wip_limit, color, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+                        params![nid, new_board_id, name, pos, wip, color],
+                    )?;
+                    col_map.insert(old_id, nid);
+                }
+            }
+
+            // 5. Copy labels
+            let mut label_map = std::collections::HashMap::new();
+            {
+                let mut stmt = tx.prepare(
+                    "SELECT id, name, color FROM labels WHERE board_id = ?1"
+                )?;
+                let labels: Vec<(String, String, String)> = stmt
+                    .query_map(params![board_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                    })?
+                    .collect::<Result<_, _>>()?;
+                for (old_id, name, color) in labels {
+                    let nid = new_id();
+                    tx.execute(
+                        "INSERT INTO labels (id, board_id, name, color, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                        params![nid, new_board_id, name, color, now],
+                    )?;
+                    label_map.insert(old_id, nid);
+                }
+            }
+
+            // 6. Copy custom_fields (no created_at column)
+            let mut field_map = std::collections::HashMap::new();
+            {
+                let mut stmt = tx.prepare(
+                    "SELECT id, name, field_type, config, position FROM custom_fields WHERE board_id = ?1"
+                )?;
+                let fields: Vec<(String, String, String, Option<String>, i64)> = stmt
+                    .query_map(params![board_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                    })?
+                    .collect::<Result<_, _>>()?;
+                for (old_id, name, ftype, config, pos) in fields {
+                    let nid = new_id();
+                    tx.execute(
+                        "INSERT INTO custom_fields (id, board_id, name, field_type, config, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![nid, new_board_id, name, ftype, config, pos],
+                    )?;
+                    field_map.insert(old_id, nid);
+                }
+            }
+
+            // 7. Copy tasks if requested
+            if include_tasks {
+                let mut task_map = std::collections::HashMap::new();
+                {
+                    let mut stmt = tx.prepare(
+                        "SELECT id, column_id, title, description, priority, position FROM tasks WHERE board_id = ?1 AND archived = 0"
+                    )?;
+                    let tasks: Vec<(String, String, String, Option<String>, String, i64)> = stmt
+                        .query_map(params![board_id], |row| {
+                            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+                        })?
+                        .collect::<Result<_, _>>()?;
+                    for (old_id, old_col_id, title, desc, prio, pos) in tasks {
+                        let new_col_id = match col_map.get(&old_col_id) {
+                            Some(id) => id.clone(),
+                            None => continue, // column was archived, skip
+                        };
+                        let nid = new_id();
+                        tx.execute(
+                            "INSERT INTO tasks (id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, NULL, ?7, ?8, ?9, 0)",
+                            params![nid, new_board_id, new_col_id, title, desc, prio, pos, now, now],
+                        )?;
+                        task_map.insert(old_id, nid);
+                    }
+                }
+
+                // Copy task_labels
+                for (old_task_id, new_task_id) in &task_map {
+                    let lids: Vec<String> = {
+                        let mut stmt = tx.prepare(
+                            "SELECT label_id FROM task_labels WHERE task_id = ?1"
+                        )?;
+                        stmt.query_map(params![old_task_id], |row| row.get(0))?
+                            .collect::<Result<_, _>>()?
+                    };
+                    for old_lid in lids {
+                        if let Some(new_lid) = label_map.get(&old_lid) {
+                            tx.execute(
+                                "INSERT INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                                params![new_task_id, new_lid],
+                            )?;
+                        }
+                    }
+                }
+
+                // Copy subtasks (reset completed to false)
+                for (old_task_id, new_task_id) in &task_map {
+                    let subs: Vec<(String, i32)> = {
+                        let mut stmt = tx.prepare(
+                            "SELECT title, position FROM subtasks WHERE task_id = ?1 ORDER BY position"
+                        )?;
+                        stmt.query_map(params![old_task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+                            .collect::<Result<_, _>>()?
+                    };
+                    for (sub_title, sub_pos) in subs {
+                        tx.execute(
+                            "INSERT INTO subtasks (id, task_id, title, completed, position, created_at) VALUES (?1, ?2, ?3, 0, ?4, ?5)",
+                            params![new_id(), new_task_id, sub_title, sub_pos, now],
+                        )?;
+                    }
+                }
+
+                // Copy task_custom_field_values (composite PK: task_id, field_id)
+                for (old_task_id, new_task_id) in &task_map {
+                    let fvs: Vec<(String, String)> = {
+                        let mut stmt = tx.prepare(
+                            "SELECT field_id, value FROM task_custom_field_values WHERE task_id = ?1"
+                        )?;
+                        stmt.query_map(params![old_task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+                            .collect::<Result<_, _>>()?
+                    };
+                    for (old_fid, val) in fvs {
+                        if let Some(new_fid) = field_map.get(&old_fid) {
+                            tx.execute(
+                                "INSERT INTO task_custom_field_values (task_id, field_id, value) VALUES (?1, ?2, ?3)",
+                                params![new_task_id, new_fid, val],
+                            )?;
+                        }
+                    }
+                }
+            }
+
+            tx.commit()?;
+
+            Ok(Board {
+                id: new_board_id,
+                name: new_name,
+                description: None,
+                created_at: now_dt,
+                updated_at: now_dt,
+            })
+        })
+        .await
+    }
 }
 
 fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
