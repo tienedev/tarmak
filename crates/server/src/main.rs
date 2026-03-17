@@ -185,7 +185,13 @@ async fn run_http_server() -> anyhow::Result<()> {
     let rate_limiter = api::rate_limit::RateLimiter::new(10, 60);
     spawn_cleanup_tasks(db.clone(), rate_limiter.clone());
 
+    let (notif_sender, _) = tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
+    let notif_tx = notifications::NotifTx(notif_sender);
+    let ticket_store = api::notifications::TicketStore::default();
+
     let app = api::router(db, rate_limiter)
+        .layer(axum::Extension(notif_tx.clone()))
+        .layer(axum::Extension(ticket_store))
         .nest("/ws", ws_routes)
         .fallback(static_files::static_handler)
         .layer(cors)
