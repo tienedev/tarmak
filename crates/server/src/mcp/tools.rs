@@ -622,6 +622,25 @@ impl KanbanMcpServer {
                 ).await;
                 Ok(format!("duplicated task {} as {}", task_id, result.task.id))
             }
+            "duplicate_board" => {
+                let name = json_str(data, "name")?;
+                crate::api::validation::validate_title(name)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                let include_tasks = data
+                    .get("include_tasks")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
+                let board = self.db.duplicate_board(board_id, name, include_tasks, user_id).await?;
+                let _ = self.db.log_activity(
+                    &board.id,
+                    None,
+                    user_id,
+                    "board_duplicated",
+                    Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
+                ).await;
+                Ok(format!("duplicated board {} as {}", board_id, board.id))
+            }
             other => bail!("unknown action: {other}"),
         }
     }
