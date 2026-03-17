@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod cli;
 mod db;
 mod mcp;
 mod static_files;
@@ -9,25 +10,89 @@ use std::sync::Arc;
 
 use axum::http::{HeaderValue, Method, HeaderName};
 use axum::{Router, routing::get};
+use clap::{Parser, Subcommand};
 use tower_http::cors::{CorsLayer, AllowOrigin};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing_subscriber::EnvFilter;
 
 use sync::ws::SyncState;
 
+#[derive(Parser)]
+#[command(name = "kanwise", about = "Self-hosted kanban board")]
+struct Args {
+    #[command(subcommand)]
+    command: Option<Cli>,
+}
+
+#[derive(Subcommand)]
+enum Cli {
+    /// Start the HTTP server
+    Serve,
+    /// Run MCP stdio transport
+    Mcp,
+    /// Create an atomic backup of the database
+    Backup {
+        /// Output file path (default: kanwise-backup-YYYYMMDD-HHMMSS.db)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// Restore a database from a backup file
+    Restore {
+        /// Path to the backup file
+        file: String,
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export a board to JSON
+    Export {
+        /// Board ID to export
+        board_id: String,
+        /// Output file (default: stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// Import a board from a Kanwise JSON export
+    Import {
+        /// Path to the JSON file
+        file: String,
+        /// Email of the user who will own the imported board
+        #[arg(long)]
+        owner: String,
+    },
+    /// User management
+    Users {
+        #[command(subcommand)]
+        command: UsersCommand,
+    },
+    /// Reset a user's password
+    ResetPassword {
+        /// User email
+        email: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum UsersCommand {
+    /// List all registered users
+    List,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+    let args = Args::parse();
 
-    if args.contains(&"--mcp".to_string()) {
-        run_mcp_stdio().await
-    } else if let Some(pos) = args.iter().position(|a| a == "--reset-password") {
-        let email = args
-            .get(pos + 1)
-            .ok_or_else(|| anyhow::anyhow!("Usage: kanwise --reset-password <email>"))?;
-        reset_password(email).await
-    } else {
-        run_http_server().await
+    match args.command {
+        None | Some(Cli::Serve) => run_http_server().await,
+        Some(Cli::Mcp) => run_mcp_stdio().await,
+        Some(Cli::ResetPassword { email }) => reset_password(&email).await,
+        Some(Cli::Backup { output }) => cli::backup(output).await,
+        Some(Cli::Restore { file, force }) => cli::restore(&file, force).await,
+        Some(Cli::Export { board_id, output }) => cli::export_board(&board_id, output).await,
+        Some(Cli::Import { file, owner }) => cli::import_board(&file, &owner).await,
+        Some(Cli::Users { command }) => match command {
+            UsersCommand::List => cli::list_users().await,
+        },
     }
 }
 

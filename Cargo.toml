@@ -34,3 +34,4 @@ hex = "0.4"
 mime_guess = "2"
 argon2 = { version = "0.5", features = ["std"] }
 password-hash = { version = "0.5", features = ["getrandom"] }
+clap = { version = "4", features = ["derive"] }
