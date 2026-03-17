@@ -600,5 +600,185 @@ pub async fn import_board(file: &str, owner_email: &str) -> anyhow::Result<()> {
 }
 
 pub async fn list_users() -> anyhow::Result<()> {
-    todo!("list_users")
+    let db = Db::new(&db_path()).await?;
+    let users = db.list_users().await?;
+
+    if users.is_empty() {
+        println!("No users found.");
+        return Ok(());
+    }
+
+    println!(
+        "{:<10} {:<16} {:<30} {:<7} CREATED",
+        "ID", "NAME", "EMAIL", "AGENT"
+    );
+
+    for user in &users {
+        let id_short = if user.id.len() > 8 {
+            format!("{}..", &user.id[..8])
+        } else {
+            user.id.clone()
+        };
+        let agent = if user.is_agent { "yes" } else { "no" };
+        let created = user.created_at.format("%Y-%m-%d");
+        println!(
+            "{:<10} {:<16} {:<30} {:<7} {}",
+            id_short, user.name, user.email, agent, created
+        );
+    }
+
+    println!("\n{} users", users.len());
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::models::{Priority, Role};
+
+    #[tokio::test]
+    async fn export_import_roundtrip() {
+        let db = Db::in_memory().await.unwrap();
+        let board = db.create_board("Roundtrip Test", Some("desc")).await.unwrap();
+        let user = db
+            .create_user("Test User", "test@test.com", None, false, Some("hash"))
+            .await
+            .unwrap();
+        db.add_board_member(&board.id, &user.id, Role::Owner)
+            .await
+            .unwrap();
+
+        let col = db
+            .create_column(&board.id, "To Do", None, None)
+            .await
+            .unwrap();
+        let task = db
+            .create_task(&board.id, &col.id, "Task 1", Some("description"), Priority::High, None)
+            .await
+            .unwrap();
+        let label = db.create_label(&board.id, "Bug", "#ff0000").await.unwrap();
+        db.add_task_label(&task.id, &label.id).await.unwrap();
+        db.create_subtask(&task.id, "Subtask 1").await.unwrap();
+        db.create_comment(&task.id, &user.id, "A comment").await.unwrap();
+
+        // Build export
+        let columns = db.get_all_columns_for_board(&board.id).await.unwrap();
+        let tasks = db.get_all_tasks_for_board(&board.id).await.unwrap();
+        let labels_list = db.list_labels(&board.id).await.unwrap();
+        let label_links = db.get_labels_for_board_tasks(&board.id).await.unwrap();
+        let subtasks = db.get_subtasks_for_board(&board.id).await.unwrap();
+        let comments = db.get_comments_for_board(&board.id).await.unwrap();
+        let custom_fields = db.list_custom_fields(&board.id).await.unwrap();
+        let field_values = db.get_custom_field_values_for_board(&board.id).await.unwrap();
+
+        let export = BoardExport {
+            version: 1,
+            exported_at: chrono::Utc::now(),
+            board: ExportedBoard {
+                id: board.id.clone(),
+                name: board.name.clone(),
+                description: board.description.clone(),
+                created_at: board.created_at,
+                updated_at: board.updated_at,
+            },
+            columns: columns
+                .into_iter()
+                .map(|c| ExportedColumn {
+                    id: c.id,
+                    name: c.name,
+                    position: c.position,
+                    wip_limit: c.wip_limit,
+                    color: c.color,
+                    archived: c.archived,
+                })
+                .collect(),
+            tasks: tasks
+                .into_iter()
+                .map(|t| ExportedTask {
+                    id: t.id,
+                    column_id: t.column_id,
+                    title: t.title,
+                    description: t.description,
+                    priority: t.priority.as_str().to_string(),
+                    assignee: t.assignee,
+                    due_date: t.due_date,
+                    position: t.position,
+                    created_at: t.created_at,
+                    updated_at: t.updated_at,
+                    archived: t.archived,
+                })
+                .collect(),
+            labels: labels_list
+                .into_iter()
+                .map(|l| ExportedLabel {
+                    id: l.id,
+                    name: l.name,
+                    color: l.color,
+                    created_at: l.created_at,
+                })
+                .collect(),
+            task_labels: label_links
+                .into_iter()
+                .map(|(tid, l)| TaskLabelLink {
+                    task_id: tid,
+                    label_id: l.id,
+                })
+                .collect(),
+            subtasks: subtasks
+                .into_iter()
+                .map(|s| ExportedSubtask {
+                    id: s.id,
+                    task_id: s.task_id,
+                    title: s.title,
+                    completed: s.completed,
+                    position: s.position,
+                    created_at: s.created_at,
+                })
+                .collect(),
+            comments: comments
+                .into_iter()
+                .map(|c| ExportedComment {
+                    id: c.id,
+                    task_id: c.task_id,
+                    user_id: c.user_id,
+                    user_name: c.user_name,
+                    content: c.content,
+                    created_at: c.created_at,
+                })
+                .collect(),
+            custom_fields: custom_fields
+                .into_iter()
+                .map(|f| ExportedCustomField {
+                    id: f.id,
+                    name: f.name,
+                    field_type: f.field_type.as_str().to_string(),
+                    config: f.config,
+                    position: f.position,
+                })
+                .collect(),
+            field_values: field_values
+                .into_iter()
+                .map(|v| ExportedFieldValue {
+                    task_id: v.task_id,
+                    field_id: v.field_id,
+                    value: v.value,
+                })
+                .collect(),
+        };
+
+        let json = serde_json::to_string_pretty(&export).unwrap();
+
+        // Parse it back
+        let reimported: BoardExport = serde_json::from_str(&json).unwrap();
+        assert_eq!(reimported.version, 1);
+        assert_eq!(reimported.board.name, "Roundtrip Test");
+        assert_eq!(reimported.columns.len(), 1);
+        assert_eq!(reimported.tasks.len(), 1);
+        assert_eq!(reimported.tasks[0].title, "Task 1");
+        assert_eq!(reimported.labels.len(), 1);
+        assert_eq!(reimported.task_labels.len(), 1);
+        assert_eq!(reimported.subtasks.len(), 1);
+        assert_eq!(reimported.comments.len(), 1);
+        assert_eq!(reimported.comments[0].content, "A comment");
+    }
 }
