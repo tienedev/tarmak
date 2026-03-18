@@ -15,3 +15,10 @@ async fn test_purge_unconfirmed_chains() {
     let purged = context_db::purge::purge_unconfirmed_chains(db.db(), 0).await.unwrap();
     assert_eq!(purged, 1);
 }
+
+#[tokio::test]
+async fn test_db_size_check() {
+    let ctx = context_db::ContextDb::in_memory().await.unwrap();
+    let size = context_db::purge::db_size_bytes(ctx.db()).await.unwrap();
+    assert!(size < 100 * 1024 * 1024);
+}
