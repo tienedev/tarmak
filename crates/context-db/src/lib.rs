@@ -3,6 +3,7 @@
 pub mod db;
 pub mod decay;
 pub mod migrations;
+pub mod purge;
 pub mod recall;
 pub mod store;
 
@@ -23,6 +24,10 @@ impl ContextDb {
     pub async fn in_memory() -> anyhow::Result<Self> {
         let db = Db::in_memory().await?;
         Ok(Self { db })
+    }
+
+    pub fn db(&self) -> &Db {
+        &self.db
     }
 
     pub async fn execution_count(&self) -> anyhow::Result<u64> {
