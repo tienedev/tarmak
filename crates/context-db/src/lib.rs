@@ -2,6 +2,7 @@
 
 pub mod db;
 pub mod decay;
+pub mod mcp;
 pub mod migrations;
 pub mod purge;
 pub mod recall;
