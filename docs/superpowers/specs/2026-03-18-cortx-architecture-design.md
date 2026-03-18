@@ -85,27 +85,41 @@ cortx/
 ```rust
 // cortx-types/src/lib.rs
 use anyhow::Result;
+use std::path::PathBuf;
 
 // ── Core types ──
 
+#[derive(Debug, Clone)]
 pub struct TaskFilter {
     pub board_id: Option<String>,
     pub label: Option<String>,        // e.g., "ai-ready"
     pub priority_min: Option<Priority>,
 }
 
+/// Simplified task view for the orchestrator.
+/// Kanwise's internal Task model has more fields (assignee, position, board_id,
+/// archived, created_at, updated_at). The PlanningOrgan implementation maps
+/// from the full model to this simplified view, joining labels from the
+/// task_labels relation table into a flat Vec<String>.
+#[derive(Debug, Clone)]
 pub struct Task {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
     pub priority: Priority,
-    pub labels: Vec<String>,
+    pub labels: Vec<String>,          // flattened from kanwise label relations
     pub column_id: String,
     pub due_date: Option<String>,
 }
 
+/// Mirrors kanwise::db::models::Priority.
+/// During Phase 1, kanwise's Priority will be replaced by this one
+/// (re-exported from cortx-types) to avoid duplication.
+/// Both kbf and kanwise will depend on cortx-types for this enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Priority { Low, Medium, High, Urgent }
 
+#[derive(Debug, Clone)]
 pub struct Command {
     pub cmd: String,
     pub cwd: PathBuf,
@@ -113,8 +127,10 @@ pub struct Command {
     pub task_id: Option<String>,      // link to kanwise ticket
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionMode { Assisted, Autonomous, Admin }
 
+#[derive(Debug, Clone)]
 pub struct ExecutionResult {
     pub status: Status,
     pub exit_code: Option<i32>,
@@ -129,20 +145,40 @@ pub struct ExecutionResult {
     pub hints: Vec<MemoryHint>,       // populated by orchestrator
 }
 
+#[derive(Debug, Clone)]
 pub struct CodeLocation {
     pub file: String,
     pub line: Option<u32>,
     pub msg: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status { Passed, Failed, Timeout, Blocked, Forbidden }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tier { Safe, Monitored, Dangerous, Forbidden }
 
+#[derive(Debug, Clone, Default)]
 pub struct Budget {
     pub commands_remaining: u32,
     pub cpu_seconds_remaining: u32,
 }
 
+/// Record of a single proxy execution, stored in context-db.
+#[derive(Debug, Clone)]
+pub struct ExecutionRecord {
+    pub session_id: String,
+    pub task_id: Option<String>,
+    pub command: String,
+    pub exit_code: Option<i32>,
+    pub tier: Tier,
+    pub duration_ms: u64,
+    pub summary: String,
+    pub errors: Vec<CodeLocation>,
+    pub files_touched: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Memory {
     Execution(ExecutionRecord),
     CausalChain {
@@ -157,10 +193,12 @@ pub enum Memory {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemorySource { Agent, Proxy, User }
 
 pub struct MemoryId(pub String);
 
+#[derive(Debug, Clone, Default)]
 pub struct RecallQuery {
     pub text: Option<String>,         // FTS5 search
     pub files: Vec<String>,           // filter by file references
@@ -168,6 +206,7 @@ pub struct RecallQuery {
     pub min_confidence: Option<f64>,
 }
 
+#[derive(Debug, Clone)]
 pub struct MemoryHint {
     pub kind: String,                 // "causal_chain" | "project_fact"
     pub summary: String,
@@ -189,6 +228,9 @@ pub trait ActionOrgan {
 pub trait MemoryOrgan {
     async fn store(&self, memory: Memory) -> Result<MemoryId>;
     async fn recall(&self, query: RecallQuery) -> Result<Vec<MemoryHint>>;
+    /// Find the most recent failed execution of a specific command in the current session.
+    /// Used by the orchestrator to build causal chains on success-after-failure.
+    async fn last_failure_for_command(&self, command: &str) -> Result<Option<ExecutionRecord>>;
 }
 ```
 
@@ -329,7 +371,7 @@ The `errors` and `warnings` arrays are populated by **best-effort output parsers
     { "file": "src/sync/ws.rs", "line": 12, "msg": "unused import: tokio::time" }
   ],
   "truncated": true,
-  "budget_remaining": { "commands": 153, "cpu_seconds": 255 }
+  "budget_remaining": { "commands_remaining": 153, "cpu_seconds_remaining": 255 }
 }
 ```
 
@@ -394,7 +436,8 @@ CREATE TABLE causal_chains (
     successes       INTEGER DEFAULT 1,
     confidence      REAL DEFAULT 0.5,
     last_verified   TEXT NOT NULL,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    UNIQUE(trigger_file, trigger_command, resolution_file) -- enables INSERT ON CONFLICT UPDATE for reinforcement
 );
 
 CREATE TABLE project_facts (
