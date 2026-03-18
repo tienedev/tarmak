@@ -3,10 +3,23 @@ name = "cortx"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+name = "cortx"
+
 [[bin]]
 name = "cortx"
+path = "src/main.rs"
 
 [dependencies]
 cortx-types = { path = "../cortx-types" }
+kanwise = { path = "../kanwise" }
+rtk-proxy = { path = "../rtk-proxy" }
+context-db = { path = "../context-db" }
 anyhow.workspace = true
 tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+uuid.workspace = true
