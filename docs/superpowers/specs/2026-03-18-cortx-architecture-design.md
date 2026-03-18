@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-18
 **Status:** Validated
-**Scope:** Refactoring kanwise into cortx — a multi-crate AI development orchestrator
+**Scope:** Cortx — a multi-crate AI development orchestrator that uses kanwise as its planning organ
 
 ---
 
@@ -10,48 +10,68 @@
 
 Cortx is a "central nervous system" for AI-driven development. It orchestrates four independent organs: planning (kanwise), action (rtk-proxy), memory (context-db), and coordination (cortx orchestrator).
 
-The existing kanwise project (kanban board with MCP, KBF protocol, React frontend, SQLite) is refactored into a Rust workspace under the `cortx` name. Kanwise becomes an internal crate — its code stays nearly identical.
+Kanwise remains its own independent project and repository (kanban board with MCP, KBF protocol, React frontend, SQLite). Cortx is a **new project** that imports kanwise as a library dependency alongside its own crates. Both projects coexist as separate repos.
 
 ### Key Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Project name | `cortx` | Available on crates.io, GitHub, npm. Kanwise becomes internal crate. |
-| Repo strategy | Monorepo workspace refactor | Keep GitHub star, single CI, shared crates |
+| Project name | `cortx` | Available on crates.io, GitHub, npm. New repo at `tienedev/cortx`. |
+| Repo strategy | Two repos: `kanwise` (unchanged) + `cortx` (new) | Kanwise keeps its identity, star, and independence. Cortx is a separate product. |
 | MVP flow | Flux A (MCP assisted) first | Test organs with human in the loop before automating |
 | Architecture | Hybrid: lib internally, MCP externally | Speed of Rust calls when orchestrated, independence when standalone |
 | Memory approach | Causal chains + git-aware decay | No LLM dependency, proxy produces structured data natively |
+
+### Dependency Chain (no cycles)
+
+```
+cortx-types       (in cortx repo, zero dependencies)
+     ↑
+kanwise           (in kanwise repo, depends on cortx-types via git)
+     ↑
+cortx             (in cortx repo, depends on kanwise via git)
+rtk-proxy         (in cortx repo, depends on cortx-types)
+context-db        (in cortx repo, depends on cortx-types)
+```
 
 ---
 
 ## 2. System Overview
 
-### 2.1 Workspace Structure
+### 2.1 Repository Structure
 
+**kanwise repo** (existing — `tienedev/kanwise`):
+```
+kanwise/
+├── crates/
+│   ├── server/            # Kanban server (+ lib.rs added for cortx import)
+│   └── kbf/               # KBF protocol
+├── frontend/              # React UI
+└── Cargo.toml             # Adds cortx-types as git dependency
+```
+
+**cortx repo** (new — `tienedev/cortx`):
 ```
 cortx/
 ├── crates/
-│   ├── cortx-types/        # Shared traits, zero implementation
-│   ├── kanwise/            # Planning organ (kanban + HTTP/WS + MCP)
-│   ├── rtk-proxy/          # Action organ (secure command execution + MCP)
-│   ├── context-db/         # Memory organ (SQLite + FTS5 + MCP)
-│   ├── cortx/              # Orchestrator binary (imports 3 organs as lib)
-│   └── kbf/                # KBF protocol (existing, unchanged)
-├── frontend/               # React UI (serves kanwise only)
-├── policies/               # Default cortx-policy.toml
+│   ├── cortx-types/       # Shared traits, common types (no implementation)
+│   ├── rtk-proxy/         # Action organ (secure command execution + MCP)
+│   ├── context-db/        # Memory organ (SQLite + FTS5 + MCP)
+│   └── cortx/             # Orchestrator binary (imports kanwise + organs as lib)
+├── policies/              # Default cortx-policy.toml
 └── docs/
 ```
 
 ### 2.2 Crate Roles
 
-| Crate | Type | Role | Own DB |
-|---|---|---|---|
-| `cortx-types` | lib only | Shared traits, common types | — |
-| `kanwise` | lib + bin | Kanban: boards, tasks, columns, labels, HTTP/WS, MCP | kanwise.db |
-| `rtk-proxy` | lib + bin | Secure command execution, 7-layer pipeline | — (stateless) |
-| `context-db` | lib + bin | Memory: causal chains, git-aware decay, FTS5 | context.db |
-| `cortx` | bin only | Orchestrator: meta-MCP, CLI, future autonomous runner | — |
-| `kbf` | lib only | KBF protocol (existing, unchanged) | — |
+| Crate | Repo | Type | Role | Own DB |
+|---|---|---|---|---|
+| `cortx-types` | cortx | lib only | Shared traits, common types | — |
+| `kanwise` | kanwise | lib + bin | Kanban: boards, tasks, columns, labels, HTTP/WS, MCP | kanwise.db |
+| `kbf` | kanwise | lib only | KBF protocol (unchanged) | — |
+| `rtk-proxy` | cortx | lib + bin | Secure command execution, 7-layer pipeline | — (stateless) |
+| `context-db` | cortx | lib + bin | Memory: causal chains, git-aware decay, FTS5 | context.db |
+| `cortx` | cortx | bin only | Orchestrator: meta-MCP, CLI, future autonomous runner | — |
 
 ### 2.3 Communication Model
 
@@ -772,27 +792,38 @@ The proxy's security layers (budget, tiers, circuit breaker) protect this loop n
 
 ---
 
-## 7. Migration Path
+## 7. Implementation Path
 
-### Principle: Incremental, Never Big Bang
+### Principle: Two repos, incremental, never big bang
 
-Each phase produces a working system. If we stop at phase 2, we still have a compiling, running project.
+Kanwise stays untouched until Phase 1b. Cortx is built from scratch in its own repo. Each phase produces a working system.
 
-### Phase 1 — Workspace Restructuring (risk: low)
+### Phase 1a — Create cortx repo (risk: low)
 
-No business logic changes. Renaming and moving.
+New repo, no impact on kanwise.
 
-1. Rename `crates/server` → `crates/kanwise`, update workspace Cargo.toml
-2. Create empty crates: `cortx-types`, `rtk-proxy`, `context-db`, `cortx`
-3. Add `lib.rs` to kanwise (with both `KanwiseServer` and `Kanwise` structs), expose modules, implement `PlanningOrgan`
-4. Verify everything compiles + tests pass
-5. **Last step:** Rename GitHub repo `kanwise` → `cortx` (GitHub auto-redirects old URLs)
+1. Create `tienedev/cortx` GitHub repo
+2. Initialize Cargo workspace with crates: `cortx-types`, `rtk-proxy`, `context-db`, `cortx`
+3. Implement `cortx-types` (all shared traits and types from Section 2.4)
+4. Verify workspace compiles
 
-**Result:** Same functionality, new structure. Repo rename is deferred to last to avoid breaking existing MCP configs and links mid-refactor.
+**Result:** cortx repo exists with type definitions. Kanwise untouched.
+
+### Phase 1b — Prepare kanwise for cortx integration (risk: low)
+
+Minimal changes to the kanwise repo.
+
+1. Add `cortx-types` as a git dependency: `cortx-types = { git = "https://github.com/tienedev/cortx" }`
+2. Add `lib.rs` to `crates/server/` (with both `KanwiseServer` and `Kanwise` structs)
+3. Expose public modules (`api`, `db`, `mcp`, `auth`, `sync`, `background`, `notifications`)
+4. Implement `PlanningOrgan` trait on `Kanwise` struct
+5. Verify everything compiles + existing tests pass
+
+**Result:** Kanwise is importable as a library. All existing functionality unchanged.
 
 ### Phase 2 — rtk-proxy (risk: low)
 
-Isolated — does not touch existing code.
+Entirely in cortx repo. Does not touch kanwise.
 
 1. Policy engine (parse cortx-policy.toml, allow/deny matching)
 2. Tier classifier (safe/monitored/dangerous/forbidden + tests)
@@ -806,7 +837,9 @@ Isolated — does not touch existing code.
 
 ### Phase 3 — context-db (risk: medium)
 
-1. SQLite schema + migrations (executions, causal_chains, project_facts, FTS5)
+Entirely in cortx repo. Does not touch kanwise.
+
+1. SQLite schema + migrations (executions, causal_chains, project_facts, archived_memories, FTS5 + triggers)
 2. Execution storage (`MemoryOrgan::store` for `Memory::Execution`)
 3. Basic recall (FTS5 search, confidence ranking)
 4. Causal chain builder (fail→edit→pass detection, git diff)
@@ -818,48 +851,55 @@ Isolated — does not touch existing code.
 
 ### Phase 4 — cortx orchestrator (risk: low)
 
-1. `cortx serve` — meta-MCP, import 3 organs
-2. `execute_and_remember()` wiring (proxy→memory, hints, causal chains)
-3. `cortx status`, `cortx doctor`, `cortx rollback`
-4. End-to-end integration tests
+In cortx repo. Depends on kanwise via git.
+
+1. Add kanwise as git dependency: `kanwise = { git = "https://github.com/tienedev/kanwise" }`
+2. `cortx serve` — meta-MCP, import 3 organs as lib
+3. `execute_and_remember()` wiring (proxy→memory, hints, causal chains)
+4. `cortx status`, `cortx doctor`, `cortx rollback`
+5. End-to-end integration tests
 
 **Result:** cortx MVP complete (Flux A).
 
 ### Dependencies
 
 ```
-Phase 1 (workspace)
+Phase 1a (cortx repo + types)
    │
-   ├──→ Phase 2 (rtk-proxy)     ← independent
-   │
-   ├──→ Phase 3 (context-db)    ← independent
-   │
-   └──→ Phase 4 (cortx)         ← depends on 2 + 3
+   └──→ Phase 1b (kanwise lib.rs)
+           │
+           ├──→ Phase 2 (rtk-proxy)     ← independent, cortx repo only
+           │
+           ├──→ Phase 3 (context-db)    ← independent, cortx repo only
+           │
+           └──→ Phase 4 (cortx)         ← depends on 1b + 2 + 3
 ```
 
-Phases 2 and 3 are parallelizable.
+Phases 2 and 3 are parallelizable. Both live entirely in the cortx repo.
 
 ### Surface Estimation
 
-| Phase | New Rust lines (est.) | Existing files modified |
-|---|---|---|
-| Phase 1 | ~200 | 3-4 (renaming) |
-| Phase 2 | ~1500-2000 | 0 |
-| Phase 3 | ~1200-1500 | 0 |
-| Phase 4 | ~500-800 | 0 |
+| Phase | Repo | New Rust lines (est.) | Kanwise files modified |
+|---|---|---|---|
+| Phase 1a | cortx | ~300 (types + workspace) | 0 |
+| Phase 1b | kanwise | ~150 (lib.rs + trait impl) | 2-3 (Cargo.toml, new lib.rs) |
+| Phase 2 | cortx | ~1500-2000 | 0 |
+| Phase 3 | cortx | ~1200-1500 | 0 |
+| Phase 4 | cortx | ~500-800 | 0 |
 
-**Total: ~3500-4500 new lines of Rust.** Existing code (~12,000 lines across server + kbf) stays intact.
+**Total: ~3700-4750 new lines of Rust.** Kanwise existing code (~12,000 lines) stays intact. Only ~150 lines added to kanwise repo (lib.rs + Cargo.toml dep).
 
-### What Does NOT Change During Migration
+### What Does NOT Change in Kanwise
 
 | Component | Impact |
 |---|---|
 | React frontend | Zero. Still talks to `kanwise serve`. |
 | REST API | Zero. Same routes, same handlers. |
-| Existing MCP tools | Zero. board_query/mutate/sync/ask identical (tool surface may evolve independently as kanwise features are added, but that's orthogonal to the cortx migration). |
+| Existing MCP tools | Zero. board_query/mutate/sync/ask identical. |
 | kanwise.db | Zero. Same tables, same migrations. |
 | KBF protocol | Zero. |
-| CI/CD | Update for expanded workspace. |
+| kanwise repo name/URL | Zero. Stays `tienedev/kanwise`. |
+| kanwise CI/CD | Minimal — add cortx-types dependency. |
 
 ---
 
