@@ -61,8 +61,8 @@ jobs:
           key: playwright-${{ hashFiles('frontend/pnpm-lock.yaml') }}
       - run: cd frontend && npx playwright install --with-deps chromium
 
-      # Start backend and wait for health
-      - run: DATABASE_PATH=/tmp/kanwise-e2e.db ./target/release/kanwise &
+      # Start backend and wait for health (disable rate limit for E2E)
+      - run: DATABASE_PATH=/tmp/kanwise-e2e.db RATE_LIMIT_MAX=10000 ./target/release/kanwise &
       - run: timeout 30 bash -c 'until curl -sf http://localhost:3001/api/v1/health; do sleep 1; done'
 
       # Run E2E tests
