@@ -2,8 +2,11 @@
 
 pub mod db;
 pub mod migrations;
+pub mod store;
 
 pub use db::Db;
+
+use cortx_types::{ExecutionRecord, Memory, MemoryHint, MemoryId, MemoryOrgan, RecallQuery};
 
 pub struct ContextDb {
     db: Db,
@@ -28,5 +31,22 @@ impl ContextDb {
                 Ok(count)
             })
             .await
+    }
+}
+
+impl MemoryOrgan for ContextDb {
+    async fn store(&self, memory: Memory) -> anyhow::Result<MemoryId> {
+        store::store_memory(&self.db, memory).await
+    }
+
+    async fn recall(&self, _query: RecallQuery) -> anyhow::Result<Vec<MemoryHint>> {
+        Ok(Vec::new()) // Implemented in Task 18
+    }
+
+    async fn last_failure_for_command(
+        &self,
+        _command: &str,
+    ) -> anyhow::Result<Option<ExecutionRecord>> {
+        Ok(None) // Implemented in Task 18
     }
 }
