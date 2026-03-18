@@ -1,3 +1,5 @@
+#![allow(async_fn_in_trait)] // Traits used only with static dispatch, no dyn/Send needed.
+
 use anyhow::Result;
 use std::path::PathBuf;
 
@@ -240,7 +242,6 @@ pub struct MemoryHint {
 }
 
 // ── Organ traits ──
-
 pub trait PlanningOrgan {
     async fn get_next_task(&self, filter: TaskFilter) -> Result<Task>;
     async fn complete_task(&self, id: &str) -> Result<()>;
