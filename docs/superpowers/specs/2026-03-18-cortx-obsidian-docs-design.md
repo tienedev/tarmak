@@ -45,9 +45,22 @@ cortx/
 
 ## 4. Page Specifications
 
+### Frontmatter Convention
+
+All pages use this base frontmatter (fields omitted when not applicable):
+
+```yaml
+---
+tags: [cortx, <topic>]
+created: 2026-03-18
+---
+```
+
+The MOC additionally uses `aliases`. ADRs additionally use `status` and `supersedes`. Regular pages do not use `status` or `aliases`.
+
 ### 4.1 cortx MOC.md
 
-Central hub. Frontmatter with `tags: [cortx, MOC]` and `aliases: [cortx, cortx docs]`. Body organized by theme with wikilinks:
+Central hub. Frontmatter with `tags: [cortx, moc]`, `aliases: [cortx, cortx docs]`, and `created: 2026-03-18`. Body organized by theme with wikilinks:
 
 - **Big Picture** — `[[Overview]]` · `[[Philosophy]]` · `[[Tech Stack]]`
 - **Architecture** — `[[Architecture]]` · `[[KBF Protocol]]`
@@ -63,7 +76,7 @@ Tags: `cortx`, `overview`. Sections:
 
 1. **What is cortx** — single paragraph: AI-native kanban + dev orchestrator, single binary, self-hosted.
 2. **The 4 Organs** — brief description of kanwise, rtk-proxy, context-db, orchestrator. Mermaid or ASCII diagram inside `> [!info]` callout.
-3. **What Works Today** — bullet list of shipped features (Lot 1 + Lot 3).
+3. **What Works Today** — bullet list of fully shipped features (Lot 1 + Lot 3). Partially shipped items from Lot 2 (export/import) noted separately.
 4. **Current Status** — refactoring status (what's on main vs worktrees). Links to `[[Roadmap]]` and `[[Architecture]]`.
 
 ### 4.3 Philosophy.md
@@ -86,12 +99,13 @@ No code. Links to `[[Architecture]]` and `[[KBF Protocol]]` for the how.
 Tags: `cortx`, `architecture`. Sections:
 
 1. **Monorepo Structure** — workspace layout, Mermaid diagram of crate dependencies.
-2. **Kanwise (Planning Organ)** — Axum REST API, SQLite, WebSocket + Yjs, MCP server (board_query, board_mutate, board_sync, board_ask), embedded frontend.
+2. **Kanwise (Planning Organ)** — Axum REST API, SQLite, WebSocket + Yjs, MCP server (board_query, board_mutate, board_sync — plus board_ask per architecture spec), embedded frontend.
 3. **KBF Protocol** — brief summary with `> [!tip] See [[KBF Protocol]]` callout.
 4. **rtk-proxy (Action Organ)** — planned. 7-layer pipeline diagram. MCP tools: proxy_exec, proxy_status, proxy_rollback.
 5. **context-db (Memory Organ)** — planned. Execution tracking, causal chains, FTS5, confidence decay. MCP tools: memory_store, memory_recall, memory_status.
 6. **Cortx Orchestrator** — planned. Meta-MCP, execute_and_remember loop. Link to `[[Philosophy]]`.
-7. **Data Flow** — two callouts:
+7. **Further Reading** — `> [!info] See [[2026-03-18-cortx-architecture-design]] for the full spec` callout linking to the existing 96KB architecture document in the vault.
+8. **Data Flow** — two callouts:
    - `> [!example] Flux A: Assisted Mode (MCP)` — human → Claude → orchestrator → organs → response
    - `> [!example] Flux B: Autonomous Mode (API)` — planned. Cron → orchestrator → kanwise → API → proxy → commit
 
@@ -182,11 +196,11 @@ What follows — good and bad.
 
 | Feature | Usage |
 |---------|-------|
-| Frontmatter properties | `tags`, `created`, `status`, `aliases` on every page |
+| Frontmatter properties | `tags` + `created` on all pages; `aliases` on MOC only; `status` + `supersedes` on ADRs only |
 | Wikilinks `[[...]]` | All cross-references between pages |
 | Callouts | `> [!abstract]`, `> [!tip]`, `> [!warning]`, `> [!info]`, `> [!example]`, `> [!note]` |
 | Mermaid | Architecture diagrams in Architecture.md |
-| Tags | `#cortx`, `#architecture`, `#workflow`, `#decision`, `#roadmap`, `#philosophy`, `#reference`, `#kbf`, `#overview`, `#MOC` |
+| Tags | `#cortx`, `#architecture`, `#workflow`, `#decision`, `#roadmap`, `#philosophy`, `#reference`, `#kbf`, `#overview`, `#moc` (all lowercase) |
 
 ## 6. Content Sources
 
