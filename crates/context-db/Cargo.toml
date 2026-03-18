@@ -1,0 +1,16 @@
+[package]
+name = "context-db"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "context_db"
+
+[[bin]]
+name = "context-db"
+path = "src/main.rs"
+
+[dependencies]
+cortx-types = { path = "../cortx-types" }
+anyhow.workspace = true
+tokio.workspace = true

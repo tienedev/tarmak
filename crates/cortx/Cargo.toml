@@ -1,0 +1,12 @@
+[package]
+name = "cortx"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "cortx"
+
+[dependencies]
+cortx-types = { path = "../cortx-types" }
+anyhow.workspace = true
+tokio.workspace = true
