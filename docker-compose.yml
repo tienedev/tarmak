@@ -1,11 +1,11 @@
 services:
-  kanban:
+  cortx:
     build: .
     restart: unless-stopped
     ports:
       - "3001:3001"
     volumes:
-      - kanban-data:/data
+      - cortx-data:/data
     environment:
       - DATABASE_PATH=/data/kanwise.db
       - RUST_LOG=info
@@ -13,4 +13,4 @@ services:
       # - KANBAN_ALLOWED_ORIGINS=https://kanwise.dev
 
 volumes:
-  kanban-data:
+  cortx-data:

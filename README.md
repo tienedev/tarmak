@@ -52,8 +52,8 @@ Built in Rust. Ships as 4 binaries. Each organ works standalone or composed thro
 ### From source
 
 ```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
+git clone https://github.com/tienedev/cortx.git
+cd cortx
 cargo build --workspace
 ```
 
@@ -161,17 +161,6 @@ When running standalone, kanwise exposes 3 tools:
 | `board_mutate` | Create, update, move, delete entities |
 | `board_sync` | Apply KBF deltas, return current state |
 
-### Kanban Tracking Skill
-
-Kanwise ships with a framework-agnostic AI skill (`skills/kanban-tracking/SKILL.md`) that auto-tracks work on your board:
-
-- **Spec produced** — proposes tasks from deliverables
-- **Plan written** — maps steps to board tasks
-- **Task completed** — moves it to Done
-- **Branch wrapping up** — flags in-progress tasks
-
-Install via `./scripts/setup-claude.sh` or copy `skills/kanban-tracking/` to `~/.claude/skills/`.
-
 ### Features
 
 **Views** — Drag-and-drop kanban, sortable list, Gantt-style timeline
@@ -191,7 +180,7 @@ Install via `./scripts/setup-claude.sh` or copy `skills/kanban-tracking/` to `~/
 kanwise
 
 # Docker
-docker run -d -p 3001:3001 -v kanwise-data:/data ghcr.io/tienedev/kanwise:latest
+docker run -d -p 3001:3001 -v kanwise-data:/data ghcr.io/tienedev/cortx:latest
 
 # MCP only (stdio, no web server)
 kanwise --mcp
@@ -210,8 +199,8 @@ kanwise --mcp
 ## Contributing
 
 ```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
+git clone https://github.com/tienedev/cortx.git
+cd cortx
 make install  # frontend dependencies
 make dev      # backend (3001) + frontend (3000) with hot reload
 ```
