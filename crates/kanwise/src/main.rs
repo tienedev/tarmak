@@ -1,12 +1,13 @@
-mod api;
-mod auth;
-mod background;
 mod cli;
-mod db;
-mod mcp;
-mod notifications;
-mod static_files;
-mod sync;
+
+use kanwise::api;
+use kanwise::auth;
+use kanwise::background;
+use kanwise::db;
+use kanwise::mcp;
+use kanwise::notifications;
+use kanwise::static_files;
+use kanwise::sync;
 
 use std::sync::Arc;
 

@@ -1,4 +1,4 @@
-use crate::db::Db;
+use kanwise::db::Db;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -637,7 +637,7 @@ pub async fn list_users() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::models::{Priority, Role};
+    use kanwise::db::models::{Priority, Role};
 
     #[tokio::test]
     async fn export_import_roundtrip() {

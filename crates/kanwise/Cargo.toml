@@ -3,6 +3,13 @@ name = "kanwise"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+name = "kanwise"
+
+[[bin]]
+name = "kanwise"
+path = "src/main.rs"
+
 [dependencies]
 axum.workspace = true
 tokio.workspace = true
