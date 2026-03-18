@@ -2,6 +2,7 @@
 
 pub mod db;
 pub mod migrations;
+pub mod recall;
 pub mod store;
 
 pub use db::Db;
@@ -39,14 +40,14 @@ impl MemoryOrgan for ContextDb {
         store::store_memory(&self.db, memory).await
     }
 
-    async fn recall(&self, _query: RecallQuery) -> anyhow::Result<Vec<MemoryHint>> {
-        Ok(Vec::new()) // Implemented in Task 18
+    async fn recall(&self, query: RecallQuery) -> anyhow::Result<Vec<MemoryHint>> {
+        recall::recall(&self.db, query).await
     }
 
     async fn last_failure_for_command(
         &self,
-        _command: &str,
+        command: &str,
     ) -> anyhow::Result<Option<ExecutionRecord>> {
-        Ok(None) // Implemented in Task 18
+        recall::last_failure_for_command(&self.db, command).await
     }
 }
