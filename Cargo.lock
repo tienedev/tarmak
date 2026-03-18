@@ -334,12 +334,14 @@ dependencies = [
  "chrono",
  "clap",
  "cortx-types",
+ "rmcp",
  "rusqlite",
  "serde",
  "serde_json",
  "tokio",
  "tokio-rusqlite",
  "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 
@@ -358,6 +360,7 @@ dependencies = [
  "context-db",
  "cortx-types",
  "kanwise",
+ "rmcp",
  "rtk-proxy",
  "serde",
  "serde_json",
