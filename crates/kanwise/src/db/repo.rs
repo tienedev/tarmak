@@ -2750,6 +2750,76 @@ impl Db {
 }
 
 // ---------------------------------------------------------------------------
+// PlanningOrgan helpers
+// ---------------------------------------------------------------------------
+
+impl Db {
+    pub async fn get_next_ai_task(
+        &self,
+        board_id: Option<&str>,
+        label_name: &str,
+    ) -> anyhow::Result<Option<(Task, Vec<String>)>> {
+        let board_id = board_id.map(String::from);
+        let label_name = label_name.to_string();
+        self.with_conn(move |conn| {
+            let mut sql = String::from(
+                "SELECT t.id, t.board_id, t.column_id, t.title, t.description,
+                        t.priority, t.assignee, t.due_date, t.position,
+                        t.created_at, t.updated_at, t.archived
+                 FROM tasks t
+                 JOIN task_labels tl ON t.id = tl.task_id
+                 JOIN labels l ON tl.label_id = l.id
+                 WHERE l.name = ?1 AND t.archived = 0",
+            );
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> =
+                vec![Box::new(label_name)];
+
+            if let Some(bid) = &board_id {
+                sql.push_str(" AND t.board_id = ?2");
+                params.push(Box::new(bid.clone()));
+            }
+
+            sql.push_str(
+                " ORDER BY CASE t.priority
+                    WHEN 'urgent' THEN 0
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    WHEN 'low' THEN 3
+                    ELSE 4
+                  END ASC,
+                  CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC,
+                  t.due_date ASC
+                 LIMIT 1",
+            );
+
+            let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            let mut stmt = conn.prepare(&sql)?;
+            let task = stmt
+                .query_row(&*params_refs, map_task_row)
+                .optional()?;
+
+            match task {
+                Some(t) => {
+                    let mut label_stmt = conn.prepare(
+                        "SELECT l.name FROM labels l
+                         JOIN task_labels tl ON l.id = tl.label_id
+                         WHERE tl.task_id = ?1",
+                    )?;
+                    let labels: Vec<String> = label_stmt
+                        .query_map(rusqlite::params![t.id], |row| row.get(0))?
+                        .filter_map(|r| r.ok())
+                        .collect();
+                    Ok(Some((t, labels)))
+                }
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
