@@ -1,6 +1,4 @@
-use cortx_types::{
-    CodeLocation, ExecutionRecord, Memory, MemoryOrgan, MemorySource, RecallQuery, Tier,
-};
+use cortx_types::{CodeLocation, ExecutionRecord, Memory, MemoryOrgan, MemorySource, RecallQuery, Tier};
 
 #[tokio::test]
 async fn test_recall_fts5_search() {
@@ -93,4 +91,26 @@ async fn test_last_failure_for_command() {
 
     let no_fail = db.last_failure_for_command("cargo clippy").await.unwrap();
     assert!(no_fail.is_none());
+}
+
+#[tokio::test]
+async fn test_recall_error_patterns() {
+    let ctx = context_db::ContextDb::in_memory().await.unwrap();
+    ctx.store(Memory::CausalChain {
+        trigger_file: "src/auth.rs".into(),
+        trigger_error: Some("assertion failed: token.is_valid()".into()),
+        resolution_files: vec!["src/db/repo.rs".into()],
+    })
+    .await
+    .unwrap();
+
+    let hints = ctx
+        .recall(RecallQuery {
+            error_patterns: vec!["assertion failed".into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(!hints.is_empty(), "Should find causal chain matching error pattern");
+    assert!(hints[0].summary.contains("auth.rs"));
 }

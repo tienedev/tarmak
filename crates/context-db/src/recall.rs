@@ -95,6 +95,56 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
         }
     }
 
+    // Error-pattern search on causal_chains
+    if !query.error_patterns.is_empty() {
+        let patterns = query.error_patterns.clone();
+        let min_conf = query.min_confidence.unwrap_or(0.0);
+        let project_root_owned = project_root.map(|s| s.to_string());
+        let error_results = db
+            .with_conn(move |conn| {
+                let mut all_results = Vec::new();
+                for pattern in &patterns {
+                    let like_pattern = format!("%{pattern}%");
+                    let mut stmt = conn.prepare(
+                        "SELECT trigger_file, trigger_error, resolution_file, confidence
+                         FROM causal_chains WHERE trigger_error LIKE ?1 AND confidence >= ?2
+                         ORDER BY confidence DESC LIMIT 10",
+                    )?;
+                    let rows: Vec<(String, Option<String>, String, f64)> = stmt
+                        .query_map(rusqlite::params![like_pattern, min_conf], |row| {
+                            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                        })?
+                        .filter_map(|r| r.ok())
+                        .collect();
+                    all_results.extend(rows);
+                }
+                Ok(all_results)
+            })
+            .await?;
+        for (trigger, error, resolution, raw_confidence) in error_results {
+            let confidence = match project_root_owned.as_deref() {
+                Some(cwd) => {
+                    let commits =
+                        crate::decay::count_commits_since(&trigger, "1970-01-01", cwd);
+                    crate::decay::compute_confidence(
+                        raw_confidence,
+                        commits,
+                        crate::decay::DEFAULT_CHURN_NORMALIZER,
+                    )
+                }
+                None => raw_confidence,
+            };
+            let error_str = error.as_deref().unwrap_or("unknown error");
+            hints.push(MemoryHint {
+                kind: "causal_chain".to_string(),
+                summary: format!(
+                    "When {trigger} fails with \"{error_str}\", check {resolution}"
+                ),
+                confidence,
+            });
+        }
+    }
+
     Ok(hints)
 }
 
