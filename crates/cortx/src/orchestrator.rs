@@ -85,28 +85,26 @@ impl Orchestrator {
                     ..Default::default()
                 })
                 .await
+                && !hints.is_empty()
             {
-                if !hints.is_empty() {
-                    return Ok(result.with_hints(hints));
-                }
+                return Ok(result.with_hints(hints));
             }
             return Ok(result);
         }
 
         // 4. On success after previous failure of SAME COMMAND → build causal chain
-        if result.status == Status::Passed {
-            if let Ok(Some(prev_fail)) = self.memory.last_failure_for_command(&cmd_str).await {
-                if let Some(trigger) = prev_fail.errors.first() {
-                    let _ = self
-                        .memory
-                        .store(Memory::CausalChain {
-                            trigger_file: trigger.file.clone(),
-                            trigger_error: Some(trigger.msg.clone()),
-                            resolution_files: result.files_touched.clone(),
-                        })
-                        .await;
-                }
-            }
+        if result.status == Status::Passed
+            && let Ok(Some(prev_fail)) = self.memory.last_failure_for_command(&cmd_str).await
+            && let Some(trigger) = prev_fail.errors.first()
+        {
+            let _ = self
+                .memory
+                .store(Memory::CausalChain {
+                    trigger_file: trigger.file.clone(),
+                    trigger_error: Some(trigger.msg.clone()),
+                    resolution_files: result.files_touched.clone(),
+                })
+                .await;
         }
 
         Ok(result)
