@@ -1,6 +1,7 @@
 //! context-db — Memory organ for cortx (SQLite + FTS5).
 
 pub mod db;
+pub mod decay;
 pub mod migrations;
 pub mod recall;
 pub mod store;
