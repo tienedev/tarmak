@@ -183,7 +183,7 @@ async fn run_http_server() -> anyhow::Result<()> {
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
         .allow_headers([HeaderName::from_static("content-type"), HeaderName::from_static("authorization")]);
 
-    let rate_max: u32 = std::env::var("RATE_LIMIT_MAX")
+    let rate_max: usize = std::env::var("RATE_LIMIT_MAX")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
