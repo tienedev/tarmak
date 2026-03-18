@@ -71,7 +71,10 @@ impl ActionOrgan for Proxy {
         if cmd.mode == ExecutionMode::Admin {
             let executor = Executor::new(self.sandbox.timeout_secs());
             let env: Vec<(String, String)> = std::env::vars().collect();
+            let before_snapshot = crate::git::status_snapshot(&cmd.cwd);
             let raw = executor.run(&cmd.cmd, &cmd.cwd, &env).await?;
+            let after_snapshot = crate::git::status_snapshot(&cmd.cwd);
+            let files_touched = crate::git::diff_snapshots(&before_snapshot, &after_snapshot);
             let (output, truncated) = self
                 .output_processor
                 .process(&format!("{}\n{}", raw.stdout, raw.stderr));
@@ -94,7 +97,7 @@ impl ActionOrgan for Proxy {
                 truncated,
                 budget_remaining: self.remaining_budget(),
                 hints: Vec::new(),
-                files_touched: Vec::new(),
+                files_touched,
             });
         }
 
@@ -145,8 +148,11 @@ impl ActionOrgan for Proxy {
         let env_filtered = self.sandbox.filter_env(&env_full);
 
         // Execute
+        let before_snapshot = crate::git::status_snapshot(&cmd.cwd);
         let executor = Executor::new(self.sandbox.timeout_secs());
         let raw = executor.run(&cmd.cmd, &cmd.cwd, &env_filtered).await?;
+        let after_snapshot = crate::git::status_snapshot(&cmd.cwd);
+        let files_touched = crate::git::diff_snapshots(&before_snapshot, &after_snapshot);
 
         // Output processing
         let combined = format!("{}\n{}", raw.stdout, raw.stderr);
@@ -205,7 +211,7 @@ impl ActionOrgan for Proxy {
             truncated,
             budget_remaining: self.remaining_budget(),
             hints: Vec::new(),
-            files_touched: Vec::new(),
+            files_touched,
         })
     }
 }

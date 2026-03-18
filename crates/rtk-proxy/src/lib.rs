@@ -2,6 +2,7 @@
 
 pub mod budget;
 pub mod execute;
+pub mod git;
 pub mod mcp;
 pub mod output;
 pub mod policy;
