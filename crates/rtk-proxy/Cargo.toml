@@ -14,3 +14,11 @@ path = "src/main.rs"
 cortx-types = { path = "../cortx-types" }
 anyhow.workspace = true
 tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml = "0.8"
+glob-match = "0.2"
+regex.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
