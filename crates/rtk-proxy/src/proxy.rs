@@ -147,6 +147,17 @@ impl ActionOrgan for Proxy {
         let env_full: Vec<(String, String)> = std::env::vars().collect();
         let env_filtered = self.sandbox.filter_env(&env_full);
 
+        // Checkpoint before monitored/dangerous commands
+        let _checkpoint_created = match tier {
+            Tier::Monitored if self.policy.checkpoint.before_monitored => {
+                crate::git::create_checkpoint(&cmd.cwd)
+            }
+            Tier::Dangerous if self.policy.checkpoint.before_dangerous => {
+                crate::git::create_checkpoint(&cmd.cwd)
+            }
+            _ => false,
+        };
+
         // Execute
         let before_snapshot = crate::git::status_snapshot(&cmd.cwd);
         let executor = Executor::new(self.sandbox.timeout_secs());

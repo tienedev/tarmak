@@ -39,3 +39,60 @@ pub fn diff_snapshots(
         .map(|(file, _)| file.clone())
         .collect()
 }
+
+const CHECKPOINT_MSG: &str = "cortx-checkpoint";
+
+/// Create a git stash checkpoint. Returns true if a stash was created.
+pub fn create_checkpoint(cwd: &Path) -> bool {
+    // Count stashes before
+    let before = Command::new("git")
+        .args(["stash", "list"])
+        .current_dir(cwd)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).lines().count())
+        .unwrap_or(0);
+
+    let _ = Command::new("git")
+        .args(["stash", "push", "--include-untracked", "-m", CHECKPOINT_MSG])
+        .current_dir(cwd)
+        .output();
+
+    // Count stashes after — if it grew, a stash was created
+    let after = Command::new("git")
+        .args(["stash", "list"])
+        .current_dir(cwd)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).lines().count())
+        .unwrap_or(0);
+
+    after > before
+}
+
+/// Restore the most recent cortx checkpoint. Returns true if restored.
+pub fn restore_checkpoint(cwd: &Path) -> bool {
+    let list = Command::new("git")
+        .args(["stash", "list"])
+        .current_dir(cwd)
+        .output();
+    let stash_ref = match list {
+        Ok(out) => {
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .find(|l| l.contains(CHECKPOINT_MSG))
+                .and_then(|l| l.split(':').next())
+                .map(|s| s.to_string())
+        }
+        Err(_) => None,
+    };
+    match stash_ref {
+        Some(r) => {
+            Command::new("git")
+                .args(["stash", "pop", &r])
+                .current_dir(cwd)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        }
+        None => false,
+    }
+}
