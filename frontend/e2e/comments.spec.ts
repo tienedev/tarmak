@@ -28,7 +28,8 @@ test.describe('Comments', () => {
     await main(page).getByText('Cmt Task').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
-    await expect(page.getByRole('dialog').getByText('Comments')).toBeVisible()
+    // "Comments" button should be visible (collapsed header)
+    await expect(page.getByRole('dialog').getByRole('button', { name: /Comments/ })).toBeVisible()
     // Comment input should not be visible when collapsed
     await expect(page.getByRole('dialog').getByText('No comments yet')).not.toBeVisible()
   })
@@ -39,7 +40,8 @@ test.describe('Comments', () => {
     await main(page).getByText('Empty Cmt Task').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
-    await page.getByRole('dialog').getByText('Comments').click()
+    // Click the Comments collapsible button
+    await page.getByRole('dialog').getByRole('button', { name: /Comments/ }).click()
     await expect(page.getByRole('dialog').getByText('No comments yet')).toBeVisible()
   })
 
@@ -50,7 +52,7 @@ test.describe('Comments', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
 
     // Expand comments
-    await page.getByRole('dialog').getByText('Comments').click()
+    await page.getByRole('dialog').getByRole('button', { name: /Comments/ }).click()
     await expect(page.getByRole('dialog').getByText('No comments yet')).toBeVisible()
 
     // Type in the Tiptap editor (contenteditable div)
@@ -59,7 +61,7 @@ test.describe('Comments', () => {
     await editor.fill('Hello from E2E test')
 
     // Click Comment button
-    await page.getByRole('dialog').getByRole('button', { name: /comment/i }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Comment', exact: true }).click()
 
     // Comment should appear
     await expect(page.getByRole('dialog').getByText('Hello from E2E test')).toBeVisible()
@@ -82,7 +84,7 @@ test.describe('Comments', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
 
     // Expand comments
-    await page.getByRole('dialog').getByText('Comments').click()
+    await page.getByRole('dialog').getByRole('button', { name: /Comments/ }).click()
 
     await expect(page.getByRole('dialog').getByText('API comment')).toBeVisible()
   })
@@ -106,6 +108,7 @@ test.describe('Comments', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
 
     // The comments header should show a badge with "2"
-    await expect(page.getByRole('dialog').getByText('2')).toBeVisible()
+    const commentsBtn = page.getByRole('dialog').getByRole('button', { name: /Comments/ })
+    await expect(commentsBtn.getByText('2')).toBeVisible()
   })
 })

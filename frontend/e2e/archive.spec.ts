@@ -28,7 +28,8 @@ test.describe('Archive', () => {
     await main(page).getByText('Task to Archive').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
-    await page.getByRole('dialog').getByRole('button', { name: 'Archive' }).click()
+    // The Archive button is in the task dialog footer — use exact match
+    await page.getByRole('dialog').getByRole('button', { name: 'Archive', exact: true }).click()
 
     // Task should disappear from the board
     await expect(page.getByRole('dialog')).toBeHidden()
@@ -48,13 +49,13 @@ test.describe('Archive', () => {
     // Task should not be visible on the board
     await expect(main(page).getByText('Archived Item')).not.toBeVisible()
 
-    // Open archives panel
-    await main(page).getByText('Archives').click()
-    await expect(page.getByText('Archived Item')).toBeVisible()
+    // Open archives panel via header button
+    await main(page).getByRole('button', { name: 'Archives' }).click()
+    await expect(page.locator('[role="dialog"]').getByText('Archived Item')).toBeVisible()
   })
 
   test('archives panel shows empty state when nothing archived', async ({ page }) => {
-    await main(page).getByText('Archives').click()
-    await expect(page.getByText('No archived items')).toBeVisible()
+    await main(page).getByRole('button', { name: 'Archives' }).click()
+    await expect(page.locator('[role="dialog"]').getByText('No archived items')).toBeVisible()
   })
 })

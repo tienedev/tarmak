@@ -5,12 +5,18 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
-  timeout: 120_000,
+  workers: 4,
+  timeout: 300_000,
   reporter: process.env.CI ? [['list'], ['html']] : 'list',
   use: {
     baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',
+  },
+  webServer: {
+    command: 'cd .. && cargo run',
+    url: 'http://localhost:3001/api/v1/health',
+    reuseExistingServer: true,
+    timeout: 120_000,
   },
   projects: [
     {

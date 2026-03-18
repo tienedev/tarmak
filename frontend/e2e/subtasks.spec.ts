@@ -28,8 +28,9 @@ test.describe('Subtasks', () => {
     await main(page).getByText('Task with subtasks').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
-    // "Subtasks" label should be visible but input should not
-    await expect(page.getByRole('dialog').getByText('Subtasks')).toBeVisible()
+    // "Subtasks" button should be visible (collapsed header)
+    await expect(page.getByRole('dialog').getByRole('button', { name: /Subtasks/ })).toBeVisible()
+    // Subtask input should not be visible when collapsed
     await expect(page.getByRole('dialog').getByPlaceholder('Add subtask...')).not.toBeVisible()
   })
 
@@ -39,7 +40,7 @@ test.describe('Subtasks', () => {
     await main(page).getByText('Expandable Task').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
-    await page.getByRole('dialog').getByText('Subtasks').click()
+    await page.getByRole('dialog').getByRole('button', { name: /Subtasks/ }).click()
     await expect(page.getByRole('dialog').getByPlaceholder('Add subtask...')).toBeVisible()
   })
 
@@ -50,7 +51,7 @@ test.describe('Subtasks', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
 
     // Expand subtasks
-    await page.getByRole('dialog').getByText('Subtasks').click()
+    await page.getByRole('dialog').getByRole('button', { name: /Subtasks/ }).click()
     await page.getByRole('dialog').getByPlaceholder('Add subtask...').fill('First subtask')
     await page.getByRole('dialog').getByPlaceholder('Add subtask...').press('Enter')
 
@@ -66,11 +67,11 @@ test.describe('Subtasks', () => {
     await main(page).getByText('Toggle Task').click()
     await expect(page.getByRole('dialog')).toBeVisible()
 
-    await page.getByRole('dialog').getByText('Subtasks').click()
+    await page.getByRole('dialog').getByRole('button', { name: /Subtasks/ }).click()
     await expect(page.getByRole('dialog').getByText('(0/1)')).toBeVisible()
 
     // Toggle the checkbox
-    await page.getByRole('dialog').locator('input[type="checkbox"]').last().check()
+    await page.getByRole('dialog').getByRole('checkbox').check()
 
     await expect(page.getByRole('dialog').getByText('(1/1)')).toBeVisible()
   })
@@ -86,7 +87,7 @@ test.describe('Subtasks', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
 
     // Expand and verify
-    await page.getByRole('dialog').getByText('Subtasks').click()
+    await page.getByRole('dialog').getByRole('button', { name: /Subtasks/ }).click()
     await expect(page.getByRole('dialog').getByText('(0/3)')).toBeVisible()
     await expect(page.getByRole('dialog').getByText('Sub A')).toBeVisible()
     await expect(page.getByRole('dialog').getByText('Sub B')).toBeVisible()

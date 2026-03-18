@@ -3,6 +3,7 @@ import {
   registerAndLogin,
   createBoard,
   createColumn,
+  getToken,
   main,
 } from './helpers'
 
@@ -34,10 +35,9 @@ test.describe('Column management', () => {
     const board = await createBoard(page, 'Task Col Board')
     const col1 = await createColumn(page, board.id, 'Backlog')
     const col2 = await createColumn(page, board.id, 'Active')
-    await page.reload()
+    const token = await getToken(page)
 
     // Create tasks via API in specific columns
-    const token = await page.evaluate(() => localStorage.getItem('token'))
     await page.request.post(`/api/v1/boards/${board.id}/tasks`, {
       data: { title: 'Backlog Task', column_id: col1.id },
       headers: { Authorization: `Bearer ${token}` },

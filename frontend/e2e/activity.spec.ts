@@ -12,9 +12,11 @@ test.describe('Activity panel', () => {
     await registerAndLogin(page, 'activity-open')
     await createBoard(page, 'Activity Board')
 
-    await main(page).getByText('Activity').click()
+    // Click the Activity button in the header (scoped to main to avoid ambiguity)
+    await main(page).getByRole('button', { name: 'Activity' }).click()
 
-    await expect(page.getByText('Activity Log')).toBeVisible()
+    // The drawer title is "Activity" rendered via SheetTitle
+    await expect(page.locator('[role="dialog"]').getByText('Activity')).toBeVisible()
   })
 
   test('creating a task generates activity entries', async ({ page }) => {
@@ -25,11 +27,11 @@ test.describe('Activity panel', () => {
 
     await createTaskViaUI(page, 'Tracked Task')
 
-    // Open activity panel
-    await main(page).getByText('Activity').click()
-    await expect(page.getByText('Activity Log')).toBeVisible()
+    // Open activity panel via header button
+    await main(page).getByRole('button', { name: 'Activity' }).click()
+    await expect(page.locator('[role="dialog"]').getByText('Activity')).toBeVisible()
 
     // Should have entries related to task creation
-    await expect(page.getByText(/task/i)).toBeVisible()
+    await expect(page.locator('[role="dialog"]').getByText(/created/i)).toBeVisible()
   })
 })

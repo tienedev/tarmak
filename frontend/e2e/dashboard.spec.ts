@@ -15,16 +15,17 @@ test.describe('Dashboard', () => {
     await page.goto('/#/')
 
     await expect(main(page).getByText('Dashboard')).toBeVisible()
-    await expect(main(page).getByText('First Board')).toBeVisible()
-    await expect(main(page).getByText('Second Board')).toBeVisible()
+    // Boards should be listed in sidebar
+    await expect(page.getByRole('link', { name: 'First Board' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Second Board' })).toBeVisible()
   })
 
-  test('clicking a board card navigates to it', async ({ page }) => {
+  test('clicking a board in sidebar navigates to it', async ({ page }) => {
     await registerAndLogin(page, 'dash-nav')
     await createBoard(page, 'Clickable Board')
     await page.goto('/#/')
 
-    await main(page).getByText('Clickable Board').click()
+    await page.getByRole('link', { name: 'Clickable Board' }).click()
     await expect(page).toHaveURL(/#\/boards\//)
     await expect(main(page).getByRole('heading', { name: 'Clickable Board' })).toBeVisible()
   })
