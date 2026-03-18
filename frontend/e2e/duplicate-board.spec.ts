@@ -6,7 +6,6 @@ import {
   createTask,
   createLabel,
   addTaskLabel,
-  createSubtask,
   main,
 } from './helpers'
 
@@ -17,12 +16,10 @@ test.describe('Duplicate board', () => {
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
 
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('dialog').getByText('Duplicate board')).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await expect(dialog).toBeVisible()
     // Name should be pre-filled
-    await expect(page.getByRole('dialog').locator('input[type="text"]')).toHaveValue(
-      'Copy of Source Board',
-    )
+    await expect(dialog.locator('input[type="text"]')).toHaveValue('Copy of Source Board')
   })
 
   test('can duplicate a board and navigate to it', async ({ page }) => {
@@ -32,14 +29,15 @@ test.describe('Duplicate board', () => {
     await page.reload()
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await expect(page.getByRole('dialog')).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await expect(dialog).toBeVisible()
 
     // Change the name
-    const nameInput = page.getByRole('dialog').locator('input[type="text"]')
+    const nameInput = dialog.locator('input[type="text"]')
     await nameInput.clear()
     await nameInput.fill('Cloned Board')
 
-    await page.getByRole('dialog').getByRole('button', { name: 'Duplicate' }).click()
+    await dialog.getByRole('button', { name: 'Duplicate' }).click()
 
     // Should navigate to the new board
     await expect(main(page).getByRole('heading', { name: 'Cloned Board' })).toBeVisible()
@@ -58,13 +56,14 @@ test.describe('Duplicate board', () => {
     await expect(main(page).getByText('Task Alpha')).toBeVisible()
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await expect(page.getByRole('dialog')).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await expect(dialog).toBeVisible()
 
     // Include tasks is checked by default
-    const checkbox = page.getByRole('dialog').locator('input[type="checkbox"]')
+    const checkbox = dialog.locator('input[type="checkbox"]')
     await expect(checkbox).toBeChecked()
 
-    await page.getByRole('dialog').getByRole('button', { name: 'Duplicate' }).click()
+    await dialog.getByRole('button', { name: 'Duplicate' }).click()
 
     // Wait for navigation to new board
     await expect(main(page).getByRole('heading', { name: 'Copy of Tasks Board' })).toBeVisible()
@@ -83,14 +82,15 @@ test.describe('Duplicate board', () => {
     await expect(main(page).getByText('A task')).toBeVisible()
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await expect(page.getByRole('dialog')).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await expect(dialog).toBeVisible()
 
     // Uncheck "Include tasks"
-    const checkbox = page.getByRole('dialog').locator('input[type="checkbox"]')
+    const checkbox = dialog.locator('input[type="checkbox"]')
     await checkbox.uncheck()
     await expect(checkbox).not.toBeChecked()
 
-    await page.getByRole('dialog').getByRole('button', { name: 'Duplicate' }).click()
+    await dialog.getByRole('button', { name: 'Duplicate' }).click()
 
     // New board has the column but no tasks
     await expect(main(page).getByRole('heading', { name: 'Copy of Structure Board' })).toBeVisible()
@@ -105,7 +105,8 @@ test.describe('Duplicate board', () => {
     await createLabel(page, board.id, 'Urgent', '#ef4444')
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Duplicate' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await dialog.getByRole('button', { name: 'Duplicate' }).click()
 
     // Navigate to the new board's settings to check labels
     await expect(main(page).getByRole('heading', { name: 'Copy of Labels Board' })).toBeVisible()
@@ -129,14 +130,16 @@ test.describe('Duplicate board', () => {
     await expect(main(page).getByText('Tagged Task')).toBeVisible()
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Duplicate' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await dialog.getByRole('button', { name: 'Duplicate' }).click()
 
     await expect(main(page).getByRole('heading', { name: 'Copy of TLabel Board' })).toBeVisible()
 
     // Open the task to verify the label is present
     await main(page).getByText('Tagged Task').click()
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('dialog').getByText('Critical')).toBeVisible()
+    const taskDialog = page.getByRole('dialog', { name: 'Tagged Task' })
+    await expect(taskDialog).toBeVisible()
+    await expect(taskDialog.getByText('Critical')).toBeVisible()
   })
 
   test('duplicated board appears in sidebar', async ({ page }) => {
@@ -144,7 +147,8 @@ test.describe('Duplicate board', () => {
     await createBoard(page, 'Sidebar Board')
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Duplicate' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await dialog.getByRole('button', { name: 'Duplicate' }).click()
 
     await expect(main(page).getByRole('heading', { name: 'Copy of Sidebar Board' })).toBeVisible()
 
@@ -158,10 +162,11 @@ test.describe('Duplicate board', () => {
     await createBoard(page, 'Cancel Board')
 
     await main(page).getByRole('button', { name: /duplicate board/i }).click()
-    await expect(page.getByRole('dialog')).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
+    await expect(dialog).toBeVisible()
 
-    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
-    await expect(page.getByRole('dialog')).toBeHidden()
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
 
     // Still on the same board
     await expect(main(page).getByRole('heading', { name: 'Cancel Board' })).toBeVisible()

@@ -70,8 +70,8 @@ test.describe('Subtasks', () => {
     await page.getByRole('dialog').getByRole('button', { name: /Subtasks/ }).click()
     await expect(page.getByRole('dialog').getByText('(0/1)')).toBeVisible()
 
-    // Toggle the checkbox
-    await page.getByRole('dialog').getByRole('checkbox').check()
+    // Click the checkbox (use click instead of check — React controlled state)
+    await page.getByRole('dialog').locator('input[type="checkbox"]').click()
 
     await expect(page.getByRole('dialog').getByText('(1/1)')).toBeVisible()
   })
