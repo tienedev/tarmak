@@ -1,8 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/server",
+    "crates/cortx-types",
+    "crates/kanwise",
     "crates/kbf",
+    "crates/rtk-proxy",
+    "crates/context-db",
+    "crates/cortx",
 ]
 
 [workspace.package]

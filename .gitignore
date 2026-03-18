@@ -3,10 +3,11 @@
 /frontend/dist
 *.db
 *.db-journal
-.env
-.worktrees/
-.claude/
 *.db-shm
 *.db-wal
+.env
 .mcp.json
-docs/plans/
+.worktrees/
+.claude/
+.superpowers/
+.DS_Store
