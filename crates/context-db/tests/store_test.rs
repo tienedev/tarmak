@@ -45,6 +45,7 @@ async fn test_store_causal_chain() {
         .store(Memory::CausalChain {
             trigger_file: "src/auth.rs".to_string(),
             trigger_error: Some("assertion failed".to_string()),
+            trigger_command: None,
             resolution_files: vec!["src/db/repo.rs".to_string()],
         })
         .await

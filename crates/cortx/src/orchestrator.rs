@@ -94,6 +94,7 @@ impl Orchestrator {
 
         // 4. On success after previous failure of SAME COMMAND → build causal chain
         if result.status == Status::Passed
+            && !result.files_touched.is_empty()
             && let Ok(Some(prev_fail)) = self.memory.last_failure_for_command(&cmd_str).await
             && let Some(trigger) = prev_fail.errors.first()
         {
@@ -102,6 +103,7 @@ impl Orchestrator {
                 .store(Memory::CausalChain {
                     trigger_file: trigger.file.clone(),
                     trigger_error: Some(trigger.msg.clone()),
+                    trigger_command: Some(cmd_str.clone()),
                     resolution_files: result.files_touched.clone(),
                 })
                 .await;

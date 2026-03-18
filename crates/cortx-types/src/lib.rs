@@ -208,6 +208,7 @@ pub enum Memory {
     CausalChain {
         trigger_file: String,
         trigger_error: Option<String>,
+        trigger_command: Option<String>,
         resolution_files: Vec<String>,
     },
     ProjectFact {

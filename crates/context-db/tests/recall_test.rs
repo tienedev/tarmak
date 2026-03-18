@@ -35,6 +35,7 @@ async fn test_recall_by_file() {
     db.store(Memory::CausalChain {
         trigger_file: "src/auth.rs".to_string(),
         trigger_error: Some("assertion failed".to_string()),
+        trigger_command: None,
         resolution_files: vec!["src/db/repo.rs".to_string()],
     })
     .await
@@ -99,6 +100,7 @@ async fn test_recall_error_patterns() {
     ctx.store(Memory::CausalChain {
         trigger_file: "src/auth.rs".into(),
         trigger_error: Some("assertion failed: token.is_valid()".into()),
+        trigger_command: None,
         resolution_files: vec!["src/db/repo.rs".into()],
     })
     .await

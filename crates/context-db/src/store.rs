@@ -9,8 +9,9 @@ pub async fn store_memory(db: &Db, memory: Memory) -> Result<MemoryId> {
         Memory::CausalChain {
             trigger_file,
             trigger_error,
+            trigger_command,
             resolution_files,
-        } => store_causal_chain(db, trigger_file, trigger_error, resolution_files).await,
+        } => store_causal_chain(db, trigger_file, trigger_error, trigger_command, resolution_files).await,
         Memory::ProjectFact {
             fact,
             citation,
@@ -60,6 +61,7 @@ async fn store_causal_chain(
     db: &Db,
     trigger_file: String,
     trigger_error: Option<String>,
+    trigger_command: Option<String>,
     resolution_files: Vec<String>,
 ) -> Result<MemoryId> {
     let id = uuid::Uuid::new_v4().to_string();
@@ -70,15 +72,16 @@ async fn store_causal_chain(
         let id_inner = uuid::Uuid::new_v4().to_string();
         let trigger_file = trigger_file.clone();
         let trigger_error = trigger_error.clone();
+        let cmd = trigger_command.clone().unwrap_or_default();
         let now = now.clone();
         db.with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO causal_chains (id, trigger_file, trigger_error, trigger_command, resolution_file, last_verified, created_at)
-                 VALUES (?1, ?2, ?3, '', ?4, ?5, ?5)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
                  ON CONFLICT(trigger_file, trigger_command, resolution_file) DO UPDATE SET
                    attempts = attempts + 1, successes = successes + 1,
-                   confidence = MIN(1.0, confidence + 0.1), last_verified = ?5",
-                rusqlite::params![id_inner, trigger_file, trigger_error, res_file, now],
+                   confidence = MIN(1.0, confidence + 0.1), last_verified = ?6",
+                rusqlite::params![id_inner, trigger_file, trigger_error, cmd, res_file, now],
             )?;
             Ok(())
         })

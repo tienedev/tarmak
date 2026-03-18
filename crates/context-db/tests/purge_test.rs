@@ -6,6 +6,7 @@ async fn test_purge_unconfirmed_chains() {
     db.store(Memory::CausalChain {
         trigger_file: "src/auth.rs".to_string(),
         trigger_error: Some("error".to_string()),
+        trigger_command: None,
         resolution_files: vec!["src/fix.rs".to_string()],
     })
     .await
