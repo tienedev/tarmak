@@ -14,6 +14,12 @@ pub struct BoardDocManager {
     docs: Arc<RwLock<HashMap<String, Arc<Doc>>>>,
 }
 
+impl Default for BoardDocManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BoardDocManager {
     pub fn new() -> Self {
         Self {
@@ -104,6 +110,13 @@ impl BoardDocManager {
     pub async fn len(&self) -> usize {
         let docs = self.docs.read().await;
         docs.len()
+    }
+
+    /// Returns true if no docs are currently held.
+    #[allow(dead_code)]
+    pub async fn is_empty(&self) -> bool {
+        let docs = self.docs.read().await;
+        docs.is_empty()
     }
 }
 

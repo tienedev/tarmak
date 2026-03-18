@@ -126,7 +126,7 @@ impl Tier {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_str_db(s: &str) -> Option<Self> {
         match s {
             "safe" => Some(Self::Safe),
             "monitored" => Some(Self::Monitored),

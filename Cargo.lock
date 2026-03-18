@@ -327,10 +327,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "context-db"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cortx-types",
+ "tokio",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
+
+[[package]]
+name = "cortx"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cortx-types",
+ "tokio",
+]
+
+[[package]]
+name = "cortx-types"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -829,6 +855,7 @@ dependencies = [
  "axum",
  "chrono",
  "clap",
+ "cortx-types",
  "dashmap",
  "futures",
  "hex",
@@ -1231,6 +1258,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "rtk-proxy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cortx-types",
+ "tokio",
 ]
 
 [[package]]
