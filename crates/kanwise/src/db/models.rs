@@ -155,14 +155,6 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct BoardMember {
-    pub board_id: String,
-    pub user_id: String,
-    pub role: Role,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Comment {
     pub id: String,
     pub task_id: String,

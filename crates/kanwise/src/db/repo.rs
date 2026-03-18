@@ -1340,53 +1340,6 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    /// Get or create the "Local User" for no-auth development mode.
-    #[allow(dead_code)]
-    pub async fn get_or_create_local_user(&self) -> anyhow::Result<User> {
-        self.with_conn(move |conn| {
-            // Try to find the first non-agent user
-            let existing = conn.query_row(
-                "SELECT id, name, email, avatar_url, is_agent, created_at
-                 FROM users WHERE is_agent = 0 ORDER BY created_at LIMIT 1",
-                [],
-                |row| {
-                    let is_agent: i64 = row.get(4)?;
-                    Ok(User {
-                        id: row.get(0)?,
-                        name: row.get(1)?,
-                        email: row.get(2)?,
-                        avatar_url: row.get(3)?,
-                        is_agent: is_agent != 0,
-                        created_at: parse_dt(&row.get::<_, String>(5)?)?,
-                    })
-                },
-            );
-            match existing {
-                Ok(user) => Ok(user),
-                Err(rusqlite::Error::QueryReturnedNoRows) => {
-                    // No user exists — create one
-                    let id = new_id();
-                    let now = now_iso();
-                    conn.execute(
-                        "INSERT INTO users (id, name, email, avatar_url, is_agent, created_at)
-                         VALUES (?1, ?2, ?3, NULL, 0, ?4)",
-                        params![id, "Local User", "local@localhost", now],
-                    ).context("insert local user")?;
-                    Ok(User {
-                        id,
-                        name: "Local User".to_string(),
-                        email: "local@localhost".to_string(),
-                        avatar_url: None,
-                        is_agent: false,
-                        created_at: Utc::now(),
-                    })
-                }
-                Err(e) => Err(e.into()),
-            }
-        })
-        .await
-    }
-
     pub async fn create_user(
         &self,
         name: &str,
@@ -1416,33 +1369,6 @@ impl Db {
                 is_agent,
                 created_at: Utc::now(),
             })
-        })
-        .await
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_user_by_id(&self, id: &str) -> anyhow::Result<Option<User>> {
-        let id = id.to_string();
-        self.with_conn(move |conn| {
-            let mut stmt = conn.prepare(
-                "SELECT id, name, email, avatar_url, is_agent, created_at
-                 FROM users WHERE id = ?1",
-            )?;
-            let mut rows = stmt.query_map(params![id], |row| {
-                let is_agent: i64 = row.get(4)?;
-                Ok(User {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    email: row.get(2)?,
-                    avatar_url: row.get(3)?,
-                    is_agent: is_agent != 0,
-                    created_at: parse_dt(&row.get::<_, String>(5)?)?,
-                })
-            })?;
-            match rows.next() {
-                Some(r) => Ok(Some(r?)),
-                None => Ok(None),
-            }
         })
         .await
     }
