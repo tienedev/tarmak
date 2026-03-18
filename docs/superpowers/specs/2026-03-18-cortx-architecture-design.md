@@ -117,8 +117,11 @@ pub struct Task {
 /// Mirrors kanwise::db::models::Priority.
 /// During Phase 1, kanwise's Priority will be replaced by this one
 /// (re-exported from cortx-types) to avoid duplication.
-/// Both kbf and kanwise will depend on cortx-types for this enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// KBF does not use Priority directly (it works with strings).
+/// Note: serde is a second dependency for cortx-types, gated behind
+/// a `serde` feature flag. The existing helper methods (as_str, from_str_db,
+/// short, from_short, Display) must be migrated from kanwise's Priority impl.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Priority { Low, Medium, High, Urgent }
 
 #[derive(Debug, Clone)]
@@ -461,6 +464,9 @@ CREATE TABLE archived_memories (
 );
 
 -- FTS5 with triggers for automatic sync
+-- IMPORTANT: project_facts must NOT use WITHOUT ROWID, because FTS5 content sync
+-- relies on the implicit integer rowid. Consider using kanwise's standalone FTS5
+-- pattern (non-content table with manual triggers) if this proves fragile.
 CREATE VIRTUAL TABLE memory_fts USING fts5(
     fact, citation, content=project_facts, content_rowid=rowid
 );
@@ -603,13 +609,19 @@ pub struct Kanwise {
 
 impl cortx_types::PlanningOrgan for Kanwise {
     async fn get_next_task(&self, filter: TaskFilter) -> Result<Task> {
-        // Filter by label "ai-ready", sort by priority then deadline
+        // Requires a new Db method (e.g., get_next_ai_task) that:
+        // - Filters tasks by label "ai-ready" (JOIN task_labels + labels)
+        // - Sorts by priority (urgent > high > medium > low) then deadline
+        // - Returns first match
+        // The existing list_tasks(board_id, limit, offset) does not filter by label.
     }
     async fn complete_task(&self, id: &str) -> Result<()> {
         // Move task to done column + log activity
+        // Reuses existing update_task + log_activity methods
     }
     async fn list_tasks(&self, board_id: &str) -> Result<Vec<Task>> {
-        // Reuses existing repo.rs methods
+        // Reuses existing repo.rs list_tasks, then maps kanwise::Task → cortx_types::Task
+        // Mapping requires joining labels (get_task_labels) into Vec<String>
     }
 }
 ```
@@ -724,37 +736,58 @@ This is cortx's core value. The proxy alone can't store. Memory alone can't obse
 ```rust
 impl CortxOrchestrator {
     async fn execute_and_remember(&self, cmd: Command) -> Result<ExecutionResult> {
-        // 1. Proxy executes
+        // 1. Proxy executes — this is the only operation that can fail the call
         let result = self.proxy.execute(cmd).await?;
 
-        // 2. Store execution in memory
-        self.memory.store(Memory::Execution(result.clone())).await?;
+        // 2. Convert ExecutionResult → ExecutionRecord for storage
+        //    CortxOrchestrator maintains a session_id (UUID created at startup).
+        //    files_touched comes from the proxy's git-status-diff (before/after execution).
+        let record = ExecutionRecord {
+            session_id: self.session_id.clone(),
+            task_id: cmd.task_id.clone(),
+            command: result.command.clone(),
+            exit_code: result.exit_code,
+            tier: result.tier,
+            duration_ms: result.duration_ms,
+            summary: result.summary.clone(),
+            errors: result.errors.clone(),
+            files_touched: result.files_touched.clone(),
+        };
 
-        // 3. On failure → check if memory knows this pattern
+        // 3. Store execution — best-effort, memory failure never blocks the result
+        let _ = self.memory.store(Memory::Execution(record)).await;
+
+        // 4. On failure → check if memory knows this pattern (best-effort)
         if result.status == Status::Failed {
-            let hints = self.memory.recall(RecallQuery {
+            if let Ok(hints) = self.memory.recall(RecallQuery {
                 files: result.error_files(),
                 error_patterns: result.error_messages(),
-            }).await?;
-            return Ok(result.with_hints(hints));
+                ..Default::default()
+            }).await {
+                return Ok(result.with_hints(hints));
+            }
+            return Ok(result);
         }
 
-        // 4. On success after previous failure of SAME COMMAND → build causal chain
-        if let Some(prev_fail) = self.memory.last_failure_for_command(
+        // 5. On success after previous failure of SAME COMMAND → build causal chain
+        if let Ok(Some(prev_fail)) = self.memory.last_failure_for_command(
             &result.command, // same-command filter prevents spurious correlations
-        )? {
-            let modified = git_diff_files(prev_fail.timestamp, result.timestamp)?;
-            self.memory.store(Memory::CausalChain {
+        ).await {
+            let modified = git_diff_files(prev_fail.timestamp, result.timestamp)
+                .unwrap_or_default();
+            let _ = self.memory.store(Memory::CausalChain {
                 trigger_file: prev_fail.error_files().first().unwrap().clone(),
                 trigger_error: prev_fail.errors.first().map(|e| e.msg.clone()),
                 resolution_files: modified,
-            }).await?;
+            }).await;
         }
 
         Ok(result)
     }
 }
 ```
+
+**Key principle:** Memory operations in `execute_and_remember` are best-effort. A memory system failure (DB locked, disk full) must never cause a successful proxy execution to be reported as failed. All memory calls use `let _` or `if let Ok` to degrade gracefully.
 
 ### 6.5 Future: Autonomous Loop (Flux B — not in MVP)
 
@@ -786,10 +819,11 @@ No business logic changes. Renaming and restructuring.
 
 1. Rename `crates/server` → `crates/kanwise`, update workspace Cargo.toml
 2. Create new crates: `cortx-types`, `rtk-proxy` (empty), `context-db` (empty), `cortx` (empty)
-3. Implement `cortx-types` (all shared traits and types from Section 2.4)
-4. Add `lib.rs` to kanwise (with both `KanwiseServer` and `Kanwise` structs), expose modules, implement `PlanningOrgan`
-5. Verify everything compiles + existing tests pass
-6. **Last step:** Rename GitHub repo `kanwise` → `cortx` (GitHub auto-redirects old URLs)
+3. Create `policies/` directory with a default `cortx-policy.toml`
+4. Implement `cortx-types` (all shared traits and types from Section 2.4)
+5. Add `lib.rs` to kanwise, expose modules, implement `PlanningOrgan`. Note: `KanwiseServer` is an extraction of state currently assembled as local variables in `main.rs` and passed as Axum `Extension`s — this is a small but real refactoring of the startup path, not just renaming. Add a new `Db` method (`get_next_ai_task`) for label-filtered task queries.
+6. Verify everything compiles + existing tests pass
+7. **Last step:** Rename GitHub repo `kanwise` → `cortx` (GitHub auto-redirects old URLs)
 
 **Result:** Same functionality, new structure. All dependencies are workspace path deps.
 
