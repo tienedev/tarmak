@@ -1299,12 +1299,14 @@ dependencies = [
  "cortx-types",
  "glob-match",
  "regex",
+ "rmcp",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "toml",
  "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

@@ -4,7 +4,7 @@ use rusqlite::OptionalExtension;
 
 use crate::db::Db;
 
-pub async fn recall(db: &Db, query: RecallQuery) -> Result<Vec<MemoryHint>> {
+pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> Result<Vec<MemoryHint>> {
     let mut hints = Vec::new();
 
     // FTS5 text search on project_facts
@@ -70,7 +70,22 @@ pub async fn recall(db: &Db, query: RecallQuery) -> Result<Vec<MemoryHint>> {
                 Ok(results)
             })
             .await?;
-        for (trigger, error, resolution, confidence) in chain_results {
+        for (trigger, error, resolution, raw_confidence) in chain_results {
+            let confidence = match project_root {
+                Some(cwd) => {
+                    let commits =
+                        crate::decay::count_commits_since(&trigger, "1970-01-01", cwd);
+                    crate::decay::compute_confidence(
+                        raw_confidence,
+                        commits,
+                        crate::decay::DEFAULT_CHURN_NORMALIZER,
+                    )
+                }
+                None => raw_confidence,
+            };
+            if confidence < query.min_confidence.unwrap_or(0.0) {
+                continue;
+            }
             let error_str = error.as_deref().unwrap_or("unknown error");
             hints.push(MemoryHint {
                 kind: "causal_chain".to_string(),
@@ -79,6 +94,7 @@ pub async fn recall(db: &Db, query: RecallQuery) -> Result<Vec<MemoryHint>> {
             });
         }
     }
+
     Ok(hints)
 }
 
