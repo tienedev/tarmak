@@ -19,7 +19,7 @@ test.describe('Duplicate board', () => {
     const dialog = page.getByRole('dialog', { name: 'Duplicate board' })
     await expect(dialog).toBeVisible()
     // Name should be pre-filled
-    await expect(dialog.locator('input[type="text"]')).toHaveValue('Copy of Source Board')
+    await expect(dialog.getByRole('textbox')).toHaveValue('Copy of Source Board')
   })
 
   test('can duplicate a board and navigate to it', async ({ page }) => {
@@ -33,7 +33,7 @@ test.describe('Duplicate board', () => {
     await expect(dialog).toBeVisible()
 
     // Change the name
-    const nameInput = dialog.locator('input[type="text"]')
+    const nameInput = dialog.getByRole('textbox')
     await nameInput.clear()
     await nameInput.fill('Cloned Board')
 
