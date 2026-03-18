@@ -1,45 +1,149 @@
 <div align="center">
 
-# Kanwise
+# Cortx
 
-**The AI-native kanban board. Self-hosted. Single binary.**
+**AI development orchestrator. Secure execution, persistent memory, task planning.**
 
-[Why Kanwise](#why-kanwise) · [Quick Start](#quick-start) · [MCP Tools](#mcp-tools) · [Kanban Tracking Skill](#kanban-tracking-skill) · [Features](#features) · [Contributing](#contributing)
+[Architecture](#architecture) · [Quick Start](#quick-start) · [MCP Tools](#mcp-tools) · [Kanwise Board](#kanwise-board) · [Contributing](#contributing)
 
 </div>
 
 ---
 
-Kanwise is a self-hosted kanban board designed for AI-first workflows. It ships as a single binary — Rust backend, React frontend, and SQLite all embedded. No external dependencies.
+Cortx is an orchestrator for AI-assisted development. It wires together three organs — a **secure command proxy**, a **persistent memory**, and a **kanban planner** — behind a single MCP server that any AI agent can talk to.
 
-What makes it different: a built-in **MCP server** and a custom **KBF protocol** that makes AI interactions with your boards **~95% more token-efficient** than raw JSON.
+Built in Rust. Ships as 4 binaries. Each organ works standalone or composed through the orchestrator.
 
-## Why Kanwise
+## Architecture
 
-### Built for AI agents
-
-Kanwise speaks MCP natively. Claude, or any MCP-compatible agent, can query, create, move, and organize your tasks — directly from your IDE or chat.
-
-Only 3 tools are exposed (`board_query`, `board_mutate`, `board_sync`), intentionally minimal to reduce token overhead and keep agent interactions fast and cheap.
-
-```mermaid
-flowchart LR
-    A["🤖 AI Agent<br/>(Claude, etc.)"] -->|MCP protocol| B["Kanwise<br/>MCP Server"]
-    B -->|"board_query · board_mutate · board_sync"| C[("SQLite<br/>+ CRDTs")]
-    C -->|"KBF response<br/>~142 tokens"| A
-
-    style A fill:#f8f9fa,stroke:#6c63ff,stroke-width:2px
-    style B fill:#6c63ff,stroke:#6c63ff,color:#fff
-    style C fill:#f8f9fa,stroke:#6c63ff,stroke-width:2px
 ```
+┌─────────────────────────────────────────────────┐
+│                  cortx (orchestrator)            │
+│         Meta-MCP server — 9 tools, stdio        │
+├────────────────┬───────────────┬────────────────┤
+│   rtk-proxy    │  context-db   │    kanwise     │
+│  Action organ  │ Memory organ  │ Planning organ │
+│                │               │                │
+│ 7-layer secure │ SQLite + FTS5 │ Kanban board   │
+│ cmd execution  │ Causal chains │ REST + WS +    │
+│ Git checkpoint │ Decay model   │ MCP + KBF      │
+│ Policy engine  │ Purge rules   │ Real-time sync │
+└────────────────┴───────────────┴────────────────┘
+```
+
+| Crate | Role | Binary |
+|-------|------|--------|
+| `cortx-types` | Shared types + organ traits | — |
+| `rtk-proxy` | Secure command execution (policy, sandbox, budget, circuit breaker) | `rtk-proxy` |
+| `context-db` | Memory with FTS5 search, causal chains, git-aware confidence decay | `context-db` |
+| `kanwise` | AI-native kanban board (REST, WebSocket, MCP, KBF protocol) | `kanwise` |
+| `cortx` | Orchestrator wiring all 3 organs | `cortx` |
+
+### How it works
+
+1. **Agent calls `proxy_exec`** — command goes through the 7-layer pipeline (policy → tier → budget → sandbox → execute → output → circuit breaker)
+2. **Execution is remembered** — result stored in context-db with files touched, errors, duration
+3. **On failure → recall** — context-db searches causal chains for known fix patterns
+4. **On success after failure → learn** — a causal chain is created linking the error to the fix
+5. **Tasks tracked** — kanwise board keeps the agent's work organized
+
+## Quick Start
+
+### From source
+
+```bash
+git clone https://github.com/tienedev/kanwise.git
+cd kanwise
+cargo build --workspace
+```
+
+This produces 4 binaries in `target/debug/`:
+
+```bash
+./target/debug/cortx --help       # Orchestrator (meta-MCP + CLI)
+./target/debug/rtk-proxy --help   # Command proxy (MCP + CLI)
+./target/debug/context-db --help  # Memory organ (MCP + CLI)
+./target/debug/kanwise --help     # Kanban board (web server + MCP)
+```
+
+### Run the orchestrator
+
+```bash
+# Start the meta-MCP server (exposes all 9 tools on stdio)
+cortx serve --project . --policy cortx-policy.toml
+
+# Or run organs individually
+rtk-proxy mcp --policy cortx-policy.toml
+context-db mcp --db context.db
+kanwise --mcp
+```
+
+### MCP configuration
+
+Add to your Claude Code MCP config:
+
+```json
+{
+  "mcpServers": {
+    "cortx": {
+      "command": "cortx",
+      "args": ["serve", "--project", "/path/to/your/project"]
+    }
+  }
+}
+```
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_PATH` | `kanwise.db` | Kanwise SQLite database |
+| `KANBAN_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3001` | CORS origins |
+| `KANBAN_ENV` | — | Set to `production` to enforce security |
+
+The proxy is configured via `cortx-policy.toml` (command tiers, sandbox rules, budget limits).
+
+## MCP Tools
+
+The `cortx serve` meta-MCP exposes 9 tools across all 3 organs:
+
+### Proxy (Action)
+
+| Tool | Description |
+|------|-------------|
+| `proxy_exec` | Execute a command through the secure 7-layer pipeline |
+| `proxy_status` | Remaining budget, circuit breaker state |
+| `proxy_rollback` | Restore last git checkpoint |
+
+### Memory
+
+| Tool | Description |
+|------|-------------|
+| `memory_store` | Store a project fact |
+| `memory_recall` | Search memory (FTS5 + confidence ranking) |
+| `memory_status` | Execution count, causal chains, DB size |
+
+### Planning
+
+| Tool | Description |
+|------|-------------|
+| `planning_next_task` | Get next task matching a filter |
+| `planning_complete_task` | Mark a task as done |
+| `planning_list_tasks` | List tasks for a board |
+
+Each organ also runs as a standalone MCP server with its own subset of tools.
+
+## Kanwise Board
+
+The planning organ is a full-featured kanban board with a web UI.
 
 ### KBF: 95% fewer tokens
 
-Traditional project management tools send entire JSON payloads to AI agents. Kanwise uses **KBF (Kanban Bit Format)**, a compact wire protocol that encodes board state with schema headers and positional delimiters.
+Kanwise uses **KBF (Kanban Bit Format)**, a compact protocol for AI interactions:
 
 ```
 # JSON: 2,847 tokens
-{"boards":[{"id":"abc-123","name":"Sprint 24","columns":[{"id":"col-1","name":"Todo","position":0,"tasks":[{"id":"task-1","title":"Fix auth bug","priority":"high",...}]}]}]}
+{"boards":[{"id":"abc-123","name":"Sprint 24","columns":[...]}]}
 
 # KBF: 142 tokens (95% reduction)
 B|abc-123|Sprint 24
@@ -47,217 +151,75 @@ C|col-1|Todo|0
 T|task-1|Fix auth bug|high|0
 ```
 
-This means your AI agents consume dramatically fewer tokens per interaction — saving cost and context window for what matters.
+### Kanwise MCP tools
 
-### Real-time collaboration
-
-CRDT-based sync powered by Yjs. Multiple users edit simultaneously with automatic conflict resolution. Live presence shows who's viewing what — like Figma, but for your kanban board.
-
-### One binary, zero ops
-
-```bash
-./kanwise  # that's it
-```
-
-No Postgres, no Redis, no Docker required. SQLite embedded. Frontend embedded. Serves everything on port 3001. Deploy anywhere that runs a binary.
-
-## Quick Start
-
-### One-liner setup (recommended)
-
-Pulls the Docker image, configures MCP for Claude Code, and installs the kanban-tracking skill. Nothing else to do.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tienedev/kanwise/main/scripts/setup-claude.sh | bash -s -- --docker
-```
-
-Restart Claude Code, then try: *"Create a board called Sprint 24 with columns Todo, In Progress, Review, Done"*
-
-**Requires:** Docker, `curl`, `python3`.
-
-### Docker
-
-Run Kanwise as a standalone web app (without MCP integration):
-
-```bash
-docker run -d \
-  -p 3001:3001 \
-  -v kanwise-data:/data \
-  ghcr.io/tienedev/kanwise:latest
-```
-
-Open http://localhost:3001 and create your account.
-
-Or with Docker Compose:
-
-```bash
-docker compose up -d
-```
-
-### From source
-
-For contributors or if you prefer building locally:
-
-```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
-make install  # install frontend dependencies
-make dev      # start dev servers (backend + frontend)
-```
-
-To build a production binary and set up MCP in one step:
-
-```bash
-./scripts/setup-claude.sh
-```
-
-**Requires:** Rust toolchain, Node.js.
-
-### Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_PATH` | `kanwise.db` | Path to SQLite database |
-| `KANBAN_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3001` | Comma-separated CORS origins |
-| `KANBAN_ENV` | — | Set to `production` to enforce security |
-
-### Manual MCP setup
-
-If you prefer to configure MCP yourself instead of using the setup script:
-
-<details>
-<summary>Docker</summary>
-
-```json
-{
-  "mcpServers": {
-    "kanwise": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "-v", "kanwise-data:/data",
-               "ghcr.io/tienedev/kanwise:latest", "--mcp"]
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary>Local binary</summary>
-
-```json
-{
-  "mcpServers": {
-    "kanwise": {
-      "command": "kanwise",
-      "args": ["--mcp"],
-      "env": {
-        "DATABASE_PATH": "~/.kanwise/kanwise.db"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-### What the setup script does
-
-Both modes (`--docker` and from source) configure the same two things:
-
-| File | Purpose |
-|------|---------|
-| `~/.claude/.mcp.json` | Registers Kanwise as an MCP server for Claude Code |
-| `~/.claude/skills/kanban-tracking/SKILL.md` | Installs the [kanban-tracking skill](#kanban-tracking-skill) |
-
-Run `./scripts/setup-claude.sh --help` for all options.
-
-## MCP Tools
+When running standalone, kanwise exposes 3 tools:
 
 | Tool | Purpose |
 |------|---------|
-| `board_query` | Read board state (columns, tasks, fields). Returns KBF or JSON |
-| `board_mutate` | Create, update, move, delete any entity |
-| `board_sync` | Apply KBF deltas and return current state |
+| `board_query` | Read board state (KBF or JSON) |
+| `board_mutate` | Create, update, move, delete entities |
+| `board_sync` | Apply KBF deltas, return current state |
 
-All responses use the KBF protocol — your agent gets full board context in a fraction of the tokens.
+### Kanban Tracking Skill
 
-> "Move all urgent tasks to the top of In Progress"
+Kanwise ships with a framework-agnostic AI skill (`skills/kanban-tracking/SKILL.md`) that auto-tracks work on your board:
 
-> "Show me a summary of what's blocked"
+- **Spec produced** — proposes tasks from deliverables
+- **Plan written** — maps steps to board tasks
+- **Task completed** — moves it to Done
+- **Branch wrapping up** — flags in-progress tasks
 
-## Kanban Tracking Skill
+Install via `./scripts/setup-claude.sh` or copy `skills/kanban-tracking/` to `~/.claude/skills/`.
 
-Kanwise ships with a framework-agnostic AI skill (`skills/kanban-tracking/SKILL.md`) that turns your kanban board into a living project tracker during AI-assisted development. It works with any skill framework — [Superpowers](https://github.com/anthropics/claude-code), BMAD, custom workflows, or none at all.
-
-Once installed (via `setup-claude.sh` or manually copied to `~/.claude/skills/kanban-tracking/`), the skill **automatically triggers** at generic workflow transitions:
-
-- **A spec or design doc is produced** — proposes tasks from deliverables
-- **An implementation plan is written** — maps plan steps to board tasks
-- **A task or plan step is completed** — moves the matching task to Done
-- **Work on a branch is wrapping up** — shows a board summary and flags in-progress tasks
-
-You can also invoke it manually with `/kanban-sync` to view and manage your board from Claude Code.
-
-By default, the skill never creates or moves tasks silently — it always proposes changes and waits for your approval. This behavior is configurable in `skills/kanban-tracking/SKILL.md` if you prefer fully autonomous tracking.
-
-## Features
+### Features
 
 **Views** — Drag-and-drop kanban, sortable list, Gantt-style timeline
 
-**Rich editing** — Tiptap editor for task descriptions with markdown support
+**Rich editing** — Tiptap editor with markdown support
 
-**Custom fields** — Add text, number, URL, or date fields to any board
+**Custom fields** — Text, number, URL, date fields on any board
 
-**Activity feed** — Track all changes with action and user filters
+**Collaboration** — Real-time CRDT sync (Yjs), live presence, comments, invite links
 
-**Collaboration** — Real-time sync, live presence, comments, invite links
+**Auth** — Argon2 passwords, session tokens, API keys
 
-**Roles** — Owner, Member, Viewer with granular permissions
+### Running kanwise standalone
 
-**Auth** — Password (Argon2), session tokens, API keys for integrations
+```bash
+# Web server (port 3001) + embedded frontend
+kanwise
 
-**Security** — Rate limiting, CORS, security headers, input validation
+# Docker
+docker run -d -p 3001:3001 -v kanwise-data:/data ghcr.io/tienedev/kanwise:latest
 
-## Architecture
-
-```mermaid
-flowchart TD
-    subgraph binary["Single Binary"]
-        direction TB
-        REST["REST API<br/>(Axum)"] & WS["WebSocket<br/>(Yjs)"] & MCP["MCP Server<br/>(stdio)"]
-        REST & WS & MCP --> DB["SQLite + CRDTs"]
-        FE["Embedded React Frontend<br/>(rust-embed, served on /)"]
-    end
-
-    style binary fill:#1a1a2e,stroke:#6c63ff,color:#fff
-    style REST fill:#6c63ff,stroke:#6c63ff,color:#fff
-    style WS fill:#6c63ff,stroke:#6c63ff,color:#fff
-    style MCP fill:#6c63ff,stroke:#6c63ff,color:#fff
-    style DB fill:#f8f9fa,stroke:#6c63ff,stroke-width:2px
-    style FE fill:#f8f9fa,stroke:#6c63ff,stroke-width:2px
+# MCP only (stdio, no web server)
+kanwise --mcp
 ```
+
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Rust, Axum, SQLite (rusqlite) |
+| Backend | Rust, Axum, tokio, SQLite (rusqlite + tokio-rusqlite) |
 | Frontend | React 19, TypeScript, Tailwind CSS, shadcn/ui |
 | Real-time | Yjs (CRDT), y-websocket |
-| Auth | Argon2, session tokens, API keys |
-| AI | MCP protocol, KBF encoding |
+| MCP | rmcp (Rust MCP library), stdio transport |
+| Search | FTS5 (SQLite full-text search) |
 
 ## Contributing
-
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
 
 ```bash
 git clone https://github.com/tienedev/kanwise.git
 cd kanwise
-make install
-make dev
+make install  # frontend dependencies
+make dev      # backend (3001) + frontend (3000) with hot reload
 ```
 
-Backend runs on port 3001, frontend on port 3000 with hot reload.
+```bash
+cargo test --workspace                       # run all tests
+cargo clippy --workspace -- -D warnings      # lint
+```
 
 ## License
 
