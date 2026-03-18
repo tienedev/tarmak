@@ -10,3 +10,4 @@
 *.db-wal
 .mcp.json
 docs/plans/
+.superpowers/
