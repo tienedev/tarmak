@@ -21,6 +21,8 @@ glob-match = "0.2"
 regex.workspace = true
 clap.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
+rmcp.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 
