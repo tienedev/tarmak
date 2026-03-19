@@ -28,6 +28,10 @@ impl Kanwise {
         Self { db }
     }
 
+    pub fn db(&self) -> &db::Db {
+        &self.db
+    }
+
     /// Atomically claim the next ai-ready task for an agent.
     pub async fn claim_task(
         &self,

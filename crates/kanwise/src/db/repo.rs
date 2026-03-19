@@ -2814,6 +2814,103 @@ impl Db {
         .await
     }
 
+
+    /// Ensure the cortx-agent user exists. Returns the user_id.
+    pub async fn ensure_agent_user(&self) -> anyhow::Result<String> {
+        self.with_conn(|conn| {
+            let existing: Option<String> = conn
+                .query_row(
+                    "SELECT id FROM users WHERE email = 'cortx-agent@local'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(id) = existing {
+                return Ok(id);
+            }
+            let id = Uuid::new_v4().to_string();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO users (id, name, email, is_agent, created_at) VALUES (?1, 'cortx-agent', 'cortx-agent@local', 1, ?2)",
+                params![id, now],
+            )?;
+            Ok(id)
+        })
+        .await
+    }
+
+    /// Create a comment on a task from the agent.
+    pub async fn create_agent_comment(
+        &self,
+        task_id: &str,
+        agent_user_id: &str,
+        content: &str,
+    ) -> anyhow::Result<String> {
+        let tid = task_id.to_string();
+        let uid = agent_user_id.to_string();
+        let c = content.to_string();
+        self.with_conn(move |conn| {
+            let id = Uuid::new_v4().to_string();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO comments (id, task_id, user_id, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, tid, uid, c, now],
+            )?;
+            Ok(id)
+        })
+        .await
+    }
+
+    /// Add a label to a task, creating the label if it doesn't exist on the board.
+    pub async fn add_label_to_task(&self, task_id: &str, board_id: &str, label_name: &str) -> anyhow::Result<()> {
+        let tid = task_id.to_string();
+        let bid = board_id.to_string();
+        let ln = label_name.to_string();
+        self.with_conn(move |conn| {
+            // Ensure label exists
+            let label_id: String = match conn
+                .query_row(
+                    "SELECT id FROM labels WHERE board_id = ?1 AND name = ?2",
+                    params![bid, ln],
+                    |row| row.get(0),
+                )
+                .optional()?
+            {
+                Some(id) => id,
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO labels (id, board_id, name, color) VALUES (?1, ?2, ?3, '#ef4444')",
+                        params![id, bid, ln],
+                    )?;
+                    id
+                }
+            };
+            conn.execute(
+                "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                params![tid, label_id],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Remove a label from a task.
+    pub async fn remove_label_from_task(&self, task_id: &str, label_name: &str) -> anyhow::Result<()> {
+        let tid = task_id.to_string();
+        let ln = label_name.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "DELETE FROM task_labels WHERE task_id = ?1 AND label_id IN (
+                    SELECT id FROM labels WHERE name = ?2
+                )",
+                params![tid, ln],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn get_next_ai_task(
         &self,
         board_id: Option<&str>,

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use cortx_types::{
+    AgentCommentEvent,
     ActionOrgan, Budget, Command, ExecutionRecord, ExecutionResult, Memory, MemoryOrgan,
     RecallQuery, Status, Tier,
 };
@@ -20,6 +21,7 @@ pub struct Orchestrator {
     session_id: String,
     served_hints: Mutex<Vec<ServedHint>>,
     command_counter: Mutex<u32>,
+    agent_user_id: Mutex<Option<String>>,
 }
 
 impl Orchestrator {
@@ -35,6 +37,7 @@ impl Orchestrator {
             session_id: Uuid::new_v4().to_string(),
             served_hints: Mutex::new(Vec::new()),
             command_counter: Mutex::new(0),
+            agent_user_id: Mutex::new(None),
         }
     }
 
@@ -52,6 +55,7 @@ impl Orchestrator {
             session_id: Uuid::new_v4().to_string(),
             served_hints: Mutex::new(Vec::new()),
             command_counter: Mutex::new(0),
+            agent_user_id: Mutex::new(None),
         })
     }
 
@@ -71,6 +75,57 @@ impl Orchestrator {
     /// Run memory compaction (best-effort). Call once after construction.
     pub async fn run_compaction(&self) {
         let _ = self.memory.run_compaction().await;
+    }
+
+
+    /// Post a structured agent comment on a task.
+    pub async fn comment_on_task(
+        &self,
+        task_id: &str,
+        event: AgentCommentEvent,
+        content: &str,
+    ) -> Result<()> {
+        let uid = self.get_or_create_agent_user().await?;
+        let formatted = format!("[agent:cortx] {} — {}", event.label(), content);
+        self.kanwise.db().create_agent_comment(task_id, &uid, &formatted).await?;
+        Ok(())
+    }
+
+    /// Escalate a task: remove in-progress label, add needs-human, release lock, post comment.
+    pub async fn escalate_task(
+        &self,
+        task_id: &str,
+        board_id: &str,
+        attempts: &[String],
+        errors: &[String],
+        suggestion: &str,
+    ) -> Result<()> {
+        let content = format!(
+            "**Attempts:** {}\n**Errors:** {}\n**Suggestion:** {}",
+            attempts.join(", "),
+            errors.join("\n"),
+            suggestion
+        );
+        self.comment_on_task(task_id, AgentCommentEvent::Escalation, &content).await?;
+        self.kanwise.db().add_label_to_task(task_id, board_id, "needs-human").await?;
+        self.kanwise.db().remove_label_from_task(task_id, "in-progress").await?;
+        self.kanwise.release_task(task_id, "escalated").await?;
+        Ok(())
+    }
+
+    async fn get_or_create_agent_user(&self) -> Result<String> {
+        {
+            let guard = self.agent_user_id.lock().unwrap();
+            if let Some(ref id) = *guard {
+                return Ok(id.clone());
+            }
+        }
+        let uid = self.kanwise.db().ensure_agent_user().await?;
+        {
+            let mut guard = self.agent_user_id.lock().unwrap();
+            *guard = Some(uid.clone());
+        }
+        Ok(uid)
     }
 
     pub async fn execute_and_remember(&self, cmd: Command) -> Result<ExecutionResult> {
