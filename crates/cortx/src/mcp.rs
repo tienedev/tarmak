@@ -108,6 +108,12 @@ fn tool_definitions() -> Vec<Tool> {
             },
             "required": ["board_id", "agent_id"]
         })),
+        tool!("session_report", "Generate and store a session activity report.", serde_json::json!({
+            "type": "object",
+            "properties": {
+                "board_id": { "type": "string", "description": "Optional board ID to link the report to" }
+            }
+        })),
         tool!("planning_release_task", "Release a claimed task back to the pool.", serde_json::json!({
             "type": "object",
             "properties": {
@@ -351,6 +357,13 @@ impl ServerHandler for CortxMcpServer {
                     let reason = args.get("reason").and_then(|v| v.as_str()).unwrap_or("unspecified");
                     match orch.kanwise().release_task(task_id, reason).await {
                         Ok(()) => Ok(format!("Task {task_id} released.")),
+                        Err(e) => Err(e.to_string()),
+                    }
+                }
+                "session_report" => {
+                    let board_id = args.get("board_id").and_then(|v| v.as_str());
+                    match orch.generate_morning_report(board_id).await {
+                        Ok(summary) => Ok(summary),
                         Err(e) => Err(e.to_string()),
                     }
                 }

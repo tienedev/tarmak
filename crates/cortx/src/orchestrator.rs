@@ -22,6 +22,9 @@ pub struct Orchestrator {
     served_hints: Mutex<Vec<ServedHint>>,
     command_counter: Mutex<u32>,
     agent_user_id: Mutex<Option<String>>,
+    tasks_completed: Mutex<u32>,
+    tasks_escalated: Mutex<u32>,
+    chains_created: Mutex<u32>,
 }
 
 impl Orchestrator {
@@ -38,6 +41,9 @@ impl Orchestrator {
             served_hints: Mutex::new(Vec::new()),
             command_counter: Mutex::new(0),
             agent_user_id: Mutex::new(None),
+            tasks_completed: Mutex::new(0),
+            tasks_escalated: Mutex::new(0),
+            chains_created: Mutex::new(0),
         }
     }
 
@@ -56,6 +62,9 @@ impl Orchestrator {
             served_hints: Mutex::new(Vec::new()),
             command_counter: Mutex::new(0),
             agent_user_id: Mutex::new(None),
+            tasks_completed: Mutex::new(0),
+            tasks_escalated: Mutex::new(0),
+            chains_created: Mutex::new(0),
         })
     }
 
@@ -77,6 +86,35 @@ impl Orchestrator {
         let _ = self.memory.run_compaction().await;
     }
 
+
+
+    /// Generate a session summary report and store it in context-db.
+    pub async fn generate_morning_report(&self, board_id: Option<&str>) -> Result<String> {
+        let cmds = *self.command_counter.lock().unwrap();
+        let completed = *self.tasks_completed.lock().unwrap();
+        let escalated = *self.tasks_escalated.lock().unwrap();
+        let chains = *self.chains_created.lock().unwrap();
+
+        let summary = format!(
+            "Session {} — {} commands, {} tasks completed, {} escalated, {} chains created",
+            self.session_id, cmds, completed, escalated, chains
+        );
+
+        self.memory
+            .store_session_report(
+                &self.session_id,
+                board_id,
+                completed,
+                escalated,
+                cmds,
+                chains,
+                None,
+                &summary,
+            )
+            .await?;
+
+        Ok(summary)
+    }
 
     /// Post a structured agent comment on a task.
     pub async fn comment_on_task(
@@ -238,6 +276,10 @@ impl Orchestrator {
                     resolution_files: result.files_touched.clone(),
                 })
                 .await;
+            {
+                let mut c = self.chains_created.lock().unwrap();
+                *c += 1;
+            }
         }
 
         Ok(result)
