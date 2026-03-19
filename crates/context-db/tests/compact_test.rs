@@ -1,5 +1,5 @@
 use context_db::ContextDb;
-use cortx_types::{Memory, MemoryOrgan, MemorySource};
+use cortx_types::{Memory, MemoryOrgan};
 
 #[tokio::test]
 async fn prune_removes_low_confidence_old_chains() {
@@ -132,4 +132,58 @@ async fn summarize_compresses_old_executions() {
         .await
         .unwrap();
     assert_eq!(summaries, 1, "should have one summary row");
+}
+
+#[tokio::test]
+async fn merge_keeps_highest_confidence_chain() {
+    let ctx = ContextDb::in_memory().await.unwrap();
+
+    // Insert two chains directly with controlled IDs to ensure MIN(id) would pick
+    // the wrong one. "aaaa..." sorts before "zzzz..." lexicographically, so
+    // MIN(id) will keep the "aaaa..." row which has LOW confidence.
+    ctx.db()
+        .with_conn(|conn| {
+            let now = chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string();
+            conn.execute(
+                "INSERT INTO causal_chains (id, trigger_file, trigger_error, trigger_command, resolution_file, confidence, last_verified, created_at)
+                 VALUES ('aaaa-low-confidence', 'src/low.rs', 'timeout error', 'cargo test', 'src/fix.rs', 0.3, ?1, ?1)",
+                [&now],
+            )?;
+            conn.execute(
+                "INSERT INTO causal_chains (id, trigger_file, trigger_error, trigger_command, resolution_file, confidence, last_verified, created_at)
+                 VALUES ('zzzz-high-confidence', 'src/high.rs', 'timeout error', 'cargo test', 'src/fix.rs', 0.9, ?1, ?1)",
+                [&now],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    let stats = ctx.run_compaction().await.unwrap();
+    assert_eq!(stats.chains_merged, 1, "should merge one duplicate");
+
+    // The surviving chain must be the one with confidence 0.9
+    let (surviving_file, surviving_confidence): (String, f64) = ctx
+        .db()
+        .with_conn(|conn| {
+            conn.query_row(
+                "SELECT trigger_file, confidence FROM causal_chains WHERE trigger_error = 'timeout error'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(Into::into)
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        surviving_file, "src/high.rs",
+        "should keep chain with highest confidence"
+    );
+    assert!(
+        (surviving_confidence - 0.9).abs() < f64::EPSILON,
+        "surviving chain should have confidence 0.9, got {surviving_confidence}"
+    );
 }

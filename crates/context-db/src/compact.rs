@@ -14,8 +14,15 @@ pub async fn merge_duplicates(db: &Db) -> Result<u32> {
     db.with_conn(|conn| {
         let deleted = conn.execute(
             "DELETE FROM causal_chains WHERE id NOT IN (
-                SELECT MIN(id) FROM causal_chains
-                GROUP BY trigger_error, resolution_file, trigger_command
+                SELECT id FROM (
+                    SELECT id, ROW_NUMBER() OVER (
+                        PARTITION BY trigger_error, resolution_file, trigger_command
+                        ORDER BY confidence DESC, created_at DESC
+                    ) AS rn
+                    FROM causal_chains
+                    WHERE trigger_error IS NOT NULL
+                )
+                WHERE rn = 1
             ) AND trigger_error IS NOT NULL",
             [],
         )?;
