@@ -55,24 +55,11 @@ impl ContextDb {
         confidence::reinforce_confidence(&self.db, chain_id, delta).await
     }
 
-
     pub async fn store_session_report(
         &self,
-        session_id: &str,
-        board_id: Option<&str>,
-        tasks_completed: u32,
-        tasks_escalated: u32,
-        commands_run: u32,
-        chains_created: u32,
-        duration_seconds: Option<u32>,
-        summary: &str,
+        report: &report::SessionReport,
     ) -> anyhow::Result<()> {
-        report::store_session_report(
-            &self.db, session_id, board_id,
-            tasks_completed, tasks_escalated,
-            commands_run, chains_created,
-            duration_seconds, summary,
-        ).await
+        report::store_session_report(&self.db, report).await
     }
 
     pub async fn run_compaction(&self) -> anyhow::Result<compact::CompactionStats> {

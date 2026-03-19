@@ -2,7 +2,7 @@ use anyhow::Result;
 use cortx_types::{
     AgentCommentEvent,
     ActionOrgan, Budget, Command, ExecutionRecord, ExecutionResult, Memory, MemoryOrgan,
-    RecallQuery, Status, Tier,
+    PlanningOrgan, RecallQuery, Status, Tier,
 };
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -86,7 +86,12 @@ impl Orchestrator {
         let _ = self.memory.run_compaction().await;
     }
 
-
+    /// Mark a task as complete via kanwise and increment the session counter.
+    pub async fn complete_task(&self, task_id: &str) -> Result<()> {
+        self.kanwise.complete_task(task_id).await?;
+        { let mut c = self.tasks_completed.lock().unwrap(); *c += 1; }
+        Ok(())
+    }
 
     /// Generate a session summary report and store it in context-db.
     pub async fn generate_morning_report(&self, board_id: Option<&str>) -> Result<String> {
@@ -100,18 +105,18 @@ impl Orchestrator {
             self.session_id, cmds, completed, escalated, chains
         );
 
-        self.memory
-            .store_session_report(
-                &self.session_id,
-                board_id,
-                completed,
-                escalated,
-                cmds,
-                chains,
-                None,
-                &summary,
-            )
-            .await?;
+        let report = context_db::report::SessionReport {
+            session_id: self.session_id.clone(),
+            board_id: board_id.map(String::from),
+            tasks_completed: completed,
+            tasks_escalated: escalated,
+            commands_run: cmds,
+            chains_created: chains,
+            duration_seconds: None,
+            summary: summary.clone(),
+        };
+
+        self.memory.store_session_report(&report).await?;
 
         Ok(summary)
     }
@@ -148,6 +153,7 @@ impl Orchestrator {
         self.kanwise.db().add_label_to_task(task_id, board_id, "needs-human").await?;
         self.kanwise.db().remove_label_from_task(task_id, "in-progress").await?;
         self.kanwise.release_task(task_id, "escalated").await?;
+        { let mut e = self.tasks_escalated.lock().unwrap(); *e += 1; }
         Ok(())
     }
 
@@ -174,10 +180,10 @@ impl Orchestrator {
         let tier = self.proxy.classify(&cmd.cmd);
         let mut preflight_hints = Vec::new();
 
-        if tier != Tier::Safe {
-            if let Ok(hints) = self.memory.recall_for_preflight(&cmd.cmd, &[]).await {
-                preflight_hints = hints;
-            }
+        if tier != Tier::Safe
+            && let Ok(hints) = self.memory.recall_for_preflight(&cmd.cmd, &[]).await
+        {
+            preflight_hints = hints;
         }
 
         // Track served hints for correlation

@@ -279,7 +279,7 @@ impl ServerHandler for CortxMcpServer {
                         Some(s) => s,
                         None => return Ok(CallToolResult::error(vec![Content::text("missing: task_id")])),
                     };
-                    match orch.kanwise().complete_task(id).await {
+                    match orch.complete_task(id).await {
                         Ok(()) => Ok(format!("Task {id} marked complete.")),
                         Err(e) => Err(e.to_string()),
                     }
