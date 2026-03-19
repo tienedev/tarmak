@@ -51,6 +51,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v8(conn).context("applying migration v8")?;
     }
 
+    if current < 9 {
+        v9(conn).context("applying migration v9")?;
+    }
+
     Ok(())
 }
 
@@ -494,6 +498,25 @@ fn v8(conn: &Connection) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// V9 -- task locking for agent coordination
+// ---------------------------------------------------------------------------
+
+fn v9(conn: &Connection) -> anyhow::Result<()> {
+    let tx = conn.unchecked_transaction().context("begin v9 transaction")?;
+    tx.execute_batch(
+        "
+        ALTER TABLE tasks ADD COLUMN locked_by TEXT;
+        ALTER TABLE tasks ADD COLUMN locked_at TEXT;
+
+        INSERT INTO schema_version (version) VALUES (9);
+        ",
+    )
+    .context("v9 migration")?;
+    tx.commit().context("commit v9")?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -510,7 +533,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 8);
+        assert_eq!(ver, 9);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -555,6 +578,9 @@ mod tests {
         // v8 notifications
         conn.execute_batch("SELECT id, user_id, type, title, read FROM notifications LIMIT 0")
             .unwrap();
+        // v9 task locking
+        conn.execute_batch("SELECT locked_by, locked_at FROM tasks LIMIT 0")
+            .unwrap();
     }
 
     #[test]
@@ -567,7 +593,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 8);
+        assert_eq!(ver, 9);
     }
 
     #[test]
@@ -578,7 +604,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 8);
+        assert_eq!(ver, 9);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();

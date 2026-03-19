@@ -78,6 +78,44 @@ fn tool_definitions() -> Vec<Tool> {
             "properties": { "board_id": { "type": "string" } },
             "required": ["board_id"]
         })),
+        tool!("planning_decompose", "Decompose an objective into ordered tasks on a board.", serde_json::json!({
+            "type": "object",
+            "properties": {
+                "objective": { "type": "string", "description": "Free text objective" },
+                "board_id": { "type": "string", "description": "Target board ID" },
+                "tasks": {
+                    "type": "array",
+                    "description": "Array of tasks to create",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": { "type": "string" },
+                            "description": { "type": "string" },
+                            "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "default": "medium" },
+                            "depends_on": { "type": "array", "items": { "type": "integer" }, "default": [] }
+                        },
+                        "required": ["title", "description"]
+                    }
+                }
+            },
+            "required": ["objective", "board_id", "tasks"]
+        })),
+        tool!("planning_claim_task", "Atomically claim the next ai-ready task for an agent.", serde_json::json!({
+            "type": "object",
+            "properties": {
+                "board_id": { "type": "string", "description": "Board ID" },
+                "agent_id": { "type": "string", "description": "Agent identifier" }
+            },
+            "required": ["board_id", "agent_id"]
+        })),
+        tool!("planning_release_task", "Release a claimed task back to the pool.", serde_json::json!({
+            "type": "object",
+            "properties": {
+                "task_id": { "type": "string", "description": "Task ID to release" },
+                "reason": { "type": "string", "description": "Why the task is being released" }
+            },
+            "required": ["task_id", "reason"]
+        })),
     ]
 }
 
@@ -252,6 +290,67 @@ impl ServerHandler for CortxMcpServer {
                                 .collect();
                             Ok(if lines.is_empty() { "No tasks.".into() } else { lines.join("\n") })
                         }
+                        Err(e) => Err(e.to_string()),
+                    }
+                }
+                "planning_decompose" => {
+                    let objective = match args.get("objective").and_then(|v| v.as_str()) {
+                        Some(s) => s.to_string(),
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: objective")])),
+                    };
+                    let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
+                        Some(s) => s.to_string(),
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                    };
+                    let tasks_json = match args.get("tasks").and_then(|v| v.as_array()) {
+                        Some(a) => a.clone(),
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: tasks")])),
+                    };
+                    let mut tasks = Vec::new();
+                    for item in &tasks_json {
+                        let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let desc = item.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let priority = match item.get("priority").and_then(|v| v.as_str()) {
+                            Some("low") => cortx_types::Priority::Low,
+                            Some("high") => cortx_types::Priority::High,
+                            Some("urgent") => cortx_types::Priority::Urgent,
+                            _ => cortx_types::Priority::Medium,
+                        };
+                        let depends_on: Vec<usize> = item.get("depends_on")
+                            .and_then(|v| v.as_array())
+                            .map(|a| a.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect())
+                            .unwrap_or_default();
+                        tasks.push(kanwise::DecomposeTask { title, description: desc, priority, depends_on });
+                    }
+                    match orch.kanwise().decompose(&objective, &board_id, tasks).await {
+                        Ok(ids) => Ok(format!("Created {} tasks: {}", ids.len(), ids.join(", "))),
+                        Err(e) => Err(e.to_string()),
+                    }
+                }
+                "planning_claim_task" => {
+                    let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
+                        Some(s) => s,
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                    };
+                    let agent_id = match args.get("agent_id").and_then(|v| v.as_str()) {
+                        Some(s) => s,
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: agent_id")])),
+                    };
+                    match orch.kanwise().claim_task(board_id, agent_id).await {
+                        Ok(Some(t)) => Ok(format!("[{}] {} (priority: {}, labels: {})",
+                            t.id, t.title, t.priority, t.labels.join(", "))),
+                        Ok(None) => Ok("No available tasks to claim.".into()),
+                        Err(e) => Err(e.to_string()),
+                    }
+                }
+                "planning_release_task" => {
+                    let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
+                        Some(s) => s,
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: task_id")])),
+                    };
+                    let reason = args.get("reason").and_then(|v| v.as_str()).unwrap_or("unspecified");
+                    match orch.kanwise().release_task(task_id, reason).await {
+                        Ok(()) => Ok(format!("Task {task_id} released.")),
                         Err(e) => Err(e.to_string()),
                     }
                 }
