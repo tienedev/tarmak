@@ -7,7 +7,7 @@ services:
     volumes:
       - cortx-data:/data
     environment:
-      - DATABASE_PATH=/data/kanwise.db
+      - DATABASE_PATH=/data/cortx.db
       - RUST_LOG=info
       # IMPORTANT: Set this to your domain to avoid CORS errors.
       # - KANBAN_ALLOWED_ORIGINS=https://kanwise.dev

@@ -21,6 +21,8 @@ enum Cli {
         #[arg(long, default_value = "context.db")]
         context_db: String,
     },
+    /// Start the HTTP web server (kanban board + API + WebSocket)
+    Web,
     /// Show current status (budget, memory stats)
     Status {
         #[arg(long, default_value = "context.db")]
@@ -42,6 +44,46 @@ enum Cli {
         #[command(subcommand)]
         command: PolicyCommand,
     },
+    /// Create an atomic backup of the database
+    Backup {
+        /// Output file path (default: kanwise-backup-YYYYMMDD-HHMMSS.db)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// Restore a database from a backup file
+    Restore {
+        /// Path to the backup file
+        file: String,
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export a board to JSON
+    Export {
+        /// Board ID to export
+        board_id: String,
+        /// Output file (default: stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// Import a board from a Kanwise JSON export
+    Import {
+        /// Path to the JSON file
+        file: String,
+        /// Email of the user who will own the imported board
+        #[arg(long)]
+        owner: String,
+    },
+    /// User management
+    Users {
+        #[command(subcommand)]
+        command: UsersCommand,
+    },
+    /// Reset a user's password
+    ResetPassword {
+        /// User email
+        email: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -53,13 +95,28 @@ enum PolicyCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum UsersCommand {
+    /// List all registered users
+    List,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-
     let args = Args::parse();
+
+    // Web and ResetPassword initialize their own tracing (or don't need it).
+    // All other commands use the shared tracing init here.
+    let needs_tracing = !matches!(
+        args.command,
+        Some(Cli::Web) | Some(Cli::ResetPassword { .. })
+    );
+    if needs_tracing {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .init();
+    }
+
     match args.command {
         Some(Cli::Serve { project, policy, kanwise_db: kw_db_path, context_db: ctx_db_path }) => {
             let project_root = PathBuf::from(&project).canonicalize()?;
@@ -85,6 +142,7 @@ async fn main() -> anyhow::Result<()> {
             let service = server.serve(transport).await?;
             service.waiting().await?;
         }
+        Some(Cli::Web) => kanwise::server::run_http_server().await?,
         Some(Cli::Status { context_db: ctx_db_path }) => {
             if std::path::Path::new(&ctx_db_path).exists() {
                 let ctx = context_db::ContextDb::new(&ctx_db_path, None).await?;
@@ -153,6 +211,14 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         },
+        Some(Cli::Backup { output }) => kanwise::cli::backup(output).await?,
+        Some(Cli::Restore { file, force }) => kanwise::cli::restore(&file, force).await?,
+        Some(Cli::Export { board_id, output }) => kanwise::cli::export_board(&board_id, output).await?,
+        Some(Cli::Import { file, owner }) => kanwise::cli::import_board(&file, &owner).await?,
+        Some(Cli::Users { command }) => match command {
+            UsersCommand::List => kanwise::cli::list_users().await?,
+        },
+        Some(Cli::ResetPassword { email }) => kanwise::server::reset_password(&email).await?,
         None => {
             eprintln!("cortx — AI development orchestrator");
             eprintln!("Use --help for usage");

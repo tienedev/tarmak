@@ -356,15 +356,18 @@ name = "cortx"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "context-db",
  "cortx-types",
  "kanwise",
  "rmcp",
  "rtk-proxy",
+ "rusqlite",
  "serde",
  "serde_json",
  "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "uuid",
