@@ -57,6 +57,27 @@ impl Kanwise {
         self.db.release_task(task_id).await
     }
 
+    /// Claim a specific task by ID for an agent.
+    /// Returns None if the task doesn't exist or is already locked.
+    pub async fn claim_specific_task(
+        &self,
+        task_id: &str,
+        agent_id: &str,
+    ) -> anyhow::Result<Option<CortxTask>> {
+        match self.db.claim_specific_task(task_id, agent_id).await? {
+            Some((task, labels)) => Ok(Some(CortxTask {
+                id: task.id,
+                title: task.title,
+                description: task.description,
+                priority: task.priority,
+                labels,
+                column_id: task.column_id,
+                due_date: task.due_date,
+            })),
+            None => Ok(None),
+        }
+    }
+
     /// Decompose an objective into ordered tasks on a board.
     /// Validates DAG (no cycles), creates tasks in the first column with ai-ready label.
     pub async fn decompose(

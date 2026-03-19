@@ -73,9 +73,12 @@ fn tool_definitions() -> Vec<Tool> {
             "properties": { "task_id": { "type": "string" } },
             "required": ["task_id"]
         })),
-        tool!("planning_list_tasks", "List all tasks for a kanwise board.", serde_json::json!({
+        tool!("planning_list_tasks", "List tasks for a kanwise board with labels, locked_by status.", serde_json::json!({
             "type": "object",
-            "properties": { "board_id": { "type": "string" } },
+            "properties": {
+                "board_id": { "type": "string", "description": "Board ID" },
+                "status": { "type": "string", "description": "Optional column name filter (e.g. 'todo', 'in-progress', 'done')" }
+            },
             "required": ["board_id"]
         })),
         tool!("planning_decompose", "Decompose an objective into ordered tasks on a board.", serde_json::json!({
@@ -91,6 +94,7 @@ fn tool_definitions() -> Vec<Tool> {
                         "properties": {
                             "title": { "type": "string" },
                             "description": { "type": "string" },
+                            "acceptance_criteria": { "type": "string", "description": "Optional acceptance criteria appended to description" },
                             "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "default": "medium" },
                             "depends_on": { "type": "array", "items": { "type": "integer" }, "default": [] }
                         },
@@ -100,11 +104,12 @@ fn tool_definitions() -> Vec<Tool> {
             },
             "required": ["objective", "board_id", "tasks"]
         })),
-        tool!("planning_claim_task", "Atomically claim the next ai-ready task for an agent.", serde_json::json!({
+        tool!("planning_claim_task", "Atomically claim a task for an agent. Claims a specific task if task_id is provided, otherwise claims the next ai-ready task.", serde_json::json!({
             "type": "object",
             "properties": {
                 "board_id": { "type": "string", "description": "Board ID" },
-                "agent_id": { "type": "string", "description": "Agent identifier" }
+                "agent_id": { "type": "string", "description": "Agent identifier" },
+                "task_id": { "type": "string", "description": "Optional specific task ID to claim" }
             },
             "required": ["board_id", "agent_id"]
         })),
@@ -121,6 +126,28 @@ fn tool_definitions() -> Vec<Tool> {
                 "reason": { "type": "string", "description": "Why the task is being released" }
             },
             "required": ["task_id", "reason"]
+        })),
+        tool!("planning_validate_gates", "Run quality gates (clippy, test, build) and return results.", serde_json::json!({
+            "type": "object",
+            "properties": {
+                "gates": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["clippy", "test", "build"] },
+                    "description": "Subset of gates to run. If omitted, loads all gates from cortx-gates.toml."
+                },
+                "project_root": { "type": "string", "description": "Project root directory. Defaults to current project root." }
+            }
+        })),
+        tool!("planning_escalate", "Escalate a task: add needs-human label, release lock, post agent comment.", serde_json::json!({
+            "type": "object",
+            "properties": {
+                "task_id": { "type": "string", "description": "Task ID to escalate" },
+                "board_id": { "type": "string", "description": "Board ID the task belongs to" },
+                "attempts": { "type": "array", "items": { "type": "string" }, "description": "List of attempted approaches" },
+                "errors": { "type": "array", "items": { "type": "string" }, "description": "List of errors encountered" },
+                "suggestion": { "type": "string", "description": "Suggested next step for human" }
+            },
+            "required": ["task_id", "board_id", "attempts", "errors", "suggestion"]
         })),
     ]
 }
@@ -289,12 +316,26 @@ impl ServerHandler for CortxMcpServer {
                         Some(s) => s,
                         None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
                     };
-                    match orch.kanwise().list_tasks(board_id).await {
+                    let status = args.get("status").and_then(|v| v.as_str());
+                    match orch.kanwise().db().list_tasks_with_details(board_id, status).await {
                         Ok(tasks) => {
-                            let lines: Vec<String> = tasks.iter()
-                                .map(|t| format!("- [{}] {} ({})", t.id, t.title, t.priority))
+                            let items: Vec<serde_json::Value> = tasks.iter()
+                                .map(|(t, labels, locked_by)| serde_json::json!({
+                                    "id": t.id,
+                                    "title": t.title,
+                                    "description": t.description,
+                                    "priority": t.priority.as_str(),
+                                    "column_id": t.column_id,
+                                    "labels": labels,
+                                    "locked_by": locked_by,
+                                    "due_date": t.due_date,
+                                }))
                                 .collect();
-                            Ok(if lines.is_empty() { "No tasks.".into() } else { lines.join("\n") })
+                            if items.is_empty() {
+                                Ok("No tasks.".into())
+                            } else {
+                                serde_json::to_string_pretty(&items).map_err(|e| e.to_string())
+                            }
                         }
                         Err(e) => Err(e.to_string()),
                     }
@@ -315,7 +356,14 @@ impl ServerHandler for CortxMcpServer {
                     let mut tasks = Vec::new();
                     for item in &tasks_json {
                         let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let desc = item.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let mut desc = item.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        // Append acceptance criteria if provided
+                        if let Some(criteria) = item.get("acceptance_criteria").and_then(|v| v.as_str())
+                            && !criteria.is_empty()
+                        {
+                            desc.push_str("\n\n## Acceptance Criteria\n");
+                            desc.push_str(criteria);
+                        }
                         let priority = match item.get("priority").and_then(|v| v.as_str()) {
                             Some("low") => cortx_types::Priority::Low,
                             Some("high") => cortx_types::Priority::High,
@@ -342,11 +390,21 @@ impl ServerHandler for CortxMcpServer {
                         Some(s) => s,
                         None => return Ok(CallToolResult::error(vec![Content::text("missing: agent_id")])),
                     };
-                    match orch.kanwise().claim_task(board_id, agent_id).await {
-                        Ok(Some(t)) => Ok(format!("[{}] {} (priority: {}, labels: {})",
-                            t.id, t.title, t.priority, t.labels.join(", "))),
-                        Ok(None) => Ok("No available tasks to claim.".into()),
-                        Err(e) => Err(e.to_string()),
+                    // If task_id is provided, claim that specific task; otherwise claim next available
+                    if let Some(task_id) = args.get("task_id").and_then(|v| v.as_str()) {
+                        match orch.kanwise().claim_specific_task(task_id, agent_id).await {
+                            Ok(Some(t)) => Ok(format!("[{}] {} (priority: {}, labels: {})",
+                                t.id, t.title, t.priority, t.labels.join(", "))),
+                            Ok(None) => Err(format!("Task {task_id} not found or already claimed.")),
+                            Err(e) => Err(e.to_string()),
+                        }
+                    } else {
+                        match orch.kanwise().claim_task(board_id, agent_id).await {
+                            Ok(Some(t)) => Ok(format!("[{}] {} (priority: {}, labels: {})",
+                                t.id, t.title, t.priority, t.labels.join(", "))),
+                            Ok(None) => Ok("No available tasks to claim.".into()),
+                            Err(e) => Err(e.to_string()),
+                        }
                     }
                 }
                 "planning_release_task" => {
@@ -364,6 +422,104 @@ impl ServerHandler for CortxMcpServer {
                     let board_id = args.get("board_id").and_then(|v| v.as_str());
                     match orch.generate_morning_report(board_id).await {
                         Ok(summary) => Ok(summary),
+                        Err(e) => Err(e.to_string()),
+                    }
+                }
+                "planning_validate_gates" => {
+                    let root = args.get("project_root").and_then(|v| v.as_str())
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|| project_root.clone());
+
+                    // Determine which gates to run
+                    let gate_commands: Vec<(String, String)> = if let Some(gates) = args.get("gates").and_then(|v| v.as_array()) {
+                        let mut cmds = Vec::new();
+                        for g in gates {
+                            let name = match g.as_str() {
+                                Some(s) => s,
+                                None => continue,
+                            };
+                            let cmd = match name {
+                                "clippy" => "cargo clippy --workspace -- -D warnings",
+                                "test" => "cargo test --workspace",
+                                "build" => "cargo build --workspace",
+                                other => return Ok(CallToolResult::error(vec![Content::text(format!("unknown gate: {other}"))])),
+                            };
+                            cmds.push((name.to_string(), cmd.to_string()));
+                        }
+                        cmds
+                    } else {
+                        // Load from cortx-gates.toml
+                        let toml_path = root.join("policies/cortx-gates.toml");
+                        match std::fs::read_to_string(&toml_path) {
+                            Ok(content) => match crate::gates::GateConfig::from_toml(&content) {
+                                Ok(config) => {
+                                    let mut cmds = vec![
+                                        ("test".to_string(), config.gates.tests),
+                                        ("clippy".to_string(), config.gates.lint),
+                                    ];
+                                    for (name, cmd) in &config.gates.optional {
+                                        cmds.push((name.clone(), cmd.clone()));
+                                    }
+                                    cmds
+                                }
+                                Err(e) => return Ok(CallToolResult::error(vec![Content::text(format!("invalid cortx-gates.toml: {e}"))])),
+                            },
+                            Err(_) => {
+                                // Fallback to default gates
+                                vec![
+                                    ("clippy".to_string(), "cargo clippy --workspace -- -D warnings".to_string()),
+                                    ("test".to_string(), "cargo test --workspace".to_string()),
+                                ]
+                            }
+                        }
+                    };
+
+                    let mut results = Vec::new();
+                    let mut all_passed = true;
+                    for (gate_name, cmd_str) in gate_commands {
+                        let cmd = Command {
+                            cmd: cmd_str,
+                            cwd: root.clone(),
+                            mode: ExecutionMode::Assisted,
+                            task_id: None,
+                        };
+                        let (passed, output) = match orch.execute_and_remember(cmd).await {
+                            Ok(r) => {
+                                let passed = r.exit_code == Some(0);
+                                (passed, r.summary)
+                            }
+                            Err(e) => (false, e.to_string()),
+                        };
+                        if !passed { all_passed = false; }
+                        results.push(serde_json::json!({
+                            "gate": gate_name,
+                            "passed": passed,
+                            "output": output,
+                        }));
+                    }
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "passed": all_passed,
+                        "results": results,
+                    })).map_err(|e| e.to_string())
+                }
+                "planning_escalate" => {
+                    let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
+                        Some(s) => s,
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: task_id")])),
+                    };
+                    let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
+                        Some(s) => s,
+                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                    };
+                    let attempts: Vec<String> = args.get("attempts").and_then(|v| v.as_array())
+                        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                        .unwrap_or_default();
+                    let errors: Vec<String> = args.get("errors").and_then(|v| v.as_array())
+                        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                        .unwrap_or_default();
+                    let suggestion = args.get("suggestion").and_then(|v| v.as_str()).unwrap_or("");
+                    match orch.escalate_task(task_id, board_id, &attempts, &errors, suggestion).await {
+                        Ok(()) => Ok(format!("Task {task_id} escalated.")),
                         Err(e) => Err(e.to_string()),
                     }
                 }
