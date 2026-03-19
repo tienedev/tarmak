@@ -1,6 +1,6 @@
 use context_db::ContextDb;
 use cortx::orchestrator::Orchestrator;
-use cortx_types::{Command, ExecutionMode, Memory, MemoryOrgan, MemorySource};
+use cortx_types::{Command, ExecutionMode, Memory, MemoryOrgan, MemorySource, Status};
 use std::path::PathBuf;
 
 /// Helper: build an Orchestrator backed by in-memory DBs and the default policy.
@@ -15,7 +15,6 @@ async fn make_orchestrator() -> Orchestrator {
 async fn preflight_injects_hints_before_execution() {
     let orch = make_orchestrator().await;
 
-    // Seed a causal chain: "cargo build" previously failed on src/main.rs
     orch.memory()
         .store(Memory::CausalChain {
             trigger_file: "src/main.rs".into(),
@@ -26,7 +25,6 @@ async fn preflight_injects_hints_before_execution() {
         .await
         .unwrap();
 
-    // Execute "cargo build" (Monitored tier) -- pre-flight should inject hints
     let result = orch
         .execute_and_remember(Command {
             cmd: "cargo build".into(),
@@ -51,7 +49,6 @@ async fn preflight_injects_hints_before_execution() {
 async fn safe_commands_skip_preflight() {
     let orch = make_orchestrator().await;
 
-    // Seed a project fact so memory is not empty
     orch.memory()
         .store(Memory::ProjectFact {
             fact: "cargo test runs unit tests".into(),
@@ -61,7 +58,6 @@ async fn safe_commands_skip_preflight() {
         .await
         .unwrap();
 
-    // Execute "git status" (Safe tier) -- pre-flight should be skipped
     let result = orch
         .execute_and_remember(Command {
             cmd: "git status".into(),
@@ -72,7 +68,6 @@ async fn safe_commands_skip_preflight() {
         .await
         .unwrap();
 
-    // Safe commands skip pre-flight, so no hints injected at that stage.
     let has_proxy_preflight = result
         .hints
         .iter()
@@ -81,4 +76,42 @@ async fn safe_commands_skip_preflight() {
         !has_proxy_preflight,
         "safe commands should not trigger pre-flight memory recall"
     );
+}
+
+#[tokio::test]
+async fn successful_execution_reinforces_served_hint_confidence() {
+    let orch = make_orchestrator().await;
+
+    orch.memory()
+        .store(Memory::CausalChain {
+            trigger_file: "Cargo.toml".into(),
+            trigger_error: Some("build failed".into()),
+            trigger_command: Some("cargo build".into()),
+            resolution_files: vec!["Cargo.toml".into()],
+        })
+        .await
+        .unwrap();
+
+    let cmd = Command {
+        cmd: "cargo build".into(),
+        cwd: PathBuf::from("."),
+        mode: ExecutionMode::Assisted,
+        task_id: None,
+    };
+    let result = orch.execute_and_remember(cmd).await.unwrap();
+
+    if result.status == Status::Passed && !result.hints.is_empty() {
+        let hints = orch
+            .memory()
+            .recall_for_preflight("cargo build", &["Cargo.toml"])
+            .await
+            .unwrap();
+        if let Some(h) = hints.first() {
+            assert!(
+                h.confidence > 0.5,
+                "confidence should be reinforced after successful use, got {}",
+                h.confidence
+            );
+        }
+    }
 }

@@ -3,13 +3,23 @@ use cortx_types::{
     ActionOrgan, Budget, Command, ExecutionRecord, ExecutionResult, Memory, MemoryOrgan,
     RecallQuery, Status, Tier,
 };
+use std::sync::Mutex;
 use uuid::Uuid;
+
+struct ServedHint {
+    chain_id: String,
+    #[allow(dead_code)]
+    target_files: Vec<String>,
+    served_at_command: u32,
+}
 
 pub struct Orchestrator {
     kanwise: kanwise::Kanwise,
     proxy: rtk_proxy::Proxy,
     memory: context_db::ContextDb,
     session_id: String,
+    served_hints: Mutex<Vec<ServedHint>>,
+    command_counter: Mutex<u32>,
 }
 
 impl Orchestrator {
@@ -23,6 +33,8 @@ impl Orchestrator {
             proxy,
             memory,
             session_id: Uuid::new_v4().to_string(),
+            served_hints: Mutex::new(Vec::new()),
+            command_counter: Mutex::new(0),
         }
     }
 
@@ -38,6 +50,8 @@ impl Orchestrator {
             proxy,
             memory,
             session_id: Uuid::new_v4().to_string(),
+            served_hints: Mutex::new(Vec::new()),
+            command_counter: Mutex::new(0),
         })
     }
 
@@ -68,6 +82,26 @@ impl Orchestrator {
             }
         }
 
+        // Track served hints for correlation
+        let current_command = {
+            let mut counter = self.command_counter.lock().unwrap();
+            let c = *counter;
+            *counter += 1;
+            c
+        };
+        {
+            let mut served = self.served_hints.lock().unwrap();
+            for hint in &preflight_hints {
+                if let Some(chain_id) = &hint.chain_id {
+                    served.push(ServedHint {
+                        chain_id: chain_id.clone(),
+                        target_files: vec![],
+                        served_at_command: current_command,
+                    });
+                }
+            }
+        }
+
         // --- EXECUTE ---
         let mut result = self.proxy.execute(cmd).await?;
 
@@ -89,6 +123,27 @@ impl Orchestrator {
             files_touched: result.files_touched.clone(),
         };
         let _ = self.memory.store(Memory::Execution(record)).await;
+
+        // --- POST-FLIGHT: confidence correlation ---
+        let window_start = current_command.saturating_sub(5);
+        let correlated_chain_ids: Vec<String> = {
+            let served = self.served_hints.lock().unwrap();
+            served
+                .iter()
+                .filter(|h| h.served_at_command >= window_start)
+                .map(|h| h.chain_id.clone())
+                .collect()
+        };
+
+        if result.status == Status::Passed && !correlated_chain_ids.is_empty() {
+            for chain_id in &correlated_chain_ids {
+                let _ = self.memory.reinforce_confidence(chain_id, 0.15).await;
+            }
+        } else if result.status == Status::Failed && !correlated_chain_ids.is_empty() {
+            for chain_id in &correlated_chain_ids {
+                let _ = self.memory.reinforce_confidence(chain_id, -0.20).await;
+            }
+        }
 
         // --- POST-FLIGHT: on failure, recall and EXTEND hints ---
         if result.status == Status::Failed {
