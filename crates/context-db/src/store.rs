@@ -65,16 +65,12 @@ async fn store_causal_chain(
     resolution_files: Vec<String>,
 ) -> Result<MemoryId> {
     let id = uuid::Uuid::new_v4().to_string();
-    let id_clone = id.clone();
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    for res_file in resolution_files {
-        let id_inner = uuid::Uuid::new_v4().to_string();
-        let trigger_file = trigger_file.clone();
-        let trigger_error = trigger_error.clone();
-        let cmd = trigger_command.clone().unwrap_or_default();
-        let now = now.clone();
-        db.with_conn(move |conn| {
+    db.with_conn(move |conn| {
+        for res_file in &resolution_files {
+            let id_inner = uuid::Uuid::new_v4().to_string();
+            let cmd = trigger_command.as_deref().unwrap_or("");
             conn.execute(
                 "INSERT INTO causal_chains (id, trigger_file, trigger_error, trigger_command, resolution_file, last_verified, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
@@ -83,11 +79,11 @@ async fn store_causal_chain(
                    confidence = MIN(1.0, confidence + 0.1), last_verified = ?6",
                 rusqlite::params![id_inner, trigger_file, trigger_error, cmd, res_file, now],
             )?;
-            Ok(())
-        })
-        .await?;
-    }
-    Ok(MemoryId(id_clone))
+        }
+        Ok(())
+    })
+    .await?;
+    Ok(MemoryId(id))
 }
 
 async fn store_project_fact(
