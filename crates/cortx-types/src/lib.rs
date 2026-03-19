@@ -240,6 +240,8 @@ pub struct MemoryHint {
     pub kind: String,
     pub summary: String,
     pub confidence: f64,
+    pub source: MemorySource,
+    pub chain_id: Option<String>,
 }
 
 // ── Organ traits ──

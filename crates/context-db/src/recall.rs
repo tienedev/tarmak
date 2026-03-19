@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cortx_types::{CodeLocation, ExecutionRecord, MemoryHint, RecallQuery, Tier};
+use cortx_types::{CodeLocation, ExecutionRecord, MemoryHint, MemorySource, RecallQuery, Tier};
 use rusqlite::OptionalExtension;
 
 use crate::db::Db;
@@ -34,6 +34,8 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 kind: "project_fact".to_string(),
                 summary: format!("{fact} [{citation}]"),
                 confidence,
+                source: MemorySource::Agent,
+                chain_id: None,
             });
         }
     }
@@ -47,7 +49,7 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 let placeholders: Vec<String> =
                     (1..=files.len()).map(|i| format!("?{i}")).collect();
                 let sql = format!(
-                    "SELECT trigger_file, trigger_error, resolution_file, confidence
+                    "SELECT id, trigger_file, trigger_error, resolution_file, confidence
                      FROM causal_chains WHERE trigger_file IN ({}) AND confidence >= ?{}
                      ORDER BY confidence DESC LIMIT 10",
                     placeholders.join(","),
@@ -61,16 +63,16 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 let params_refs: Vec<&dyn rusqlite::types::ToSql> =
                     params.iter().map(|p| p.as_ref()).collect();
                 let mut stmt = conn.prepare(&sql)?;
-                let results: Vec<(String, Option<String>, String, f64)> = stmt
+                let results: Vec<(String, String, Option<String>, String, f64)> = stmt
                     .query_map(&*params_refs, |row| {
-                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
                     })?
                     .filter_map(|r| r.ok())
                     .collect();
                 Ok(results)
             })
             .await?;
-        for (trigger, error, resolution, raw_confidence) in chain_results {
+        for (id, trigger, error, resolution, raw_confidence) in chain_results {
             let confidence = match project_root {
                 Some(cwd) => {
                     let commits =
@@ -91,6 +93,8 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 kind: "causal_chain".to_string(),
                 summary: format!("When {trigger} fails with \"{error_str}\", check {resolution}"),
                 confidence,
+                source: MemorySource::Proxy,
+                chain_id: Some(id.clone()),
             });
         }
     }
@@ -106,13 +110,13 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 for pattern in &patterns {
                     let like_pattern = format!("%{pattern}%");
                     let mut stmt = conn.prepare(
-                        "SELECT trigger_file, trigger_error, resolution_file, confidence
+                        "SELECT id, trigger_file, trigger_error, resolution_file, confidence
                          FROM causal_chains WHERE trigger_error LIKE ?1 AND confidence >= ?2
                          ORDER BY confidence DESC LIMIT 10",
                     )?;
-                    let rows: Vec<(String, Option<String>, String, f64)> = stmt
+                    let rows: Vec<(String, String, Option<String>, String, f64)> = stmt
                         .query_map(rusqlite::params![like_pattern, min_conf], |row| {
-                            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
                         })?
                         .filter_map(|r| r.ok())
                         .collect();
@@ -121,7 +125,7 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 Ok(all_results)
             })
             .await?;
-        for (trigger, error, resolution, raw_confidence) in error_results {
+        for (id, trigger, error, resolution, raw_confidence) in error_results {
             let confidence = match project_root_owned.as_deref() {
                 Some(cwd) => {
                     let commits =
@@ -141,6 +145,8 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                     "When {trigger} fails with \"{error_str}\", check {resolution}"
                 ),
                 confidence,
+                source: MemorySource::Proxy,
+                chain_id: Some(id.clone()),
             });
         }
     }
