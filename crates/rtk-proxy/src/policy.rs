@@ -61,7 +61,7 @@ pub struct CircuitBreakerConfig {
     pub action: String,
 }
 
-const SHELL_OPERATORS: &[&str] = &["&&", "||", ";", "|", "`", "$("];
+const SHELL_OPERATORS: &[&str] = &["&&", "||", ";", "|", "`", "$(", ">>", "2>", "<<", "<("];
 
 impl Policy {
     pub fn from_toml(toml_str: &str) -> Result<Self> {
