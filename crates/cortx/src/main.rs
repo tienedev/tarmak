@@ -14,7 +14,7 @@ enum Cli {
     Serve {
         #[arg(short, long, default_value = ".")]
         project: String,
-        #[arg(long, default_value = "cortx-policy.toml")]
+        #[arg(long, default_value = "policies/cortx-policy.toml")]
         policy: String,
         #[arg(long, default_value = "kanwise.db")]
         kanwise_db: String,
@@ -30,7 +30,7 @@ enum Cli {
     },
     /// Verify everything is OK (DBs, policy, git)
     Doctor {
-        #[arg(long, default_value = "cortx-policy.toml")]
+        #[arg(long, default_value = "policies/cortx-policy.toml")]
         policy: String,
         #[arg(long, default_value = "kanwise.db")]
         kanwise_db: String,
@@ -90,7 +90,7 @@ enum Cli {
 enum PolicyCommand {
     /// Display active policy
     Show {
-        #[arg(long, default_value = "cortx-policy.toml")]
+        #[arg(long, default_value = "policies/cortx-policy.toml")]
         path: String,
     },
 }

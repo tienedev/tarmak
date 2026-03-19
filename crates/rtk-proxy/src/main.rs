@@ -13,7 +13,7 @@ struct Args {
 enum Cli {
     /// Start MCP server on stdio
     Mcp {
-        #[arg(short, long, default_value = "cortx-policy.toml")]
+        #[arg(short, long, default_value = "policies/cortx-policy.toml")]
         policy: String,
         #[arg(short = 'r', long, default_value = ".")]
         root: String,
@@ -21,7 +21,7 @@ enum Cli {
     /// Execute a single command through the proxy pipeline
     Exec {
         command: String,
-        #[arg(short, long, default_value = "cortx-policy.toml")]
+        #[arg(short, long, default_value = "policies/cortx-policy.toml")]
         policy: String,
         #[arg(short = 'r', long, default_value = ".")]
         root: String,
