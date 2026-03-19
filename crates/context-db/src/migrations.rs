@@ -66,7 +66,33 @@ pub fn run_migrations(conn: &mut Connection) -> anyhow::Result<()> {
             VALUES ('delete', old.rowid, old.fact, old.citation);
             INSERT INTO memory_fts(rowid, fact, citation)
             VALUES (new.rowid, new.fact, new.citation);
-        END;",
+        END;
+
+        CREATE TABLE IF NOT EXISTS execution_summaries (
+            id INTEGER PRIMARY KEY,
+            command TEXT NOT NULL UNIQUE,
+            total_runs INTEGER NOT NULL,
+            success_rate REAL NOT NULL,
+            avg_duration_ms INTEGER NOT NULL,
+            last_error TEXT,
+            first_seen TEXT NOT NULL,
+            last_seen TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_exec_summaries_command
+            ON execution_summaries(command);
+
+        CREATE TABLE IF NOT EXISTS session_reports (
+            id INTEGER PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            board_id TEXT,
+            tasks_completed INTEGER NOT NULL DEFAULT 0,
+            tasks_escalated INTEGER NOT NULL DEFAULT 0,
+            commands_run INTEGER NOT NULL DEFAULT 0,
+            chains_created INTEGER NOT NULL DEFAULT 0,
+            duration_seconds INTEGER,
+            summary TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );",
     )?;
     Ok(())
 }

@@ -68,6 +68,11 @@ impl Orchestrator {
         self.proxy.remaining_budget()
     }
 
+    /// Run memory compaction (best-effort). Call once after construction.
+    pub async fn run_compaction(&self) {
+        let _ = self.memory.run_compaction().await;
+    }
+
     pub async fn execute_and_remember(&self, cmd: Command) -> Result<ExecutionResult> {
         let task_id = cmd.task_id.clone();
         let cmd_str = cmd.cmd.clone();
