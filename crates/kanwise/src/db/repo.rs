@@ -2763,6 +2763,109 @@ impl Db {
         .await
     }
 
+    /// Claim a specific task by ID for an agent.
+    /// Returns None if the task doesn't exist or is already locked.
+    pub async fn claim_specific_task(
+        &self,
+        task_id: &str,
+        agent_id: &str,
+    ) -> anyhow::Result<Option<(Task, Vec<String>)>> {
+        let tid = task_id.to_string();
+        let aid = agent_id.to_string();
+        self.with_conn(move |conn| {
+            // Atomic lock: only succeeds if task exists and is unlocked
+            let updated = conn.execute(
+                "UPDATE tasks SET locked_by = ?1, locked_at = datetime('now')
+                 WHERE id = ?2 AND locked_by IS NULL AND archived = 0",
+                params![aid, tid],
+            )?;
+
+            if updated == 0 {
+                return Ok(None);
+            }
+
+            let task = get_task_inner(conn, &tid)?;
+            match task {
+                Some(t) => {
+                    let mut label_stmt = conn.prepare(
+                        "SELECT l.name FROM labels l
+                         JOIN task_labels tl ON l.id = tl.label_id
+                         WHERE tl.task_id = ?1",
+                    )?;
+                    let labels: Vec<String> = label_stmt
+                        .query_map(params![t.id], |row| row.get(0))?
+                        .filter_map(|r| r.ok())
+                        .collect();
+                    Ok(Some((t, labels)))
+                }
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    /// List tasks with details (labels, locked_by) for a board.
+    /// Optionally filter by column name (status).
+    pub async fn list_tasks_with_details(
+        &self,
+        board_id: &str,
+        status_filter: Option<&str>,
+    ) -> anyhow::Result<Vec<(Task, Vec<String>, Option<String>)>> {
+        let bid = board_id.to_string();
+        let status = status_filter.map(String::from);
+        self.with_conn(move |conn| {
+            let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ref col_name) = status {
+                (
+                    "SELECT t.id, t.board_id, t.column_id, t.title, t.description, t.priority,
+                            t.assignee, t.due_date, t.position, t.created_at, t.updated_at, t.archived,
+                            t.locked_by
+                     FROM tasks t
+                     JOIN columns c ON t.column_id = c.id
+                     WHERE t.board_id = ?1 AND t.archived = 0 AND c.name = ?2
+                     ORDER BY t.position".to_string(),
+                    vec![Box::new(bid.clone()), Box::new(col_name.clone())],
+                )
+            } else {
+                (
+                    "SELECT t.id, t.board_id, t.column_id, t.title, t.description, t.priority,
+                            t.assignee, t.due_date, t.position, t.created_at, t.updated_at, t.archived,
+                            t.locked_by
+                     FROM tasks t
+                     WHERE t.board_id = ?1 AND t.archived = 0
+                     ORDER BY t.position".to_string(),
+                    vec![Box::new(bid.clone())],
+                )
+            };
+
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params_vec.iter().map(|v| v.as_ref()).collect();
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(param_refs.as_slice(), |row| {
+                let task = map_task_row(row)?;
+                let locked_by: Option<String> = row.get(12)?;
+                Ok((task, locked_by))
+            })?;
+
+            let mut result = Vec::new();
+            for r in rows {
+                let (task, locked_by) = r?;
+                // Fetch labels for this task
+                let mut label_stmt = conn.prepare(
+                    "SELECT l.name FROM labels l
+                     JOIN task_labels tl ON l.id = tl.label_id
+                     WHERE tl.task_id = ?1",
+                )?;
+                let labels: Vec<String> = label_stmt
+                    .query_map(params![task.id], |row| row.get(0))?
+                    .filter_map(|r| r.ok())
+                    .collect();
+                result.push((task, labels, locked_by));
+            }
+            Ok(result)
+        })
+        .await
+    }
+
     /// Batch-create tasks and auto-label them `ai-ready`.
     /// Returns the list of created task IDs.
     pub async fn create_tasks_batch(
