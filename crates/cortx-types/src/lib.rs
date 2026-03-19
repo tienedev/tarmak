@@ -240,6 +240,37 @@ pub struct MemoryHint {
     pub kind: String,
     pub summary: String,
     pub confidence: f64,
+    pub source: MemorySource,
+    pub chain_id: Option<String>,
+}
+
+
+// ── Agent comment events ──
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum AgentCommentEvent {
+    Bug,
+    Initiative,
+    Decision,
+    Dependency,
+    Rollback,
+    Completion,
+    Escalation,
+}
+
+impl AgentCommentEvent {
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Bug => "Bug encountered",
+            Self::Initiative => "Initiative taken",
+            Self::Decision => "Architectural decision",
+            Self::Dependency => "Dependency added",
+            Self::Rollback => "Rollback performed",
+            Self::Completion => "Task completed",
+            Self::Escalation => "Escalation",
+        }
+    }
 }
 
 // ── Organ traits ──

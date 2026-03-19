@@ -1,11 +1,13 @@
 //! context-db — Memory organ for cortx (SQLite + FTS5).
 
+pub mod compact;
+pub mod confidence;
 pub mod db;
-pub mod decay;
 pub mod mcp;
 pub mod migrations;
 pub mod purge;
 pub mod recall;
+pub mod report;
 pub mod store;
 
 pub use db::Db;
@@ -47,6 +49,29 @@ impl ContextDb {
                 Ok(count)
             })
             .await
+    }
+
+    pub async fn reinforce_confidence(&self, chain_id: &str, delta: f64) -> anyhow::Result<()> {
+        confidence::reinforce_confidence(&self.db, chain_id, delta).await
+    }
+
+    pub async fn store_session_report(
+        &self,
+        report: &report::SessionReport,
+    ) -> anyhow::Result<()> {
+        report::store_session_report(&self.db, report).await
+    }
+
+    pub async fn run_compaction(&self) -> anyhow::Result<compact::CompactionStats> {
+        compact::run_compaction(&self.db).await
+    }
+
+    pub async fn recall_for_preflight(
+        &self,
+        command: &str,
+        files: &[&str],
+    ) -> anyhow::Result<Vec<MemoryHint>> {
+        recall::recall_for_preflight(&self.db, command, files, self.project_root.as_deref()).await
     }
 }
 

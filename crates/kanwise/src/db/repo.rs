@@ -2680,6 +2680,237 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
+
+    /// Atomically claim the next available ai-ready task for an agent.
+    /// Returns None if no unlocked tasks are available.
+    pub async fn claim_task(
+        &self,
+        board_id: &str,
+        agent_id: &str,
+    ) -> anyhow::Result<Option<(Task, Vec<String>)>> {
+        let bid = board_id.to_string();
+        let aid = agent_id.to_string();
+        self.with_conn(move |conn| {
+            let task_id: Option<String> = conn
+                .query_row(
+                    "SELECT t.id FROM tasks t
+                     JOIN task_labels tl ON t.id = tl.task_id
+                     JOIN labels l ON tl.label_id = l.id
+                     WHERE t.board_id = ?1
+                       AND l.name = 'ai-ready'
+                       AND t.locked_by IS NULL
+                       AND t.archived = 0
+                     ORDER BY CASE t.priority
+                        WHEN 'urgent' THEN 0
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 3
+                        ELSE 4
+                     END ASC,
+                     CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC,
+                     t.due_date ASC
+                     LIMIT 1",
+                    [&bid],
+                    |row| row.get(0),
+                )
+                .optional()?;
+
+            let Some(tid) = task_id else {
+                return Ok(None);
+            };
+
+            // Atomic lock: only succeeds if still unlocked
+            let updated = conn.execute(
+                "UPDATE tasks SET locked_by = ?1, locked_at = datetime('now')
+                 WHERE id = ?2 AND locked_by IS NULL",
+                params![aid, tid],
+            )?;
+
+            if updated == 0 {
+                return Ok(None);
+            }
+
+            let task = get_task_inner(conn, &tid)?;
+            match task {
+                Some(t) => {
+                    let mut label_stmt = conn.prepare(
+                        "SELECT l.name FROM labels l
+                         JOIN task_labels tl ON l.id = tl.label_id
+                         WHERE tl.task_id = ?1",
+                    )?;
+                    let labels: Vec<String> = label_stmt
+                        .query_map(params![t.id], |row| row.get(0))?
+                        .filter_map(|r| r.ok())
+                        .collect();
+                    Ok(Some((t, labels)))
+                }
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    /// Release a claimed task back to the pool.
+    pub async fn release_task(&self, task_id: &str) -> anyhow::Result<()> {
+        let tid = task_id.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "UPDATE tasks SET locked_by = NULL, locked_at = NULL WHERE id = ?1",
+                [&tid],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Batch-create tasks and auto-label them `ai-ready`.
+    /// Returns the list of created task IDs.
+    pub async fn create_tasks_batch(
+        &self,
+        board_id: &str,
+        column_id: &str,
+        tasks: Vec<(String, String, String)>, // (title, description, priority)
+    ) -> anyhow::Result<Vec<String>> {
+        let bid = board_id.to_string();
+        let cid = column_id.to_string();
+        self.with_conn(move |conn| {
+            // Ensure ai-ready label exists
+            let label_id: String = match conn
+                .query_row(
+                    "SELECT id FROM labels WHERE board_id = ?1 AND name = 'ai-ready'",
+                    [&bid],
+                    |row| row.get(0),
+                )
+                .optional()?
+            {
+                Some(id) => id,
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO labels (id, board_id, name, color) VALUES (?1, ?2, 'ai-ready', '#22c55e')",
+                        params![id, bid],
+                    )?;
+                    id
+                }
+            };
+
+            let mut ids = Vec::with_capacity(tasks.len());
+            for (i, (title, desc, priority)) in tasks.iter().enumerate() {
+                let id = Uuid::new_v4().to_string();
+                let now = now_iso();
+                conn.execute(
+                    "INSERT INTO tasks (id, board_id, column_id, title, description, priority, position, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    params![id, bid, cid, title, desc, priority, i as i64, now, now],
+                )?;
+                conn.execute(
+                    "INSERT INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                    params![id, label_id],
+                )?;
+                ids.push(id);
+            }
+            Ok(ids)
+        })
+        .await
+    }
+
+
+    /// Ensure the cortx-agent user exists. Returns the user_id.
+    pub async fn ensure_agent_user(&self) -> anyhow::Result<String> {
+        self.with_conn(|conn| {
+            let existing: Option<String> = conn
+                .query_row(
+                    "SELECT id FROM users WHERE email = 'cortx-agent@local'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(id) = existing {
+                return Ok(id);
+            }
+            let id = Uuid::new_v4().to_string();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO users (id, name, email, is_agent, created_at) VALUES (?1, 'cortx-agent', 'cortx-agent@local', 1, ?2)",
+                params![id, now],
+            )?;
+            Ok(id)
+        })
+        .await
+    }
+
+    /// Create a comment on a task from the agent.
+    pub async fn create_agent_comment(
+        &self,
+        task_id: &str,
+        agent_user_id: &str,
+        content: &str,
+    ) -> anyhow::Result<String> {
+        let tid = task_id.to_string();
+        let uid = agent_user_id.to_string();
+        let c = content.to_string();
+        self.with_conn(move |conn| {
+            let id = Uuid::new_v4().to_string();
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO comments (id, task_id, user_id, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, tid, uid, c, now],
+            )?;
+            Ok(id)
+        })
+        .await
+    }
+
+    /// Add a label to a task, creating the label if it doesn't exist on the board.
+    pub async fn add_label_to_task(&self, task_id: &str, board_id: &str, label_name: &str) -> anyhow::Result<()> {
+        let tid = task_id.to_string();
+        let bid = board_id.to_string();
+        let ln = label_name.to_string();
+        self.with_conn(move |conn| {
+            // Ensure label exists
+            let label_id: String = match conn
+                .query_row(
+                    "SELECT id FROM labels WHERE board_id = ?1 AND name = ?2",
+                    params![bid, ln],
+                    |row| row.get(0),
+                )
+                .optional()?
+            {
+                Some(id) => id,
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO labels (id, board_id, name, color) VALUES (?1, ?2, ?3, '#ef4444')",
+                        params![id, bid, ln],
+                    )?;
+                    id
+                }
+            };
+            conn.execute(
+                "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
+                params![tid, label_id],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Remove a label from a task.
+    pub async fn remove_label_from_task(&self, task_id: &str, label_name: &str) -> anyhow::Result<()> {
+        let tid = task_id.to_string();
+        let ln = label_name.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "DELETE FROM task_labels WHERE task_id = ?1 AND label_id IN (
+                    SELECT id FROM labels WHERE name = ?2
+                )",
+                params![tid, ln],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn get_next_ai_task(
         &self,
         board_id: Option<&str>,

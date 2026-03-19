@@ -23,7 +23,7 @@ pub async fn store_memory(db: &Db, memory: Memory) -> Result<MemoryId> {
 async fn store_execution(db: &Db, record: ExecutionRecord) -> Result<MemoryId> {
     let id = uuid::Uuid::new_v4().to_string();
     let id_clone = id.clone();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let errors_json = serde_json::to_string(
         &record
             .errors
@@ -66,7 +66,7 @@ async fn store_causal_chain(
 ) -> Result<MemoryId> {
     let id = uuid::Uuid::new_v4().to_string();
     let id_clone = id.clone();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     for res_file in resolution_files {
         let id_inner = uuid::Uuid::new_v4().to_string();
@@ -98,7 +98,7 @@ async fn store_project_fact(
 ) -> Result<MemoryId> {
     let id = uuid::Uuid::new_v4().to_string();
     let id_clone = id.clone();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let source_str = match source {
         MemorySource::Agent => "agent",
         MemorySource::Proxy => "proxy",
