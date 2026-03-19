@@ -9,8 +9,8 @@ crates/
   cortx-types/   # Shared types + organ traits (PlanningOrgan, ActionOrgan, MemoryOrgan)
   kanwise/       # Planning organ — kanban board (REST + WebSocket + MCP)
   rtk-proxy/     # Action organ — secure 7-layer command execution pipeline
-  context-db/    # Memory organ — SQLite + FTS5, causal chains, confidence decay
-  cortx/         # Orchestrator — wires all 3 organs, meta-MCP server
+  context-db/    # Memory organ — SQLite + FTS5, causal chains, confidence reinforcement + compaction
+  cortx/         # Orchestrator — wires all 3 organs, meta-MCP server (15 tools)
 kbf/             # Kanban Bit Format codec (standalone crate)
 frontend/        # React 19 + TypeScript + Tailwind + shadcn/ui
 ```
@@ -29,10 +29,21 @@ cargo build --workspace  # Build all 4 binaries
 
 | Binary | Purpose |
 |--------|---------|
-| `kanwise` | Kanban board server (REST + WS + MCP) |
+| `cortx` | Unified orchestrator — meta-MCP server (`serve`), web server (`web`), CLI (`doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password`) |
+| `kanwise` | Kanban board server (REST + WS + MCP) — also runnable standalone |
 | `rtk-proxy` | Secure command proxy (CLI + MCP) |
 | `context-db` | Memory organ (CLI + MCP) |
-| `cortx` | Unified orchestrator (CLI + MCP) |
+
+## MCP Tools (cortx serve)
+
+### Proxy (3)
+`proxy_exec`, `proxy_status`, `proxy_rollback`
+
+### Memory (3)
+`memory_store`, `memory_recall`, `memory_status`
+
+### Planning (9)
+`planning_next_task`, `planning_complete_task`, `planning_list_tasks`, `planning_decompose`, `planning_claim_task`, `planning_release_task`, `planning_validate_gates`, `planning_escalate`, `session_report`
 
 ## Key patterns
 
@@ -40,7 +51,10 @@ cargo build --workspace  # Build all 4 binaries
 - `tokio-rusqlite` for async SQLite — `db.with_conn(move |conn| { ... }).await`
 - Organ traits in cortx-types are `async fn in trait` (no dyn dispatch)
 - Policy-based command classification: Safe → Monitored → Dangerous → Forbidden
-- Git-aware confidence decay on causal chains: `confidence = base × (1 - churn_rate)`
+- Bidirectional confidence: reinforcement on success (+0.15), decay on churn, penalty on failure (-0.20)
+- Pre-flight memory: orchestrator checks context-db before monitored/dangerous commands
+- Quality gates configured via `cortx-gates.toml` (tests, lint, diff size)
+- Atomic task claiming with advisory locks (`locked_by`, `locked_at`)
 
 ## Testing
 
