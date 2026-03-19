@@ -39,6 +39,12 @@ impl Proxy {
         self.budget.lock().unwrap().remaining()
     }
 
+    /// Classify a command's tier without executing it.
+    /// Used by the orchestrator for pre-flight memory decisions.
+    pub fn classify(&self, cmd: &str) -> Tier {
+        self.policy.classify(cmd)
+    }
+
     fn make_result(
         &self,
         status: Status,
