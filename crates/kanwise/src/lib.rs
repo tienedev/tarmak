@@ -1,11 +1,13 @@
 pub mod api;
+pub mod auth;
+pub mod background;
+pub mod cli;
 pub mod db;
 pub mod mcp;
-pub mod auth;
-pub mod sync;
-pub mod background;
 pub mod notifications;
+pub mod server;
 pub mod static_files;
+pub mod sync;
 
 pub use db::Db;
 pub use notifications::NotifTx;
