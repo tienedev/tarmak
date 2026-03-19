@@ -19,15 +19,15 @@ Built in Rust. Ships as 4 binaries. Each organ works standalone or composed thro
 ```
 ┌─────────────────────────────────────────────────┐
 │                  cortx (orchestrator)            │
-│         Meta-MCP server — 9 tools, stdio        │
+│        Meta-MCP server — 15 tools, stdio        │
 ├────────────────┬───────────────┬────────────────┤
 │   rtk-proxy    │  context-db   │    kanwise     │
 │  Action organ  │ Memory organ  │ Planning organ │
 │                │               │                │
 │ 7-layer secure │ SQLite + FTS5 │ Kanban board   │
 │ cmd execution  │ Causal chains │ REST + WS +    │
-│ Git checkpoint │ Decay model   │ MCP + KBF      │
-│ Policy engine  │ Purge rules   │ Real-time sync │
+│ Git checkpoint │ Confidence    │ MCP + KBF      │
+│ Policy engine  │ Compaction    │ Real-time sync │
 └────────────────┴───────────────┴────────────────┘
 ```
 
@@ -35,17 +35,18 @@ Built in Rust. Ships as 4 binaries. Each organ works standalone or composed thro
 |-------|------|--------|
 | `cortx-types` | Shared types + organ traits | — |
 | `rtk-proxy` | Secure command execution (policy, sandbox, budget, circuit breaker) | `rtk-proxy` |
-| `context-db` | Memory with FTS5 search, causal chains, git-aware confidence decay | `context-db` |
+| `context-db` | Memory with FTS5 search, causal chains, confidence reinforcement, compaction | `context-db` |
 | `kanwise` | AI-native kanban board (REST, WebSocket, MCP, KBF protocol) | `kanwise` |
 | `cortx` | Orchestrator wiring all 3 organs | `cortx` |
 
 ### How it works
 
 1. **Agent calls `proxy_exec`** — command goes through the 7-layer pipeline (policy → tier → budget → sandbox → execute → output → circuit breaker)
-2. **Execution is remembered** — result stored in context-db with files touched, errors, duration
-3. **On failure → recall** — context-db searches causal chains for known fix patterns
-4. **On success after failure → learn** — a causal chain is created linking the error to the fix
-5. **Tasks tracked** — kanwise board keeps the agent's work organized
+2. **Pre-flight memory** — before monitored/dangerous commands, context-db injects hints from past failures and causal chains
+3. **Execution is remembered** — result stored in context-db with files touched, errors, duration
+4. **On failure → recall** — context-db searches causal chains for known fix patterns
+5. **On success after failure → learn** — a causal chain is created, confidence reinforced
+6. **Tasks tracked** — kanwise board keeps the agent's work organized with atomic claiming, quality gates, and escalation
 
 ## Quick Start
 
@@ -69,8 +70,11 @@ This produces 4 binaries in `target/debug/`:
 ### Run the orchestrator
 
 ```bash
-# Start the meta-MCP server (exposes all 9 tools on stdio)
+# Start the meta-MCP server (exposes all 15 tools on stdio)
 cortx serve --project . --policy cortx-policy.toml
+
+# Start the web server (kanban board UI on port 3001)
+cortx web
 
 # Or run organs individually
 rtk-proxy mcp --policy cortx-policy.toml
@@ -105,31 +109,37 @@ The proxy is configured via `cortx-policy.toml` (command tiers, sandbox rules, b
 
 ## MCP Tools
 
-The `cortx serve` meta-MCP exposes 9 tools across all 3 organs:
+The `cortx serve` meta-MCP exposes 15 tools across all 3 organs:
 
-### Proxy (Action)
+### Proxy (Action) — 3 tools
 
 | Tool | Description |
 |------|-------------|
-| `proxy_exec` | Execute a command through the secure 7-layer pipeline |
-| `proxy_status` | Remaining budget, circuit breaker state |
+| `proxy_exec` | Execute a command through the secure 7-layer pipeline (with pre-flight/post-flight memory) |
+| `proxy_status` | Budget, execution count, circuit breaker state |
 | `proxy_rollback` | Restore last git checkpoint |
 
-### Memory
+### Memory — 3 tools
 
 | Tool | Description |
 |------|-------------|
-| `memory_store` | Store a project fact |
+| `memory_store` | Store a project fact with citation |
 | `memory_recall` | Search memory (FTS5 + confidence ranking) |
 | `memory_status` | Execution count, causal chains, DB size |
 
-### Planning
+### Planning — 9 tools
 
 | Tool | Description |
 |------|-------------|
-| `planning_next_task` | Get next task matching a filter |
+| `planning_next_task` | Get next ai-ready task |
 | `planning_complete_task` | Mark a task as done |
-| `planning_list_tasks` | List tasks for a board |
+| `planning_list_tasks` | List tasks with details, labels, lock status |
+| `planning_decompose` | Decompose objective into ordered tasks with dependency validation |
+| `planning_claim_task` | Atomically claim a task for an agent |
+| `planning_release_task` | Release a claimed task back to the pool |
+| `planning_validate_gates` | Run quality gates (tests, lint, diff size) |
+| `planning_escalate` | Escalate a blocked task with context |
+| `session_report` | Generate and store session activity report |
 
 Each organ also runs as a standalone MCP server with its own subset of tools.
 
@@ -153,13 +163,14 @@ T|task-1|Fix auth bug|high|0
 
 ### Kanwise MCP tools
 
-When running standalone, kanwise exposes 3 tools:
+When running standalone, kanwise exposes 4 tools:
 
 | Tool | Purpose |
 |------|---------|
 | `board_query` | Read board state (KBF or JSON) |
 | `board_mutate` | Create, update, move, delete entities |
 | `board_sync` | Apply KBF deltas, return current state |
+| `board_ask` | Natural language queries about the board |
 
 ### Features
 
