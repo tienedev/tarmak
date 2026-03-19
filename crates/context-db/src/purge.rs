@@ -15,26 +15,28 @@ pub async fn purge_unconfirmed_chains(db: &Db, age_days: u32) -> Result<u64> {
 
 pub async fn archive_low_confidence(db: &Db, threshold: f64) -> Result<u64> {
     db.with_conn(move |conn| {
-        let count1 = conn.execute(
+        let tx = conn.transaction()?;
+        let count1 = tx.execute(
             "INSERT INTO archived_memories (id, source_table, data, archived_at)
              SELECT id, 'causal_chains', json_object('trigger_file', trigger_file, 'trigger_error', trigger_error, 'resolution_file', resolution_file, 'confidence', confidence), datetime('now')
              FROM causal_chains WHERE confidence < ?1",
             rusqlite::params![threshold],
         )?;
-        conn.execute(
+        tx.execute(
             "DELETE FROM causal_chains WHERE confidence < ?1",
             rusqlite::params![threshold],
         )?;
-        let count2 = conn.execute(
+        let count2 = tx.execute(
             "INSERT INTO archived_memories (id, source_table, data, archived_at)
              SELECT id, 'project_facts', json_object('fact', fact, 'citation', citation, 'source', source, 'confidence', confidence), datetime('now')
              FROM project_facts WHERE confidence < ?1",
             rusqlite::params![threshold],
         )?;
-        conn.execute(
+        tx.execute(
             "DELETE FROM project_facts WHERE confidence < ?1",
             rusqlite::params![threshold],
         )?;
+        tx.commit()?;
         Ok((count1 + count2) as u64)
     })
     .await
