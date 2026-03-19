@@ -156,6 +156,10 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
 
 /// Pre-flight memory check: search for hints relevant to a command
 /// about to be executed. Returns hints with confidence >= 0.5.
+///
+/// In addition to the standard recall (FTS5 on project_facts, file-based on
+/// causal_chains), this also searches causal_chains by `trigger_command` so
+/// that previously recorded failure patterns for the same command surface.
 pub async fn recall_for_preflight(
     db: &Db,
     command: &str,
@@ -168,7 +172,58 @@ pub async fn recall_for_preflight(
         error_patterns: vec![],
         min_confidence: Some(0.5),
     };
-    recall(db, query, project_root).await
+    let mut hints = recall(db, query, project_root).await?;
+
+    // Additionally search causal_chains by trigger_command
+    let cmd = command.to_string();
+    let project_root_owned = project_root.map(|s| s.to_string());
+    let command_results = db
+        .with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, trigger_file, trigger_error, resolution_file, confidence
+                 FROM causal_chains WHERE trigger_command = ?1 AND confidence >= 0.5
+                 ORDER BY confidence DESC LIMIT 10",
+            )?;
+            let results: Vec<(String, String, Option<String>, String, f64)> = stmt
+                .query_map(rusqlite::params![cmd], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+            Ok(results)
+        })
+        .await?;
+    for (id, trigger, error, resolution, raw_confidence) in command_results {
+        // Skip duplicates already found by file-based search
+        if hints.iter().any(|h| h.chain_id.as_deref() == Some(&id)) {
+            continue;
+        }
+        let confidence = match project_root_owned.as_deref() {
+            Some(cwd) => {
+                let commits =
+                    crate::decay::count_commits_since(&trigger, "1970-01-01", cwd);
+                crate::decay::compute_confidence(
+                    raw_confidence,
+                    commits,
+                    crate::decay::DEFAULT_CHURN_NORMALIZER,
+                )
+            }
+            None => raw_confidence,
+        };
+        if confidence < 0.5 {
+            continue;
+        }
+        let error_str = error.as_deref().unwrap_or("unknown error");
+        hints.push(MemoryHint {
+            kind: "causal_chain".to_string(),
+            summary: format!("When {trigger} fails with \"{error_str}\", check {resolution}"),
+            confidence,
+            source: MemorySource::Proxy,
+            chain_id: Some(id),
+        });
+    }
+
+    Ok(hints)
 }
 
 pub async fn last_failure_for_command(

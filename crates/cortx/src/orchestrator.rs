@@ -1,7 +1,7 @@
 use anyhow::Result;
 use cortx_types::{
     ActionOrgan, Budget, Command, ExecutionRecord, ExecutionResult, Memory, MemoryOrgan,
-    RecallQuery, Status,
+    RecallQuery, Status, Tier,
 };
 use uuid::Uuid;
 
@@ -58,10 +58,25 @@ impl Orchestrator {
         let task_id = cmd.task_id.clone();
         let cmd_str = cmd.cmd.clone();
 
-        // 1. Proxy executes
-        let result = self.proxy.execute(cmd).await?;
+        // --- PRE-FLIGHT ---
+        let tier = self.proxy.classify(&cmd.cmd);
+        let mut preflight_hints = Vec::new();
 
-        // 2. Store execution — best-effort, never blocks
+        if tier != Tier::Safe {
+            if let Ok(hints) = self.memory.recall_for_preflight(&cmd.cmd, &[]).await {
+                preflight_hints = hints;
+            }
+        }
+
+        // --- EXECUTE ---
+        let mut result = self.proxy.execute(cmd).await?;
+
+        // Inject pre-flight hints
+        if !preflight_hints.is_empty() {
+            result.hints = preflight_hints;
+        }
+
+        // --- POST-FLIGHT: store execution ---
         let record = ExecutionRecord {
             session_id: self.session_id.clone(),
             task_id,
@@ -75,7 +90,7 @@ impl Orchestrator {
         };
         let _ = self.memory.store(Memory::Execution(record)).await;
 
-        // 3. On failure → check if memory knows this pattern
+        // --- POST-FLIGHT: on failure, recall and EXTEND hints ---
         if result.status == Status::Failed {
             if let Ok(hints) = self
                 .memory
@@ -87,12 +102,13 @@ impl Orchestrator {
                 .await
                 && !hints.is_empty()
             {
-                return Ok(result.with_hints(hints));
+                result.hints.extend(hints);
+                return Ok(result);
             }
             return Ok(result);
         }
 
-        // 4. On success after previous failure of SAME COMMAND → build causal chain
+        // --- POST-FLIGHT: causal chain creation ---
         if result.status == Status::Passed
             && !result.files_touched.is_empty()
             && let Ok(Some(prev_fail)) = self.memory.last_failure_for_command(&cmd_str).await
