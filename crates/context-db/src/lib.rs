@@ -48,6 +48,14 @@ impl ContextDb {
             })
             .await
     }
+
+    pub async fn recall_for_preflight(
+        &self,
+        command: &str,
+        files: &[&str],
+    ) -> anyhow::Result<Vec<MemoryHint>> {
+        recall::recall_for_preflight(&self.db, command, files, self.project_root.as_deref()).await
+    }
 }
 
 impl MemoryOrgan for ContextDb {

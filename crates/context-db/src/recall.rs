@@ -154,6 +154,23 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
     Ok(hints)
 }
 
+/// Pre-flight memory check: search for hints relevant to a command
+/// about to be executed. Returns hints with confidence >= 0.5.
+pub async fn recall_for_preflight(
+    db: &Db,
+    command: &str,
+    files: &[&str],
+    project_root: Option<&str>,
+) -> Result<Vec<MemoryHint>> {
+    let query = RecallQuery {
+        text: Some(command.to_string()),
+        files: files.iter().map(|f| f.to_string()).collect(),
+        error_patterns: vec![],
+        min_confidence: Some(0.5),
+    };
+    recall(db, query, project_root).await
+}
+
 pub async fn last_failure_for_command(
     db: &Db,
     command: &str,
