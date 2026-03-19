@@ -76,11 +76,11 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
             let confidence = match project_root {
                 Some(cwd) => {
                     let commits =
-                        crate::decay::count_commits_since(&trigger, "1970-01-01", cwd);
-                    crate::decay::compute_confidence(
+                        crate::confidence::count_commits_since(&trigger, "1970-01-01", cwd);
+                    crate::confidence::compute_confidence(
                         raw_confidence,
                         commits,
-                        crate::decay::DEFAULT_CHURN_NORMALIZER,
+                        crate::confidence::DEFAULT_CHURN_NORMALIZER,
                     )
                 }
                 None => raw_confidence,
@@ -129,11 +129,11 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
             let confidence = match project_root_owned.as_deref() {
                 Some(cwd) => {
                     let commits =
-                        crate::decay::count_commits_since(&trigger, "1970-01-01", cwd);
-                    crate::decay::compute_confidence(
+                        crate::confidence::count_commits_since(&trigger, "1970-01-01", cwd);
+                    crate::confidence::compute_confidence(
                         raw_confidence,
                         commits,
-                        crate::decay::DEFAULT_CHURN_NORMALIZER,
+                        crate::confidence::DEFAULT_CHURN_NORMALIZER,
                     )
                 }
                 None => raw_confidence,
@@ -201,11 +201,11 @@ pub async fn recall_for_preflight(
         let confidence = match project_root_owned.as_deref() {
             Some(cwd) => {
                 let commits =
-                    crate::decay::count_commits_since(&trigger, "1970-01-01", cwd);
-                crate::decay::compute_confidence(
+                    crate::confidence::count_commits_since(&trigger, "1970-01-01", cwd);
+                crate::confidence::compute_confidence(
                     raw_confidence,
                     commits,
-                    crate::decay::DEFAULT_CHURN_NORMALIZER,
+                    crate::confidence::DEFAULT_CHURN_NORMALIZER,
                 )
             }
             None => raw_confidence,

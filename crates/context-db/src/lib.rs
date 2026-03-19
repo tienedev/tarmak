@@ -1,7 +1,7 @@
 //! context-db — Memory organ for cortx (SQLite + FTS5).
 
 pub mod db;
-pub mod decay;
+pub mod confidence;
 pub mod mcp;
 pub mod migrations;
 pub mod purge;
@@ -47,6 +47,10 @@ impl ContextDb {
                 Ok(count)
             })
             .await
+    }
+
+    pub async fn reinforce_confidence(&self, chain_id: &str, delta: f64) -> anyhow::Result<()> {
+        confidence::reinforce_confidence(&self.db, chain_id, delta).await
     }
 
     pub async fn recall_for_preflight(
