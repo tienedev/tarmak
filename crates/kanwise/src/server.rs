@@ -52,8 +52,7 @@ pub async fn run_http_server() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let db_path =
-        std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
+    let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
 
     tracing::info!(db_path = %db_path, "Starting kanwise");
 
@@ -76,8 +75,17 @@ pub async fn run_http_server() -> anyhow::Result<()> {
 
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
-        .allow_headers([HeaderName::from_static("content-type"), HeaderName::from_static("authorization")]);
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ])
+        .allow_headers([
+            HeaderName::from_static("content-type"),
+            HeaderName::from_static("authorization"),
+        ]);
 
     let rate_max: usize = std::env::var("RATE_LIMIT_MAX")
         .ok()
@@ -90,7 +98,8 @@ pub async fn run_http_server() -> anyhow::Result<()> {
     let rate_limiter = api::rate_limit::RateLimiter::new(rate_max, rate_window);
     spawn_cleanup_tasks(db.clone(), rate_limiter.clone());
 
-    let (notif_sender, _) = tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
+    let (notif_sender, _) =
+        tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
     let notif_tx = notifications::NotifTx(notif_sender);
     let ticket_store = api::notifications::TicketStore::default();
 
@@ -131,8 +140,7 @@ pub async fn run_http_server() -> anyhow::Result<()> {
 }
 
 pub async fn reset_password(email: &str) -> anyhow::Result<()> {
-    let db_path =
-        std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
+    let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
     let db = db::Db::new(&db_path).await?;
 
     let user = db

@@ -1,7 +1,7 @@
-use std::time::Duration;
-use chrono::Utc;
 use crate::db::Db;
 use crate::notifications::{self, NotifTx};
+use chrono::Utc;
+use std::time::Duration;
 
 /// Runs every hour. Creates deadline notifications for tasks due within 24h.
 pub async fn deadline_checker(db: Db, tx: NotifTx) {
@@ -37,7 +37,14 @@ async fn check_deadlines(db: &Db, tx: &NotifTx) -> anyhow::Result<()> {
 
         let notif_title = format!("Task \"{}\" is due tomorrow", title);
         if let Ok(notif) = db
-            .create_notification(&user.id, &board_id, Some(&task_id), "deadline", &notif_title, None)
+            .create_notification(
+                &user.id,
+                &board_id,
+                Some(&task_id),
+                "deadline",
+                &notif_title,
+                None,
+            )
             .await
         {
             notifications::broadcast(tx, &notif);

@@ -12,11 +12,11 @@ use serde::Deserialize;
 use tokio_stream::StreamExt as _;
 use tokio_stream::wrappers::BroadcastStream;
 
+use super::error::ApiError;
+use super::middleware::AuthUser;
 use crate::db::Db;
 use crate::db::models::Notification;
 use crate::notifications::NotifTx;
-use super::error::ApiError;
-use super::middleware::AuthUser;
 
 // ---------------------------------------------------------------------------
 // Stream ticket store (in-memory, short-lived)
@@ -98,7 +98,9 @@ pub async fn create_stream_ticket(
     Extension(store): Extension<TicketStore>,
 ) -> Json<serde_json::Value> {
     // Clean expired tickets opportunistically
-    store.0.retain(|_, (_, exp)| exp.elapsed() < Duration::from_secs(60));
+    store
+        .0
+        .retain(|_, (_, exp)| exp.elapsed() < Duration::from_secs(60));
 
     let ticket = uuid::Uuid::new_v4().to_string();
     let expiry = Instant::now();
@@ -131,22 +133,18 @@ pub async fn stream(
     let connected = futures::stream::once(async {
         Ok::<_, Infallible>(Event::default().event("connected").data("{}"))
     });
-    let notifications = BroadcastStream::new(rx).filter_map(move |result| {
-        match result {
-            Ok((uid, notif)) if uid == user_id => {
-                let data = serde_json::to_string(&notif).unwrap_or_default();
-                Some(Ok(Event::default().event("notification").data(data)))
-            }
-            Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(n)) => {
-                tracing::warn!("SSE client lagged, skipped {n} notifications");
-                None
-            }
-            _ => None,
+    let notifications = BroadcastStream::new(rx).filter_map(move |result| match result {
+        Ok((uid, notif)) if uid == user_id => {
+            let data = serde_json::to_string(&notif).unwrap_or_default();
+            Some(Ok(Event::default().event("notification").data(data)))
         }
+        Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(n)) => {
+            tracing::warn!("SSE client lagged, skipped {n} notifications");
+            None
+        }
+        _ => None,
     });
     let stream = connected.chain(notifications);
 
-    Ok(Sse::new(stream).keep_alive(
-        KeepAlive::new().interval(Duration::from_secs(30)),
-    ))
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(30))))
 }

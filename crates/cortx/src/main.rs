@@ -118,7 +118,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     match args.command {
-        Some(Cli::Serve { project, policy, kanwise_db: kw_db_path, context_db: ctx_db_path }) => {
+        Some(Cli::Serve {
+            project,
+            policy,
+            kanwise_db: kw_db_path,
+            context_db: ctx_db_path,
+        }) => {
             let project_root = PathBuf::from(&project).canonicalize()?;
 
             // 1. Open kanwise DB
@@ -129,7 +134,9 @@ async fn main() -> anyhow::Result<()> {
             let proxy = rtk_proxy::Proxy::from_file(&policy, project_root.clone())?;
 
             // 3. Open context DB
-            let mem = context_db::ContextDb::new(&ctx_db_path, Some(project_root.display().to_string())).await?;
+            let mem =
+                context_db::ContextDb::new(&ctx_db_path, Some(project_root.display().to_string()))
+                    .await?;
 
             // 4. Wire orchestrator
             let orch = cortx::orchestrator::Orchestrator::new(kw, proxy, mem);
@@ -143,7 +150,9 @@ async fn main() -> anyhow::Result<()> {
             service.waiting().await?;
         }
         Some(Cli::Web) => kanwise::server::run_http_server().await?,
-        Some(Cli::Status { context_db: ctx_db_path }) => {
+        Some(Cli::Status {
+            context_db: ctx_db_path,
+        }) => {
             if std::path::Path::new(&ctx_db_path).exists() {
                 let ctx = context_db::ContextDb::new(&ctx_db_path, None).await?;
                 let count = ctx.execution_count().await?;
@@ -153,14 +162,21 @@ async fn main() -> anyhow::Result<()> {
                 println!("No context.db found — run `cortx serve` first.");
             }
         }
-        Some(Cli::Doctor { policy, kanwise_db: kw_db_path, context_db: ctx_db_path }) => {
+        Some(Cli::Doctor {
+            policy,
+            kanwise_db: kw_db_path,
+            context_db: ctx_db_path,
+        }) => {
             let mut ok = true;
 
             // Check policy
             print!("Policy ({policy})... ");
             match rtk_proxy::Proxy::from_file(&policy, PathBuf::from(".")) {
                 Ok(_) => println!("OK"),
-                Err(e) => { println!("FAIL: {e}"); ok = false; }
+                Err(e) => {
+                    println!("FAIL: {e}");
+                    ok = false;
+                }
             }
 
             // Check kanwise DB
@@ -168,10 +184,14 @@ async fn main() -> anyhow::Result<()> {
             if std::path::Path::new(&kw_db_path).exists() {
                 match kanwise::Db::new(&kw_db_path).await {
                     Ok(_) => println!("OK"),
-                    Err(e) => { println!("FAIL: {e}"); ok = false; }
+                    Err(e) => {
+                        println!("FAIL: {e}");
+                        ok = false;
+                    }
                 }
             } else {
-                println!("NOT FOUND"); ok = false;
+                println!("NOT FOUND");
+                ok = false;
             }
 
             // Check context DB
@@ -179,7 +199,10 @@ async fn main() -> anyhow::Result<()> {
             if std::path::Path::new(&ctx_db_path).exists() {
                 match context_db::ContextDb::new(&ctx_db_path, None).await {
                     Ok(_) => println!("OK"),
-                    Err(e) => { println!("FAIL: {e}"); ok = false; }
+                    Err(e) => {
+                        println!("FAIL: {e}");
+                        ok = false;
+                    }
                 }
             } else {
                 println!("NOT FOUND (will be created on first serve)");
@@ -187,14 +210,23 @@ async fn main() -> anyhow::Result<()> {
 
             // Check git
             print!("Git... ");
-            let git = std::process::Command::new("git").args(["status", "--porcelain"]).output();
+            let git = std::process::Command::new("git")
+                .args(["status", "--porcelain"])
+                .output();
             match git {
                 Ok(o) if o.status.success() => println!("OK"),
-                _ => { println!("FAIL: not a git repository"); ok = false; }
+                _ => {
+                    println!("FAIL: not a git repository");
+                    ok = false;
+                }
             }
 
-            if ok { println!("\nAll checks passed."); }
-            else { println!("\nSome checks failed."); std::process::exit(1); }
+            if ok {
+                println!("\nAll checks passed.");
+            } else {
+                println!("\nSome checks failed.");
+                std::process::exit(1);
+            }
         }
         Some(Cli::Rollback) => {
             if rtk_proxy::git::restore_checkpoint(&std::env::current_dir()?).await {
@@ -204,16 +236,16 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Cli::Policy { command }) => match command {
-            PolicyCommand::Show { path } => {
-                match std::fs::read_to_string(&path) {
-                    Ok(content) => print!("{content}"),
-                    Err(e) => eprintln!("Cannot read {path}: {e}"),
-                }
-            }
+            PolicyCommand::Show { path } => match std::fs::read_to_string(&path) {
+                Ok(content) => print!("{content}"),
+                Err(e) => eprintln!("Cannot read {path}: {e}"),
+            },
         },
         Some(Cli::Backup { output }) => kanwise::cli::backup(output).await?,
         Some(Cli::Restore { file, force }) => kanwise::cli::restore(&file, force).await?,
-        Some(Cli::Export { board_id, output }) => kanwise::cli::export_board(&board_id, output).await?,
+        Some(Cli::Export { board_id, output }) => {
+            kanwise::cli::export_board(&board_id, output).await?
+        }
         Some(Cli::Import { file, owner }) => kanwise::cli::import_board(&file, &owner).await?,
         Some(Cli::Users { command }) => match command {
             UsersCommand::List => kanwise::cli::list_users().await?,

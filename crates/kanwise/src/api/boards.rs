@@ -6,12 +6,12 @@ use serde::Deserialize;
 
 use serde::Serialize;
 
-use crate::db::Db;
-use crate::db::models::{Board, Role};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
 use super::validation;
+use crate::db::Db;
+use crate::db::models::{Board, Role};
 
 // ---- Request bodies --------------------------------------------------------
 
@@ -49,8 +49,11 @@ pub async fn create(
     Json(body): Json<CreateBoard>,
 ) -> Result<Json<Board>, ApiError> {
     validation::validate_title(&body.name)?;
-    let board = db.create_board(&body.name, body.description.as_deref()).await?;
-    db.add_board_member(&board.id, &user.id, Role::Owner).await?;
+    let board = db
+        .create_board(&body.name, body.description.as_deref())
+        .await?;
+    db.add_board_member(&board.id, &user.id, Role::Owner)
+        .await?;
     Ok(Json(board))
 }
 
@@ -133,13 +136,17 @@ pub async fn duplicate(
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     validation::validate_title(&body.name)?;
     let include_tasks = body.include_tasks.unwrap_or(true);
-    let board = db.duplicate_board(&board_id, &body.name, include_tasks, &user.id).await?;
-    let _ = db.log_activity(
-        &board.id,
-        None,
-        &user.id,
-        "board_duplicated",
-        Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
-    ).await;
+    let board = db
+        .duplicate_board(&board_id, &body.name, include_tasks, &user.id)
+        .await?;
+    let _ = db
+        .log_activity(
+            &board.id,
+            None,
+            &user.id,
+            "board_duplicated",
+            Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
+        )
+        .await;
     Ok(Json(board))
 }

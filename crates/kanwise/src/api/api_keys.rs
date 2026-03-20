@@ -1,4 +1,7 @@
-use axum::{Json, extract::{Path, State}};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::auth;
@@ -25,8 +28,13 @@ pub async fn create(
     Json(body): Json<CreateKeyRequest>,
 ) -> Result<Json<CreateKeyResponse>, ApiError> {
     let (raw_key, key_hash, key_prefix) = auth::generate_api_key();
-    let api_key = db.create_api_key(&user.id, &body.name, &key_hash, &key_prefix).await?;
-    Ok(Json(CreateKeyResponse { key: raw_key, api_key }))
+    let api_key = db
+        .create_api_key(&user.id, &body.name, &key_hash, &key_prefix)
+        .await?;
+    Ok(Json(CreateKeyResponse {
+        key: raw_key,
+        api_key,
+    }))
 }
 
 pub async fn list(

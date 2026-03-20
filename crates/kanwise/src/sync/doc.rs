@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use yrs::{Doc, Map, ReadTxn, Transact, Update, WriteTxn};
 use yrs::updates::decoder::Decode;
+use yrs::{Doc, Map, ReadTxn, Transact, Update, WriteTxn};
 
 use crate::db::Db;
 
@@ -174,12 +174,15 @@ mod tests {
 
     #[tokio::test]
     async fn encode_full_state_roundtrip() {
-        use yrs::updates::decoder::Decode;
         use yrs::Update;
+        use yrs::updates::decoder::Decode;
 
         let db = Db::in_memory().await.expect("in-memory db");
         let board = db.create_board("Sync", None).await.unwrap();
-        let col = db.create_column(&board.id, "Col", None, None).await.unwrap();
+        let col = db
+            .create_column(&board.id, "Col", None, None)
+            .await
+            .unwrap();
         db.create_task(
             &board.id,
             &col.id,

@@ -18,11 +18,8 @@ async fn morning_report_summarizes_session() {
         .memory()
         .db()
         .with_conn(|conn| {
-            let c: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM session_reports",
-                [],
-                |row| row.get(0),
-            )?;
+            let c: i64 =
+                conn.query_row("SELECT COUNT(*) FROM session_reports", [], |row| row.get(0))?;
             Ok(c)
         })
         .await

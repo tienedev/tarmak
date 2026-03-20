@@ -4,7 +4,11 @@ use rusqlite::OptionalExtension;
 
 use crate::db::Db;
 
-pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> Result<Vec<MemoryHint>> {
+pub async fn recall(
+    db: &Db,
+    query: RecallQuery,
+    project_root: Option<&str>,
+) -> Result<Vec<MemoryHint>> {
     let mut hints = Vec::new();
 
     // FTS5 text search on project_facts
@@ -141,9 +145,7 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
             let error_str = error.as_deref().unwrap_or("unknown error");
             hints.push(MemoryHint {
                 kind: "causal_chain".to_string(),
-                summary: format!(
-                    "When {trigger} fails with \"{error_str}\", check {resolution}"
-                ),
+                summary: format!("When {trigger} fails with \"{error_str}\", check {resolution}"),
                 confidence,
                 source: MemorySource::Proxy,
                 chain_id: Some(id.clone()),
@@ -186,7 +188,14 @@ pub async fn recall_for_preflight(
             )?;
             let results: Vec<(String, String, Option<String>, String, f64, String)> = stmt
                 .query_map(rusqlite::params![cmd], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
                 })?
                 .filter_map(|r| r.ok())
                 .collect();
@@ -226,10 +235,7 @@ pub async fn recall_for_preflight(
     Ok(hints)
 }
 
-pub async fn last_failure_for_command(
-    db: &Db,
-    command: &str,
-) -> Result<Option<ExecutionRecord>> {
+pub async fn last_failure_for_command(db: &Db, command: &str) -> Result<Option<ExecutionRecord>> {
     let command = command.to_string();
     db.with_conn(move |conn| {
         let mut stmt = conn.prepare(

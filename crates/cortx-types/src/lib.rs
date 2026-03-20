@@ -244,7 +244,6 @@ pub struct MemoryHint {
     pub chain_id: Option<String>,
 }
 
-
 // ── Agent comment events ──
 
 #[derive(Debug, Clone)]

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
 use super::Db;
@@ -22,11 +22,7 @@ fn parse_dt(s: &str) -> Result<chrono::DateTime<Utc>, rusqlite::Error> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .map_err(|e| {
-            rusqlite::Error::FromSqlConversionFailure(
-                0,
-                rusqlite::types::Type::Text,
-                Box::new(e),
-            )
+            rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
         })
 }
 
@@ -35,7 +31,11 @@ fn parse_dt(s: &str) -> Result<chrono::DateTime<Utc>, rusqlite::Error> {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub async fn create_board(&self, name: &str, description: Option<&str>) -> anyhow::Result<Board> {
+    pub async fn create_board(
+        &self,
+        name: &str,
+        description: Option<&str>,
+    ) -> anyhow::Result<Board> {
         let name = name.to_string();
         let description = description.map(String::from);
         self.with_conn(move |conn| {
@@ -113,10 +113,7 @@ impl Db {
                 values.push(Box::new(now));
                 values.push(Box::new(id.clone()));
 
-                let sql = format!(
-                    "UPDATE boards SET {} WHERE id = ?",
-                    sets.join(", ")
-                );
+                let sql = format!("UPDATE boards SET {} WHERE id = ?", sets.join(", "));
                 let param_refs: Vec<&dyn rusqlite::types::ToSql> =
                     values.iter().map(|v| v.as_ref()).collect();
                 conn.execute(&sql, param_refs.as_slice())?;
@@ -239,10 +236,8 @@ impl Db {
         self.with_conn(move |conn| {
             let mut affected = 0usize;
             if let Some(n) = name {
-                affected += conn.execute(
-                    "UPDATE columns SET name = ?1 WHERE id = ?2",
-                    params![n, id],
-                )?;
+                affected +=
+                    conn.execute("UPDATE columns SET name = ?1 WHERE id = ?2", params![n, id])?;
             }
             if let Some(w) = wip_limit {
                 affected += conn.execute(
@@ -341,7 +336,12 @@ impl Db {
         self.with_conn(move |conn| get_task_inner(conn, &id)).await
     }
 
-    pub async fn list_tasks(&self, board_id: &str, limit: i64, offset: i64) -> anyhow::Result<Vec<Task>> {
+    pub async fn list_tasks(
+        &self,
+        board_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> anyhow::Result<Vec<Task>> {
         let board_id = board_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
@@ -413,10 +413,7 @@ impl Db {
                 values.push(Box::new(now));
                 values.push(Box::new(id.clone()));
 
-                let sql = format!(
-                    "UPDATE tasks SET {} WHERE id = ?",
-                    sets.join(", ")
-                );
+                let sql = format!("UPDATE tasks SET {} WHERE id = ?", sets.join(", "));
                 let param_refs: Vec<&dyn rusqlite::types::ToSql> =
                     values.iter().map(|v| v.as_ref()).collect();
                 conn.execute(&sql, param_refs.as_slice())?;
@@ -834,7 +831,12 @@ fn collect_rows(
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub async fn create_label(&self, board_id: &str, name: &str, color: &str) -> anyhow::Result<Label> {
+    pub async fn create_label(
+        &self,
+        board_id: &str,
+        name: &str,
+        color: &str,
+    ) -> anyhow::Result<Label> {
         let board_id = board_id.to_string();
         let name = name.to_string();
         let color = color.to_string();
@@ -901,7 +903,12 @@ impl Db {
         .await
     }
 
-    pub async fn update_label(&self, id: &str, name: Option<&str>, color: Option<&str>) -> anyhow::Result<bool> {
+    pub async fn update_label(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        color: Option<&str>,
+    ) -> anyhow::Result<bool> {
         let id = id.to_string();
         let name = name.map(String::from);
         let color = color.map(String::from);
@@ -916,10 +923,13 @@ impl Db {
                 sets.push("color = ?");
                 values.push(Box::new(c));
             }
-            if sets.is_empty() { return Ok(false); }
+            if sets.is_empty() {
+                return Ok(false);
+            }
             values.push(Box::new(id));
             let sql = format!("UPDATE labels SET {} WHERE id = ?", sets.join(", "));
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                values.iter().map(|v| v.as_ref()).collect();
             let affected = conn.execute(&sql, param_refs.as_slice())?;
             Ok(affected > 0)
         })
@@ -942,7 +952,8 @@ impl Db {
             conn.execute(
                 "INSERT OR IGNORE INTO task_labels (task_id, label_id) VALUES (?1, ?2)",
                 params![task_id, label_id],
-            ).context("add task label")?;
+            )
+            .context("add task label")?;
             Ok(())
         })
         .await
@@ -981,14 +992,19 @@ impl Db {
                 })
             })?;
             let mut out = Vec::new();
-            for r in rows { out.push(r?); }
+            for r in rows {
+                out.push(r?);
+            }
             Ok(out)
         })
         .await
     }
 
     /// Batch load labels for all tasks in a board (avoids N+1).
-    pub async fn get_labels_for_board_tasks(&self, board_id: &str) -> anyhow::Result<Vec<(String, Label)>> {
+    pub async fn get_labels_for_board_tasks(
+        &self,
+        board_id: &str,
+    ) -> anyhow::Result<Vec<(String, Label)>> {
         let board_id = board_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
@@ -1010,7 +1026,9 @@ impl Db {
                 Ok((task_id, label))
             })?;
             let mut out = Vec::new();
-            for r in rows { out.push(r?); }
+            for r in rows {
+                out.push(r?);
+            }
             Ok(out)
         })
         .await
@@ -1160,7 +1178,10 @@ impl Db {
     }
 
     /// Get subtask counts for all tasks in a board (avoids N+1).
-    pub async fn get_subtask_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, SubtaskCount)>> {
+    pub async fn get_subtask_counts_for_board(
+        &self,
+        board_id: &str,
+    ) -> anyhow::Result<Vec<(String, SubtaskCount)>> {
         let board_id = board_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
@@ -1177,7 +1198,9 @@ impl Db {
                 Ok((task_id, SubtaskCount { completed, total }))
             })?;
             let mut out = Vec::new();
-            for r in rows { out.push(r?); }
+            for r in rows {
+                out.push(r?);
+            }
             Ok(out)
         })
         .await
@@ -1376,12 +1399,9 @@ impl Db {
     pub async fn get_password_hash(&self, user_id: &str) -> anyhow::Result<Option<String>> {
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
-            let mut stmt = conn.prepare(
-                "SELECT password_hash FROM users WHERE id = ?1",
-            )?;
-            let mut rows = stmt.query_map(params![user_id], |row| {
-                row.get::<_, Option<String>>(0)
-            })?;
+            let mut stmt = conn.prepare("SELECT password_hash FROM users WHERE id = ?1")?;
+            let mut rows =
+                stmt.query_map(params![user_id], |row| row.get::<_, Option<String>>(0))?;
             match rows.next() {
                 Some(r) => Ok(r?),
                 None => Ok(None),
@@ -1442,7 +1462,11 @@ impl Db {
             .context("insert comment")?;
             // Look up user name for the response
             let user_name: Option<String> = conn
-                .query_row("SELECT name FROM users WHERE id = ?1", params![user_id], |r| r.get(0))
+                .query_row(
+                    "SELECT name FROM users WHERE id = ?1",
+                    params![user_id],
+                    |r| r.get(0),
+                )
                 .ok();
             Ok(Comment {
                 id,
@@ -1474,7 +1498,8 @@ impl Db {
                     content: row.get(3)?,
                     created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     user_name: row.get(5)?,
-                    updated_at: row.get::<_, Option<String>>(6)?
+                    updated_at: row
+                        .get::<_, Option<String>>(6)?
                         .as_deref()
                         .map(parse_dt)
                         .transpose()?,
@@ -1507,7 +1532,8 @@ impl Db {
                         content: row.get(3)?,
                         created_at: parse_dt(&row.get::<_, String>(4)?)?,
                         user_name: row.get(5)?,
-                        updated_at: row.get::<_, Option<String>>(6)?
+                        updated_at: row
+                            .get::<_, Option<String>>(6)?
                             .as_deref()
                             .map(parse_dt)
                             .transpose()?,
@@ -1519,7 +1545,11 @@ impl Db {
         .await
     }
 
-    pub async fn update_comment(&self, comment_id: &str, content: &str) -> anyhow::Result<Option<Comment>> {
+    pub async fn update_comment(
+        &self,
+        comment_id: &str,
+        content: &str,
+    ) -> anyhow::Result<Option<Comment>> {
         let comment_id = comment_id.to_string();
         let content = content.to_string();
         self.with_conn(move |conn| {
@@ -1546,7 +1576,8 @@ impl Db {
                         content: row.get(3)?,
                         created_at: parse_dt(&row.get::<_, String>(4)?)?,
                         user_name: row.get(5)?,
-                        updated_at: row.get::<_, Option<String>>(6)?
+                        updated_at: row
+                            .get::<_, Option<String>>(6)?
                             .as_deref()
                             .map(parse_dt)
                             .transpose()?,
@@ -1561,10 +1592,7 @@ impl Db {
     pub async fn delete_comment(&self, comment_id: &str) -> anyhow::Result<bool> {
         let comment_id = comment_id.to_string();
         self.with_conn(move |conn| {
-            let rows = conn.execute(
-                "DELETE FROM comments WHERE id = ?1",
-                params![comment_id],
-            )?;
+            let rows = conn.execute("DELETE FROM comments WHERE id = ?1", params![comment_id])?;
             Ok(rows > 0)
         })
         .await
@@ -1624,7 +1652,8 @@ impl Db {
                     created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     last_used_at: row
                         .get::<_, Option<String>>(5)?
-                        .map(|s| parse_dt(&s)).transpose()?,
+                        .map(|s| parse_dt(&s))
+                        .transpose()?,
                 })
             })?;
             let mut out = Vec::new();
@@ -1688,7 +1717,11 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-    pub async fn get_board_member(&self, board_id: &str, user_id: &str) -> anyhow::Result<Option<Role>> {
+    pub async fn get_board_member(
+        &self,
+        board_id: &str,
+        user_id: &str,
+    ) -> anyhow::Result<Option<Role>> {
         let board_id = board_id.to_string();
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
@@ -1709,7 +1742,12 @@ impl Db {
         .await
     }
 
-    pub async fn add_board_member(&self, board_id: &str, user_id: &str, role: Role) -> anyhow::Result<()> {
+    pub async fn add_board_member(
+        &self,
+        board_id: &str,
+        user_id: &str,
+        role: Role,
+    ) -> anyhow::Result<()> {
         let board_id = board_id.to_string();
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
@@ -1749,7 +1787,9 @@ impl Db {
                 ))
             })?;
             let mut out = Vec::new();
-            for r in rows { out.push(r?); }
+            for r in rows {
+                out.push(r?);
+            }
             Ok(out)
         })
         .await
@@ -1775,7 +1815,9 @@ impl Db {
                 })
             })?;
             let mut out = Vec::new();
-            for r in rows { out.push(r?); }
+            for r in rows {
+                out.push(r?);
+            }
             Ok(out)
         })
         .await
@@ -2097,9 +2139,17 @@ impl Db {
 
 impl Db {
     #[allow(clippy::too_many_arguments)]
-    pub async fn create_attachment(&self, id: &str, task_id: &str, board_id: &str,
-        filename: &str, mime_type: &str, size_bytes: i64, storage_key: &str,
-        uploaded_by: Option<&str>) -> anyhow::Result<Attachment> {
+    pub async fn create_attachment(
+        &self,
+        id: &str,
+        task_id: &str,
+        board_id: &str,
+        filename: &str,
+        mime_type: &str,
+        size_bytes: i64,
+        storage_key: &str,
+        uploaded_by: Option<&str>,
+    ) -> anyhow::Result<Attachment> {
         let id = id.to_string();
         let task_id = task_id.to_string();
         let board_id = board_id.to_string();
@@ -2201,19 +2251,24 @@ impl Db {
         .await
     }
 
-    pub async fn get_attachment_counts_for_board(&self, board_id: &str) -> anyhow::Result<Vec<(String, i32)>> {
+    pub async fn get_attachment_counts_for_board(
+        &self,
+        board_id: &str,
+    ) -> anyhow::Result<Vec<(String, i32)>> {
         let board_id = board_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT task_id, COUNT(*) as cnt FROM attachments
                  WHERE board_id = ?1
-                 GROUP BY task_id"
+                 GROUP BY task_id",
             )?;
             let rows = stmt.query_map(rusqlite::params![board_id], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?))
             })?;
             let mut result = Vec::new();
-            for r in rows { result.push(r?); }
+            for r in rows {
+                result.push(r?);
+            }
             Ok(result)
         })
         .await
@@ -2226,7 +2281,11 @@ impl Db {
 
 impl Db {
     /// Update the password hash for a user.
-    pub async fn set_password_hash(&self, user_id: &str, password_hash: &str) -> anyhow::Result<bool> {
+    pub async fn set_password_hash(
+        &self,
+        user_id: &str,
+        password_hash: &str,
+    ) -> anyhow::Result<bool> {
         let user_id = user_id.to_string();
         let password_hash = password_hash.to_string();
         self.with_conn(move |conn| {
@@ -2243,10 +2302,8 @@ impl Db {
     pub async fn delete_user_sessions(&self, user_id: &str) -> anyhow::Result<usize> {
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
-            let affected = conn.execute(
-                "DELETE FROM sessions WHERE user_id = ?1",
-                params![user_id],
-            )?;
+            let affected =
+                conn.execute("DELETE FROM sessions WHERE user_id = ?1", params![user_id])?;
             Ok(affected)
         })
         .await
@@ -2298,12 +2355,9 @@ impl Db {
     pub async fn load_crdt_state(&self, board_id: &str) -> anyhow::Result<Option<Vec<u8>>> {
         let board_id = board_id.to_string();
         self.with_conn(move |conn| {
-            let mut stmt = conn.prepare(
-                "SELECT state FROM board_crdt_state WHERE board_id = ?1",
-            )?;
-            let mut rows = stmt.query_map(params![board_id], |row| {
-                row.get::<_, Vec<u8>>(0)
-            })?;
+            let mut stmt =
+                conn.prepare("SELECT state FROM board_crdt_state WHERE board_id = ?1")?;
+            let mut rows = stmt.query_map(params![board_id], |row| row.get::<_, Vec<u8>>(0))?;
             match rows.next() {
                 Some(r) => Ok(Some(r?)),
                 None => Ok(None),
@@ -2404,7 +2458,8 @@ impl Db {
                     content: row.get(3)?,
                     created_at: parse_dt(&row.get::<_, String>(4)?)?,
                     user_name: row.get(5)?,
-                    updated_at: row.get::<_, Option<String>>(6)?
+                    updated_at: row
+                        .get::<_, Option<String>>(6)?
                         .as_deref()
                         .map(parse_dt)
                         .transpose()?,
@@ -2547,7 +2602,11 @@ impl Db {
         .await
     }
 
-    pub async fn mark_notification_read(&self, notification_id: &str, user_id: &str) -> anyhow::Result<bool> {
+    pub async fn mark_notification_read(
+        &self,
+        notification_id: &str,
+        user_id: &str,
+    ) -> anyhow::Result<bool> {
         let notification_id = notification_id.to_string();
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
@@ -2577,22 +2636,27 @@ impl Db {
         self.with_conn(move |conn| {
             let mut ids = Vec::new();
             let assignee: Option<String> = conn
-                .query_row("SELECT assignee FROM tasks WHERE id = ?1", params![task_id], |r| r.get(0))
+                .query_row(
+                    "SELECT assignee FROM tasks WHERE id = ?1",
+                    params![task_id],
+                    |r| r.get(0),
+                )
                 .optional()?
                 .flatten();
             if let Some(a) = assignee
                 && !a.is_empty()
             {
                 let uid: Option<String> = conn
-                    .query_row("SELECT id FROM users WHERE name = ?1", params![a], |r| r.get(0))
+                    .query_row("SELECT id FROM users WHERE name = ?1", params![a], |r| {
+                        r.get(0)
+                    })
                     .optional()?;
                 if let Some(uid) = uid {
                     ids.push(uid);
                 }
             }
-            let mut stmt = conn.prepare(
-                "SELECT DISTINCT user_id FROM comments WHERE task_id = ?1",
-            )?;
+            let mut stmt =
+                conn.prepare("SELECT DISTINCT user_id FROM comments WHERE task_id = ?1")?;
             let rows = stmt.query_map(params![task_id], |row| row.get::<_, String>(0))?;
             for r in rows {
                 let uid = r?;
@@ -2605,7 +2669,11 @@ impl Db {
         .await
     }
 
-    pub async fn has_deadline_notification(&self, task_id: &str, user_id: &str) -> anyhow::Result<bool> {
+    pub async fn has_deadline_notification(
+        &self,
+        task_id: &str,
+        user_id: &str,
+    ) -> anyhow::Result<bool> {
         let task_id = task_id.to_string();
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
@@ -2680,7 +2748,6 @@ impl Db {
 // ---------------------------------------------------------------------------
 
 impl Db {
-
     /// Atomically claim the next available ai-ready task for an agent.
     /// Returns None if no unlocked tasks are available.
     pub async fn claim_task(
@@ -2917,7 +2984,6 @@ impl Db {
         .await
     }
 
-
     /// Ensure the cortx-agent user exists. Returns the user_id.
     pub async fn ensure_agent_user(&self) -> anyhow::Result<String> {
         self.with_conn(|conn| {
@@ -2965,7 +3031,12 @@ impl Db {
     }
 
     /// Add a label to a task, creating the label if it doesn't exist on the board.
-    pub async fn add_label_to_task(&self, task_id: &str, board_id: &str, label_name: &str) -> anyhow::Result<()> {
+    pub async fn add_label_to_task(
+        &self,
+        task_id: &str,
+        board_id: &str,
+        label_name: &str,
+    ) -> anyhow::Result<()> {
         let tid = task_id.to_string();
         let bid = board_id.to_string();
         let ln = label_name.to_string();
@@ -2999,7 +3070,11 @@ impl Db {
     }
 
     /// Remove a label from a task.
-    pub async fn remove_label_from_task(&self, task_id: &str, label_name: &str) -> anyhow::Result<()> {
+    pub async fn remove_label_from_task(
+        &self,
+        task_id: &str,
+        label_name: &str,
+    ) -> anyhow::Result<()> {
         let tid = task_id.to_string();
         let ln = label_name.to_string();
         self.with_conn(move |conn| {
@@ -3031,8 +3106,7 @@ impl Db {
                  JOIN labels l ON tl.label_id = l.id
                  WHERE l.name = ?1 AND t.archived = 0",
             );
-            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> =
-                vec![Box::new(label_name)];
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(label_name)];
 
             if let Some(bid) = &board_id {
                 sql.push_str(" AND t.board_id = ?2");
@@ -3055,9 +3129,7 @@ impl Db {
             let params_refs: Vec<&dyn rusqlite::types::ToSql> =
                 params.iter().map(|p| p.as_ref()).collect();
             let mut stmt = conn.prepare(&sql)?;
-            let task = stmt
-                .query_row(&*params_refs, map_task_row)
-                .optional()?;
+            let task = stmt.query_row(&*params_refs, map_task_row).optional()?;
 
             match task {
                 Some(t) => {
@@ -3117,7 +3189,11 @@ mod tests {
         assert_eq!(board.description.as_deref(), Some("A board"));
 
         // Read
-        let fetched = db.get_board(&board.id).await.unwrap().expect("board exists");
+        let fetched = db
+            .get_board(&board.id)
+            .await
+            .unwrap()
+            .expect("board exists");
         assert_eq!(fetched.name, "My Board");
 
         // List
@@ -3145,12 +3221,18 @@ mod tests {
         let board = db.create_board("B", None).await.unwrap();
 
         // Auto-incrementing positions
-        let c1 = db.create_column(&board.id, "To Do", None, None).await.unwrap();
+        let c1 = db
+            .create_column(&board.id, "To Do", None, None)
+            .await
+            .unwrap();
         let c2 = db
             .create_column(&board.id, "In Progress", Some(3), Some("#00f"))
             .await
             .unwrap();
-        let c3 = db.create_column(&board.id, "Done", None, None).await.unwrap();
+        let c3 = db
+            .create_column(&board.id, "Done", None, None)
+            .await
+            .unwrap();
 
         assert_eq!(c1.position, 0);
         assert_eq!(c2.position, 1);
@@ -3163,7 +3245,11 @@ mod tests {
         assert_eq!(cols.len(), 3);
 
         // Update
-        assert!(db.update_column(&c1.id, Some("Backlog"), None, None).await.unwrap());
+        assert!(
+            db.update_column(&c1.id, Some("Backlog"), None, None)
+                .await
+                .unwrap()
+        );
 
         // Move
         assert!(db.move_column(&c3.id, 0).await.unwrap());
@@ -3205,14 +3291,24 @@ mod tests {
         assert_eq!(fetched.title, "Task 1");
 
         // List by board
-        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).await.unwrap().len(), 2);
+        assert_eq!(
+            db.list_tasks(&board_id, i64::MAX, 0).await.unwrap().len(),
+            2
+        );
 
         // List by column
         assert_eq!(db.list_tasks_in_column(&col_id).await.unwrap().len(), 2);
 
         // Update
         let updated = db
-            .update_task(&t1.id, Some("Task 1 Updated"), None, Some(Priority::High), None, None)
+            .update_task(
+                &t1.id,
+                Some("Task 1 Updated"),
+                None,
+                Some(Priority::High),
+                None,
+                None,
+            )
             .await
             .unwrap()
             .expect("task exists");
@@ -3224,13 +3320,20 @@ mod tests {
             .create_column(&board_id, "Done", None, None)
             .await
             .unwrap();
-        let moved = db.move_task(&t1.id, &col2.id, 0).await.unwrap().expect("task exists");
+        let moved = db
+            .move_task(&t1.id, &col2.id, 0)
+            .await
+            .unwrap()
+            .expect("task exists");
         assert_eq!(moved.column_id, col2.id);
         assert_eq!(moved.position, 0);
 
         // Delete
         assert!(db.delete_task(&t2.id).await.unwrap());
-        assert_eq!(db.list_tasks(&board_id, i64::MAX, 0).await.unwrap().len(), 1);
+        assert_eq!(
+            db.list_tasks(&board_id, i64::MAX, 0).await.unwrap().len(),
+            1
+        );
     }
 
     // ----- Custom fields ---------------------------------------------------
@@ -3270,11 +3373,17 @@ mod tests {
             .create_task(&board_id, &col_id, "A task", None, Priority::Medium, None)
             .await
             .unwrap();
-        db.set_custom_field_value(&task.id, &field.id, "5").await.unwrap();
-        db.set_custom_field_value(&task.id, &field2.id, "S1").await.unwrap();
+        db.set_custom_field_value(&task.id, &field.id, "5")
+            .await
+            .unwrap();
+        db.set_custom_field_value(&task.id, &field2.id, "S1")
+            .await
+            .unwrap();
 
         // Overwrite via upsert
-        db.set_custom_field_value(&task.id, &field.id, "8").await.unwrap();
+        db.set_custom_field_value(&task.id, &field.id, "8")
+            .await
+            .unwrap();
 
         // Retrieve
         let vals = db.get_custom_field_values(&task.id).await.unwrap();
@@ -3289,12 +3398,26 @@ mod tests {
     async fn test_board_member_crud() {
         let db = test_db().await;
         let board = db.create_board("B", None).await.unwrap();
-        let user = db.create_user("Alice", "alice@test.com", None, false, None).await.unwrap();
+        let user = db
+            .create_user("Alice", "alice@test.com", None, false, None)
+            .await
+            .unwrap();
 
-        assert!(db.get_board_member(&board.id, &user.id).await.unwrap().is_none());
+        assert!(
+            db.get_board_member(&board.id, &user.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
 
-        db.add_board_member(&board.id, &user.id, Role::Owner).await.unwrap();
-        let role = db.get_board_member(&board.id, &user.id).await.unwrap().unwrap();
+        db.add_board_member(&board.id, &user.id, Role::Owner)
+            .await
+            .unwrap();
+        let role = db
+            .get_board_member(&board.id, &user.id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(role, Role::Owner);
 
         let boards = db.list_user_boards(&user.id).await.unwrap();
@@ -3306,9 +3429,15 @@ mod tests {
     #[tokio::test]
     async fn test_api_key_crud() {
         let db = test_db().await;
-        let user = db.create_user("Alice", "alice@example.com", None, false, None).await.unwrap();
+        let user = db
+            .create_user("Alice", "alice@example.com", None, false, None)
+            .await
+            .unwrap();
 
-        let key = db.create_api_key(&user.id, "My Key", "hash123", "ok_abc").await.unwrap();
+        let key = db
+            .create_api_key(&user.id, "My Key", "hash123", "ok_abc")
+            .await
+            .unwrap();
         assert_eq!(key.name, "My Key");
 
         let keys = db.list_api_keys(&user.id).await.unwrap();
@@ -3329,12 +3458,23 @@ mod tests {
         let (board_id, user_id, col_id) = seed(&db).await;
 
         let task = db
-            .create_task(&board_id, &col_id, "Commentable", None, Priority::Medium, None)
+            .create_task(
+                &board_id,
+                &col_id,
+                "Commentable",
+                None,
+                Priority::Medium,
+                None,
+            )
             .await
             .unwrap();
 
-        db.create_comment(&task.id, &user_id, "First comment").await.unwrap();
-        db.create_comment(&task.id, &user_id, "Second comment").await.unwrap();
+        db.create_comment(&task.id, &user_id, "First comment")
+            .await
+            .unwrap();
+        db.create_comment(&task.id, &user_id, "Second comment")
+            .await
+            .unwrap();
 
         let comments = db.list_comments(&task.id).await.unwrap();
         assert_eq!(comments.len(), 2);
@@ -3347,7 +3487,10 @@ mod tests {
     #[tokio::test]
     async fn cleanup_expired_sessions_removes_old() {
         let db = Db::in_memory().await.unwrap();
-        let user = db.create_user("test", "test@test.com", None, false, Some("hash")).await.unwrap();
+        let user = db
+            .create_user("test", "test@test.com", None, false, Some("hash"))
+            .await
+            .unwrap();
 
         let token = crate::auth::generate_token();
         let token_hash = crate::auth::hash_token(&token);
@@ -3393,8 +3536,12 @@ mod tests {
     #[tokio::test]
     async fn list_users_returns_all() {
         let db = test_db().await;
-        db.create_user("Alice", "a@test.com", None, false, Some("hash")).await.unwrap();
-        db.create_user("Bob", "b@test.com", None, true, None).await.unwrap();
+        db.create_user("Alice", "a@test.com", None, false, Some("hash"))
+            .await
+            .unwrap();
+        db.create_user("Bob", "b@test.com", None, true, None)
+            .await
+            .unwrap();
         let users = db.list_users().await.unwrap();
         assert_eq!(users.len(), 2);
         assert_eq!(users[0].name, "Alice");
@@ -3405,8 +3552,13 @@ mod tests {
     async fn get_all_columns_for_board_includes_archived() {
         let db = test_db().await;
         let board = db.create_board("Test", None).await.unwrap();
-        db.create_column(&board.id, "Active", None, None).await.unwrap();
-        let col2 = db.create_column(&board.id, "Archived", None, None).await.unwrap();
+        db.create_column(&board.id, "Active", None, None)
+            .await
+            .unwrap();
+        let col2 = db
+            .create_column(&board.id, "Archived", None, None)
+            .await
+            .unwrap();
         db.archive_column(&col2.id).await.unwrap();
 
         // list_columns excludes archived
@@ -3422,9 +3574,14 @@ mod tests {
     async fn get_all_tasks_for_board_includes_archived() {
         let db = test_db().await;
         let (board_id, _user_id, col_id) = seed(&db).await;
-        let task = db.create_task(&board_id, &col_id, "Task 1", None, Priority::Medium, None).await.unwrap();
+        let task = db
+            .create_task(&board_id, &col_id, "Task 1", None, Priority::Medium, None)
+            .await
+            .unwrap();
         db.archive_task(&task.id).await.unwrap();
-        db.create_task(&board_id, &col_id, "Task 2", None, Priority::Low, None).await.unwrap();
+        db.create_task(&board_id, &col_id, "Task 2", None, Priority::Low, None)
+            .await
+            .unwrap();
 
         let all = db.get_all_tasks_for_board(&board_id).await.unwrap();
         assert_eq!(all.len(), 2);
@@ -3434,10 +3591,20 @@ mod tests {
     async fn get_comments_for_board_returns_all() {
         let db = test_db().await;
         let (board_id, user_id, col_id) = seed(&db).await;
-        let t1 = db.create_task(&board_id, &col_id, "T1", None, Priority::Medium, None).await.unwrap();
-        let t2 = db.create_task(&board_id, &col_id, "T2", None, Priority::Medium, None).await.unwrap();
-        db.create_comment(&t1.id, &user_id, "Comment 1").await.unwrap();
-        db.create_comment(&t2.id, &user_id, "Comment 2").await.unwrap();
+        let t1 = db
+            .create_task(&board_id, &col_id, "T1", None, Priority::Medium, None)
+            .await
+            .unwrap();
+        let t2 = db
+            .create_task(&board_id, &col_id, "T2", None, Priority::Medium, None)
+            .await
+            .unwrap();
+        db.create_comment(&t1.id, &user_id, "Comment 1")
+            .await
+            .unwrap();
+        db.create_comment(&t2.id, &user_id, "Comment 2")
+            .await
+            .unwrap();
 
         let comments = db.get_comments_for_board(&board_id).await.unwrap();
         assert_eq!(comments.len(), 2);
@@ -3447,7 +3614,10 @@ mod tests {
     async fn get_subtasks_for_board_returns_all() {
         let db = test_db().await;
         let (board_id, _user_id, col_id) = seed(&db).await;
-        let t1 = db.create_task(&board_id, &col_id, "T1", None, Priority::Medium, None).await.unwrap();
+        let t1 = db
+            .create_task(&board_id, &col_id, "T1", None, Priority::Medium, None)
+            .await
+            .unwrap();
         db.create_subtask(&t1.id, "Sub 1").await.unwrap();
         db.create_subtask(&t1.id, "Sub 2").await.unwrap();
 

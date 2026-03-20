@@ -86,7 +86,10 @@ async fn decompose_auto_creates_ai_ready_label() {
 
     // Verify ai-ready label was auto-created — claim should find the task
     let task = kw.claim_task(&board_id, "agent-1").await.unwrap();
-    assert!(task.is_some(), "decomposed task should be claimable via ai-ready label");
+    assert!(
+        task.is_some(),
+        "decomposed task should be claimable via ai-ready label"
+    );
 }
 
 // Helpers

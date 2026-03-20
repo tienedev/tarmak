@@ -11,7 +11,16 @@ pub async fn store_memory(db: &Db, memory: Memory) -> Result<MemoryId> {
             trigger_error,
             trigger_command,
             resolution_files,
-        } => store_causal_chain(db, trigger_file, trigger_error, trigger_command, resolution_files).await,
+        } => {
+            store_causal_chain(
+                db,
+                trigger_file,
+                trigger_error,
+                trigger_command,
+                resolution_files,
+            )
+            .await
+        }
         Memory::ProjectFact {
             fact,
             citation,

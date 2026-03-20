@@ -10,8 +10,11 @@ use rmcp::{
     service::RequestContext,
 };
 
-use cortx_types::{Command, ExecutionMode, Memory, MemoryOrgan, MemorySource, PlanningOrgan, RecallQuery, TaskFilter};
 use crate::orchestrator::Orchestrator;
+use cortx_types::{
+    Command, ExecutionMode, Memory, MemoryOrgan, MemorySource, PlanningOrgan, RecallQuery,
+    TaskFilter,
+};
 
 fn tool_definitions() -> Vec<Tool> {
     macro_rules! tool {
@@ -19,136 +22,199 @@ fn tool_definitions() -> Vec<Tool> {
             Tool::new(
                 $name,
                 $desc,
-                Arc::new(serde_json::from_value::<serde_json::Map<String, serde_json::Value>>($schema).unwrap()),
+                Arc::new(
+                    serde_json::from_value::<serde_json::Map<String, serde_json::Value>>($schema)
+                        .unwrap(),
+                ),
             )
         };
     }
     vec![
-        tool!("proxy_exec", "Execute a command through the secure pipeline with memory integration.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "command": { "type": "string", "description": "Shell command to execute" },
-                "cwd": { "type": "string", "description": "Working directory" },
-                "mode": { "type": "string", "enum": ["assisted", "autonomous", "admin"], "default": "assisted" },
-                "task_id": { "type": "string", "description": "Optional kanwise task ID to link this execution to" }
-            },
-            "required": ["command"]
-        })),
-        tool!("proxy_status", "Remaining budget, execution count, circuit breaker state.", serde_json::json!({
-            "type": "object", "properties": {}
-        })),
-        tool!("proxy_rollback", "Restore the last git checkpoint.", serde_json::json!({
-            "type": "object", "properties": {}
-        })),
-        tool!("memory_store", "Store a project fact in memory.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "fact": { "type": "string" },
-                "citation": { "type": "string" },
-                "source": { "type": "string", "enum": ["agent", "proxy", "user"], "default": "user" }
-            },
-            "required": ["fact", "citation"]
-        })),
-        tool!("memory_recall", "Search memory (FTS5 + confidence ranking).", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "text": { "type": "string" },
-                "files": { "type": "array", "items": { "type": "string" } },
-                "error_patterns": { "type": "array", "items": { "type": "string" } },
-                "min_confidence": { "type": "number" }
-            }
-        })),
-        tool!("memory_status", "Memory stats: execution count, DB size.", serde_json::json!({
-            "type": "object", "properties": {}
-        })),
-        tool!("planning_next_task", "Get the next task from kanwise matching a filter.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "board_id": { "type": "string" },
-                "label": { "type": "string", "default": "ai-ready" }
-            }
-        })),
-        tool!("planning_complete_task", "Mark a kanwise task as complete (move to done column).", serde_json::json!({
-            "type": "object",
-            "properties": { "task_id": { "type": "string" } },
-            "required": ["task_id"]
-        })),
-        tool!("planning_list_tasks", "List tasks for a kanwise board with labels, locked_by status.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "board_id": { "type": "string", "description": "Board ID" },
-                "status": { "type": "string", "description": "Optional column name filter (e.g. 'todo', 'in-progress', 'done')" }
-            },
-            "required": ["board_id"]
-        })),
-        tool!("planning_decompose", "Decompose an objective into ordered tasks on a board.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "objective": { "type": "string", "description": "Free text objective" },
-                "board_id": { "type": "string", "description": "Target board ID" },
-                "tasks": {
-                    "type": "array",
-                    "description": "Array of tasks to create",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "title": { "type": "string" },
-                            "description": { "type": "string" },
-                            "acceptance_criteria": { "type": "string", "description": "Optional acceptance criteria appended to description" },
-                            "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "default": "medium" },
-                            "depends_on": { "type": "array", "items": { "type": "integer" }, "default": [] }
-                        },
-                        "required": ["title", "description"]
-                    }
-                }
-            },
-            "required": ["objective", "board_id", "tasks"]
-        })),
-        tool!("planning_claim_task", "Atomically claim a task for an agent. Claims a specific task if task_id is provided, otherwise claims the next ai-ready task.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "board_id": { "type": "string", "description": "Board ID" },
-                "agent_id": { "type": "string", "description": "Agent identifier" },
-                "task_id": { "type": "string", "description": "Optional specific task ID to claim" }
-            },
-            "required": ["board_id", "agent_id"]
-        })),
-        tool!("session_report", "Generate and store a session activity report.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "board_id": { "type": "string", "description": "Optional board ID to link the report to" }
-            }
-        })),
-        tool!("planning_release_task", "Release a claimed task back to the pool.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "task_id": { "type": "string", "description": "Task ID to release" },
-                "reason": { "type": "string", "description": "Why the task is being released" }
-            },
-            "required": ["task_id", "reason"]
-        })),
-        tool!("planning_validate_gates", "Run quality gates (clippy, test, build) and return results.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "gates": {
-                    "type": "array",
-                    "items": { "type": "string", "enum": ["clippy", "test", "build"] },
-                    "description": "Subset of gates to run. If omitted, loads all gates from cortx-gates.toml."
+        tool!(
+            "proxy_exec",
+            "Execute a command through the secure pipeline with memory integration.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "command": { "type": "string", "description": "Shell command to execute" },
+                    "cwd": { "type": "string", "description": "Working directory" },
+                    "mode": { "type": "string", "enum": ["assisted", "autonomous", "admin"], "default": "assisted" },
+                    "task_id": { "type": "string", "description": "Optional kanwise task ID to link this execution to" }
                 },
-                "project_root": { "type": "string", "description": "Project root directory. Defaults to current project root." }
-            }
-        })),
-        tool!("planning_escalate", "Escalate a task: add needs-human label, release lock, post agent comment.", serde_json::json!({
-            "type": "object",
-            "properties": {
-                "task_id": { "type": "string", "description": "Task ID to escalate" },
-                "board_id": { "type": "string", "description": "Board ID the task belongs to" },
-                "attempts": { "type": "array", "items": { "type": "string" }, "description": "List of attempted approaches" },
-                "errors": { "type": "array", "items": { "type": "string" }, "description": "List of errors encountered" },
-                "suggestion": { "type": "string", "description": "Suggested next step for human" }
-            },
-            "required": ["task_id", "board_id", "attempts", "errors", "suggestion"]
-        })),
+                "required": ["command"]
+            })
+        ),
+        tool!(
+            "proxy_status",
+            "Remaining budget, execution count, circuit breaker state.",
+            serde_json::json!({
+                "type": "object", "properties": {}
+            })
+        ),
+        tool!(
+            "proxy_rollback",
+            "Restore the last git checkpoint.",
+            serde_json::json!({
+                "type": "object", "properties": {}
+            })
+        ),
+        tool!(
+            "memory_store",
+            "Store a project fact in memory.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "fact": { "type": "string" },
+                    "citation": { "type": "string" },
+                    "source": { "type": "string", "enum": ["agent", "proxy", "user"], "default": "user" }
+                },
+                "required": ["fact", "citation"]
+            })
+        ),
+        tool!(
+            "memory_recall",
+            "Search memory (FTS5 + confidence ranking).",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string" },
+                    "files": { "type": "array", "items": { "type": "string" } },
+                    "error_patterns": { "type": "array", "items": { "type": "string" } },
+                    "min_confidence": { "type": "number" }
+                }
+            })
+        ),
+        tool!(
+            "memory_status",
+            "Memory stats: execution count, DB size.",
+            serde_json::json!({
+                "type": "object", "properties": {}
+            })
+        ),
+        tool!(
+            "planning_next_task",
+            "Get the next task from kanwise matching a filter.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "board_id": { "type": "string" },
+                    "label": { "type": "string", "default": "ai-ready" }
+                }
+            })
+        ),
+        tool!(
+            "planning_complete_task",
+            "Mark a kanwise task as complete (move to done column).",
+            serde_json::json!({
+                "type": "object",
+                "properties": { "task_id": { "type": "string" } },
+                "required": ["task_id"]
+            })
+        ),
+        tool!(
+            "planning_list_tasks",
+            "List tasks for a kanwise board with labels, locked_by status.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "board_id": { "type": "string", "description": "Board ID" },
+                    "status": { "type": "string", "description": "Optional column name filter (e.g. 'todo', 'in-progress', 'done')" }
+                },
+                "required": ["board_id"]
+            })
+        ),
+        tool!(
+            "planning_decompose",
+            "Decompose an objective into ordered tasks on a board.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "objective": { "type": "string", "description": "Free text objective" },
+                    "board_id": { "type": "string", "description": "Target board ID" },
+                    "tasks": {
+                        "type": "array",
+                        "description": "Array of tasks to create",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": { "type": "string" },
+                                "description": { "type": "string" },
+                                "acceptance_criteria": { "type": "string", "description": "Optional acceptance criteria appended to description" },
+                                "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "default": "medium" },
+                                "depends_on": { "type": "array", "items": { "type": "integer" }, "default": [] }
+                            },
+                            "required": ["title", "description"]
+                        }
+                    }
+                },
+                "required": ["objective", "board_id", "tasks"]
+            })
+        ),
+        tool!(
+            "planning_claim_task",
+            "Atomically claim a task for an agent. Claims a specific task if task_id is provided, otherwise claims the next ai-ready task.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "board_id": { "type": "string", "description": "Board ID" },
+                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "task_id": { "type": "string", "description": "Optional specific task ID to claim" }
+                },
+                "required": ["board_id", "agent_id"]
+            })
+        ),
+        tool!(
+            "session_report",
+            "Generate and store a session activity report.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "board_id": { "type": "string", "description": "Optional board ID to link the report to" }
+                }
+            })
+        ),
+        tool!(
+            "planning_release_task",
+            "Release a claimed task back to the pool.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "task_id": { "type": "string", "description": "Task ID to release" },
+                    "reason": { "type": "string", "description": "Why the task is being released" }
+                },
+                "required": ["task_id", "reason"]
+            })
+        ),
+        tool!(
+            "planning_validate_gates",
+            "Run quality gates (clippy, test, build) and return results.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "gates": {
+                        "type": "array",
+                        "items": { "type": "string", "enum": ["clippy", "test", "build"] },
+                        "description": "Subset of gates to run. If omitted, loads all gates from cortx-gates.toml."
+                    },
+                    "project_root": { "type": "string", "description": "Project root directory. Defaults to current project root." }
+                }
+            })
+        ),
+        tool!(
+            "planning_escalate",
+            "Escalate a task: add needs-human label, release lock, post agent comment.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "task_id": { "type": "string", "description": "Task ID to escalate" },
+                    "board_id": { "type": "string", "description": "Board ID the task belongs to" },
+                    "attempts": { "type": "array", "items": { "type": "string" }, "description": "List of attempted approaches" },
+                    "errors": { "type": "array", "items": { "type": "string" }, "description": "List of errors encountered" },
+                    "suggestion": { "type": "string", "description": "Suggested next step for human" }
+                },
+                "required": ["task_id", "board_id", "attempts", "errors", "suggestion"]
+            })
+        ),
     ]
 }
 
@@ -204,17 +270,32 @@ impl ServerHandler for CortxMcpServer {
                 "proxy_exec" => {
                     let cmd_str = match args.get("command").and_then(|v| v.as_str()) {
                         Some(s) => s.to_string(),
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: command")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: command",
+                            )]));
+                        }
                     };
-                    let cwd = args.get("cwd").and_then(|v| v.as_str())
-                        .map(std::path::PathBuf::from).unwrap_or_else(|| project_root.clone());
+                    let cwd = args
+                        .get("cwd")
+                        .and_then(|v| v.as_str())
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|| project_root.clone());
                     let mode = match args.get("mode").and_then(|v| v.as_str()) {
                         Some("autonomous") => ExecutionMode::Autonomous,
                         Some("admin") => ExecutionMode::Admin,
                         _ => ExecutionMode::Assisted,
                     };
-                    let task_id = args.get("task_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-                    let cmd = Command { cmd: cmd_str, cwd, mode, task_id };
+                    let task_id = args
+                        .get("task_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let cmd = Command {
+                        cmd: cmd_str,
+                        cwd,
+                        mode,
+                        task_id,
+                    };
                     match orch.execute_and_remember(cmd).await {
                         Ok(r) => serde_json::to_string_pretty(&serde_json::json!({
                             "status": format!("{:?}", r.status),
@@ -232,8 +313,12 @@ impl ServerHandler for CortxMcpServer {
                 }
                 "proxy_status" => {
                     let b = orch.remaining_budget();
-                    Ok(format!("Session: {}\nCommands remaining: {}\nCPU seconds remaining: {}",
-                        orch.session_id(), b.commands_remaining, b.cpu_seconds_remaining))
+                    Ok(format!(
+                        "Session: {}\nCommands remaining: {}\nCPU seconds remaining: {}",
+                        orch.session_id(),
+                        b.commands_remaining,
+                        b.cpu_seconds_remaining
+                    ))
                 }
                 "proxy_rollback" => {
                     if rtk_proxy::git::restore_checkpoint(&project_root).await {
@@ -245,66 +330,136 @@ impl ServerHandler for CortxMcpServer {
                 "memory_store" => {
                     let fact = match args.get("fact").and_then(|v| v.as_str()) {
                         Some(s) => s.to_string(),
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: fact")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text("missing: fact")]));
+                        }
                     };
                     let citation = match args.get("citation").and_then(|v| v.as_str()) {
                         Some(s) => s.to_string(),
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: citation")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: citation",
+                            )]));
+                        }
                     };
                     let source = match args.get("source").and_then(|v| v.as_str()) {
                         Some("agent") => MemorySource::Agent,
                         Some("proxy") => MemorySource::Proxy,
                         _ => MemorySource::User,
                     };
-                    match orch.memory().store(Memory::ProjectFact { fact, citation, source }).await {
+                    match orch
+                        .memory()
+                        .store(Memory::ProjectFact {
+                            fact,
+                            citation,
+                            source,
+                        })
+                        .await
+                    {
                         Ok(id) => Ok(format!("Stored: {}", id.0)),
                         Err(e) => Err(e.to_string()),
                     }
                 }
                 "memory_recall" => {
                     let query = RecallQuery {
-                        text: args.get("text").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                        files: args.get("files").and_then(|v| v.as_array())
-                            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
-                        error_patterns: args.get("error_patterns").and_then(|v| v.as_array())
-                            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                        text: args
+                            .get("text")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        files: args
+                            .get("files")
+                            .and_then(|v| v.as_array())
+                            .map(|a| {
+                                a.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        error_patterns: args
+                            .get("error_patterns")
+                            .and_then(|v| v.as_array())
+                            .map(|a| {
+                                a.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
                         min_confidence: args.get("min_confidence").and_then(|v| v.as_f64()),
                     };
                     match orch.memory().recall(query).await {
                         Ok(hints) if hints.is_empty() => Ok("No matching memories.".into()),
-                        Ok(hints) => Ok(hints.iter()
-                            .map(|h| format!("[{:.0}%] {}: {}", h.confidence * 100.0, h.kind, h.summary))
-                            .collect::<Vec<_>>().join("\n")),
+                        Ok(hints) => Ok(hints
+                            .iter()
+                            .map(|h| {
+                                format!("[{:.0}%] {}: {}", h.confidence * 100.0, h.kind, h.summary)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")),
                         Err(e) => Err(e.to_string()),
                     }
                 }
                 "memory_status" => {
                     let count = orch.memory().execution_count().await.unwrap_or(0);
-                    let size = context_db::purge::db_size_bytes(orch.memory().db()).await.unwrap_or(0);
-                    let chains: u64 = orch.memory().db().with_conn(|conn| {
-                        Ok(conn.query_row("SELECT COUNT(*) FROM causal_chains", [], |r| r.get(0))?)
-                    }).await.unwrap_or(0);
-                    let facts: u64 = orch.memory().db().with_conn(|conn| {
-                        Ok(conn.query_row("SELECT COUNT(*) FROM project_facts", [], |r| r.get(0))?)
-                    }).await.unwrap_or(0);
-                    Ok(format!("Executions: {count}\nCausal chains: {chains}\nProject facts: {facts}\nDB size: {:.1} KB", size as f64 / 1024.0))
+                    let size = context_db::purge::db_size_bytes(orch.memory().db())
+                        .await
+                        .unwrap_or(0);
+                    let chains: u64 = orch
+                        .memory()
+                        .db()
+                        .with_conn(|conn| {
+                            Ok(
+                                conn.query_row("SELECT COUNT(*) FROM causal_chains", [], |r| {
+                                    r.get(0)
+                                })?,
+                            )
+                        })
+                        .await
+                        .unwrap_or(0);
+                    let facts: u64 = orch
+                        .memory()
+                        .db()
+                        .with_conn(|conn| {
+                            Ok(
+                                conn.query_row("SELECT COUNT(*) FROM project_facts", [], |r| {
+                                    r.get(0)
+                                })?,
+                            )
+                        })
+                        .await
+                        .unwrap_or(0);
+                    Ok(format!(
+                        "Executions: {count}\nCausal chains: {chains}\nProject facts: {facts}\nDB size: {:.1} KB",
+                        size as f64 / 1024.0
+                    ))
                 }
                 "planning_next_task" => {
                     let filter = TaskFilter {
-                        board_id: args.get("board_id").and_then(|v| v.as_str()).map(String::from),
+                        board_id: args
+                            .get("board_id")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         label: args.get("label").and_then(|v| v.as_str()).map(String::from),
                         priority_min: None,
                     };
                     match orch.kanwise().get_next_task(filter).await {
-                        Ok(t) => Ok(format!("[{}] {} (priority: {}, labels: {})",
-                            t.id, t.title, t.priority, t.labels.join(", "))),
+                        Ok(t) => Ok(format!(
+                            "[{}] {} (priority: {}, labels: {})",
+                            t.id,
+                            t.title,
+                            t.priority,
+                            t.labels.join(", ")
+                        )),
                         Err(e) => Err(e.to_string()),
                     }
                 }
                 "planning_complete_task" => {
                     let id = match args.get("task_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: task_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: task_id",
+                            )]));
+                        }
                     };
                     match orch.complete_task(id).await {
                         Ok(()) => Ok(format!("Task {id} marked complete.")),
@@ -314,22 +469,34 @@ impl ServerHandler for CortxMcpServer {
                 "planning_list_tasks" => {
                     let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: board_id",
+                            )]));
+                        }
                     };
                     let status = args.get("status").and_then(|v| v.as_str());
-                    match orch.kanwise().db().list_tasks_with_details(board_id, status).await {
+                    match orch
+                        .kanwise()
+                        .db()
+                        .list_tasks_with_details(board_id, status)
+                        .await
+                    {
                         Ok(tasks) => {
-                            let items: Vec<serde_json::Value> = tasks.iter()
-                                .map(|(t, labels, locked_by)| serde_json::json!({
-                                    "id": t.id,
-                                    "title": t.title,
-                                    "description": t.description,
-                                    "priority": t.priority.as_str(),
-                                    "column_id": t.column_id,
-                                    "labels": labels,
-                                    "locked_by": locked_by,
-                                    "due_date": t.due_date,
-                                }))
+                            let items: Vec<serde_json::Value> = tasks
+                                .iter()
+                                .map(|(t, labels, locked_by)| {
+                                    serde_json::json!({
+                                        "id": t.id,
+                                        "title": t.title,
+                                        "description": t.description,
+                                        "priority": t.priority.as_str(),
+                                        "column_id": t.column_id,
+                                        "labels": labels,
+                                        "locked_by": locked_by,
+                                        "due_date": t.due_date,
+                                    })
+                                })
                                 .collect();
                             if items.is_empty() {
                                 Ok("No tasks.".into())
@@ -343,22 +510,41 @@ impl ServerHandler for CortxMcpServer {
                 "planning_decompose" => {
                     let objective = match args.get("objective").and_then(|v| v.as_str()) {
                         Some(s) => s.to_string(),
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: objective")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: objective",
+                            )]));
+                        }
                     };
                     let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
                         Some(s) => s.to_string(),
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: board_id",
+                            )]));
+                        }
                     };
                     let tasks_json = match args.get("tasks").and_then(|v| v.as_array()) {
                         Some(a) => a.clone(),
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: tasks")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text("missing: tasks")]));
+                        }
                     };
                     let mut tasks = Vec::new();
                     for item in &tasks_json {
-                        let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let mut desc = item.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let title = item
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let mut desc = item
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         // Append acceptance criteria if provided
-                        if let Some(criteria) = item.get("acceptance_criteria").and_then(|v| v.as_str())
+                        if let Some(criteria) =
+                            item.get("acceptance_criteria").and_then(|v| v.as_str())
                             && !criteria.is_empty()
                         {
                             desc.push_str("\n\n## Acceptance Criteria\n");
@@ -370,11 +556,21 @@ impl ServerHandler for CortxMcpServer {
                             Some("urgent") => cortx_types::Priority::Urgent,
                             _ => cortx_types::Priority::Medium,
                         };
-                        let depends_on: Vec<usize> = item.get("depends_on")
+                        let depends_on: Vec<usize> = item
+                            .get("depends_on")
                             .and_then(|v| v.as_array())
-                            .map(|a| a.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect())
+                            .map(|a| {
+                                a.iter()
+                                    .filter_map(|v| v.as_u64().map(|n| n as usize))
+                                    .collect()
+                            })
                             .unwrap_or_default();
-                        tasks.push(kanwise::DecomposeTask { title, description: desc, priority, depends_on });
+                        tasks.push(kanwise::DecomposeTask {
+                            title,
+                            description: desc,
+                            priority,
+                            depends_on,
+                        });
                     }
                     match orch.kanwise().decompose(&objective, &board_id, tasks).await {
                         Ok(ids) => Ok(format!("Created {} tasks: {}", ids.len(), ids.join(", "))),
@@ -384,24 +580,44 @@ impl ServerHandler for CortxMcpServer {
                 "planning_claim_task" => {
                     let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: board_id",
+                            )]));
+                        }
                     };
                     let agent_id = match args.get("agent_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: agent_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: agent_id",
+                            )]));
+                        }
                     };
                     // If task_id is provided, claim that specific task; otherwise claim next available
                     if let Some(task_id) = args.get("task_id").and_then(|v| v.as_str()) {
                         match orch.kanwise().claim_specific_task(task_id, agent_id).await {
-                            Ok(Some(t)) => Ok(format!("[{}] {} (priority: {}, labels: {})",
-                                t.id, t.title, t.priority, t.labels.join(", "))),
-                            Ok(None) => Err(format!("Task {task_id} not found or already claimed.")),
+                            Ok(Some(t)) => Ok(format!(
+                                "[{}] {} (priority: {}, labels: {})",
+                                t.id,
+                                t.title,
+                                t.priority,
+                                t.labels.join(", ")
+                            )),
+                            Ok(None) => {
+                                Err(format!("Task {task_id} not found or already claimed."))
+                            }
                             Err(e) => Err(e.to_string()),
                         }
                     } else {
                         match orch.kanwise().claim_task(board_id, agent_id).await {
-                            Ok(Some(t)) => Ok(format!("[{}] {} (priority: {}, labels: {})",
-                                t.id, t.title, t.priority, t.labels.join(", "))),
+                            Ok(Some(t)) => Ok(format!(
+                                "[{}] {} (priority: {}, labels: {})",
+                                t.id,
+                                t.title,
+                                t.priority,
+                                t.labels.join(", ")
+                            )),
                             Ok(None) => Ok("No available tasks to claim.".into()),
                             Err(e) => Err(e.to_string()),
                         }
@@ -410,9 +626,16 @@ impl ServerHandler for CortxMcpServer {
                 "planning_release_task" => {
                     let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: task_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: task_id",
+                            )]));
+                        }
                     };
-                    let reason = args.get("reason").and_then(|v| v.as_str()).unwrap_or("unspecified");
+                    let reason = args
+                        .get("reason")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unspecified");
                     match orch.kanwise().release_task(task_id, reason).await {
                         Ok(()) => Ok(format!("Task {task_id} released.")),
                         Err(e) => Err(e.to_string()),
@@ -426,12 +649,16 @@ impl ServerHandler for CortxMcpServer {
                     }
                 }
                 "planning_validate_gates" => {
-                    let root = args.get("project_root").and_then(|v| v.as_str())
+                    let root = args
+                        .get("project_root")
+                        .and_then(|v| v.as_str())
                         .map(std::path::PathBuf::from)
                         .unwrap_or_else(|| project_root.clone());
 
                     // Determine which gates to run
-                    let gate_commands: Vec<(String, String)> = if let Some(gates) = args.get("gates").and_then(|v| v.as_array()) {
+                    let gate_commands: Vec<(String, String)> = if let Some(gates) =
+                        args.get("gates").and_then(|v| v.as_array())
+                    {
                         let mut cmds = Vec::new();
                         for g in gates {
                             let name = match g.as_str() {
@@ -442,7 +669,11 @@ impl ServerHandler for CortxMcpServer {
                                 "clippy" => "cargo clippy --workspace -- -D warnings",
                                 "test" => "cargo test --workspace",
                                 "build" => "cargo build --workspace",
-                                other => return Ok(CallToolResult::error(vec![Content::text(format!("unknown gate: {other}"))])),
+                                other => {
+                                    return Ok(CallToolResult::error(vec![Content::text(format!(
+                                        "unknown gate: {other}"
+                                    ))]));
+                                }
                             };
                             cmds.push((name.to_string(), cmd.to_string()));
                         }
@@ -462,12 +693,19 @@ impl ServerHandler for CortxMcpServer {
                                     }
                                     cmds
                                 }
-                                Err(e) => return Ok(CallToolResult::error(vec![Content::text(format!("invalid cortx-gates.toml: {e}"))])),
+                                Err(e) => {
+                                    return Ok(CallToolResult::error(vec![Content::text(format!(
+                                        "invalid cortx-gates.toml: {e}"
+                                    ))]));
+                                }
                             },
                             Err(_) => {
                                 // Fallback to default gates
                                 vec![
-                                    ("clippy".to_string(), "cargo clippy --workspace -- -D warnings".to_string()),
+                                    (
+                                        "clippy".to_string(),
+                                        "cargo clippy --workspace -- -D warnings".to_string(),
+                                    ),
                                     ("test".to_string(), "cargo test --workspace".to_string()),
                                 ]
                             }
@@ -490,7 +728,9 @@ impl ServerHandler for CortxMcpServer {
                             }
                             Err(e) => (false, e.to_string()),
                         };
-                        if !passed { all_passed = false; }
+                        if !passed {
+                            all_passed = false;
+                        }
                         results.push(serde_json::json!({
                             "gate": gate_name,
                             "passed": passed,
@@ -500,25 +740,52 @@ impl ServerHandler for CortxMcpServer {
                     serde_json::to_string_pretty(&serde_json::json!({
                         "passed": all_passed,
                         "results": results,
-                    })).map_err(|e| e.to_string())
+                    }))
+                    .map_err(|e| e.to_string())
                 }
                 "planning_escalate" => {
                     let task_id = match args.get("task_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: task_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: task_id",
+                            )]));
+                        }
                     };
                     let board_id = match args.get("board_id").and_then(|v| v.as_str()) {
                         Some(s) => s,
-                        None => return Ok(CallToolResult::error(vec![Content::text("missing: board_id")])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: board_id",
+                            )]));
+                        }
                     };
-                    let attempts: Vec<String> = args.get("attempts").and_then(|v| v.as_array())
-                        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    let attempts: Vec<String> = args
+                        .get("attempts")
+                        .and_then(|v| v.as_array())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect()
+                        })
                         .unwrap_or_default();
-                    let errors: Vec<String> = args.get("errors").and_then(|v| v.as_array())
-                        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    let errors: Vec<String> = args
+                        .get("errors")
+                        .and_then(|v| v.as_array())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect()
+                        })
                         .unwrap_or_default();
-                    let suggestion = args.get("suggestion").and_then(|v| v.as_str()).unwrap_or("");
-                    match orch.escalate_task(task_id, board_id, &attempts, &errors, suggestion).await {
+                    let suggestion = args
+                        .get("suggestion")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    match orch
+                        .escalate_task(task_id, board_id, &attempts, &errors, suggestion)
+                        .await
+                    {
                         Ok(()) => Ok(format!("Task {task_id} escalated.")),
                         Err(e) => Err(e.to_string()),
                     }

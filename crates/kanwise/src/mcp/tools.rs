@@ -111,16 +111,26 @@ impl KanbanMcpServer {
         }
     }
 
-    async fn query_kbf(&self, board_id: &str, scope: &str, params: &BoardQueryParams) -> Result<String> {
+    async fn query_kbf(
+        &self,
+        board_id: &str,
+        scope: &str,
+        params: &BoardQueryParams,
+    ) -> Result<String> {
         match scope {
             "info" => kbf_bridge::encode_board_info(&self.db, board_id).await,
             "tasks" => kbf_bridge::encode_board_tasks(&self.db, board_id).await,
             "columns" => kbf_bridge::encode_board_columns(&self.db, board_id).await,
             "labels" => kbf_bridge::encode_board_labels(&self.db, board_id).await,
             "subtasks" => {
-                let task_id = params.task_id.as_deref()
+                let task_id = params
+                    .task_id
+                    .as_deref()
                     .ok_or_else(|| anyhow::anyhow!("task_id required for subtasks scope"))?;
-                let task = self.db.get_task(task_id).await?
+                let task = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if task.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -128,12 +138,16 @@ impl KanbanMcpServer {
                 kbf_bridge::encode_task_subtasks(&self.db, task_id).await
             }
             "search" => {
-                let query = params.query.as_deref()
+                let query = params
+                    .query
+                    .as_deref()
                     .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
                 kbf_bridge::encode_search_results(&self.db, board_id, query).await
             }
             "attachments" => {
-                let task_id = params.task_id.as_deref()
+                let task_id = params
+                    .task_id
+                    .as_deref()
                     .ok_or_else(|| anyhow::anyhow!("task_id required for attachments scope"))?;
                 let attachments = self.db.list_attachments(task_id).await?;
                 Ok(serde_json::to_string(&attachments)?)
@@ -143,7 +157,12 @@ impl KanbanMcpServer {
         }
     }
 
-    async fn query_json(&self, board_id: &str, scope: &str, params: &BoardQueryParams) -> Result<String> {
+    async fn query_json(
+        &self,
+        board_id: &str,
+        scope: &str,
+        params: &BoardQueryParams,
+    ) -> Result<String> {
         match scope {
             "info" => {
                 let board = self
@@ -166,9 +185,14 @@ impl KanbanMcpServer {
                 Ok(serde_json::to_string(&labels)?)
             }
             "subtasks" => {
-                let task_id = params.task_id.as_deref()
+                let task_id = params
+                    .task_id
+                    .as_deref()
                     .ok_or_else(|| anyhow::anyhow!("task_id required for subtasks scope"))?;
-                let task = self.db.get_task(task_id).await?
+                let task = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if task.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -177,13 +201,17 @@ impl KanbanMcpServer {
                 Ok(serde_json::to_string(&subtasks)?)
             }
             "search" => {
-                let query = params.query.as_deref()
+                let query = params
+                    .query
+                    .as_deref()
                     .ok_or_else(|| anyhow::anyhow!("query required for search scope"))?;
                 let results = self.db.search_board(board_id, query, 20, false).await?;
                 Ok(serde_json::to_string(&results)?)
             }
             "attachments" => {
-                let task_id = params.task_id.as_deref()
+                let task_id = params
+                    .task_id
+                    .as_deref()
                     .ok_or_else(|| anyhow::anyhow!("task_id required for attachments scope"))?;
                 let attachments = self.db.list_attachments(task_id).await?;
                 Ok(serde_json::to_string(&attachments)?)
@@ -232,36 +260,35 @@ impl KanbanMcpServer {
                     .unwrap_or(Priority::Medium);
                 let assignee = data.get("assignee").and_then(Value::as_str);
 
-                let task =
-                    self.db
-                        .create_task(board_id, column_id, title, description, priority, assignee).await?;
+                let task = self
+                    .db
+                    .create_task(board_id, column_id, title, description, priority, assignee)
+                    .await?;
                 Ok(format!("created task {}", task.id))
             }
             "update_task" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
                 }
                 let title = data.get("title").and_then(Value::as_str);
-                let description = data
-                    .get("description")
-                    .map(|v| v.as_str());
+                let description = data.get("description").map(|v| v.as_str());
                 let priority = data
                     .get("priority")
                     .and_then(Value::as_str)
                     .and_then(kbf_bridge::priority_from_short_or_full);
-                let assignee = data
-                    .get("assignee")
-                    .map(|v| v.as_str());
-                let due_date = data
-                    .get("due_date")
-                    .map(|v| v.as_str());
+                let assignee = data.get("assignee").map(|v| v.as_str());
+                let due_date = data.get("due_date").map(|v| v.as_str());
 
                 let task = self
                     .db
-                    .update_task(task_id, title, description, priority, assignee, due_date).await?
+                    .update_task(task_id, title, description, priority, assignee, due_date)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
 
                 // Assignment notification trigger
@@ -272,9 +299,18 @@ impl KanbanMcpServer {
                     && let Ok(Some(assignee_user)) = self.db.get_user_by_name(new_assignee).await
                 {
                     let title = format!("You were assigned to \"{}\"", task.title);
-                    if let Ok(notif) = self.db.create_notification(
-                        &assignee_user.id, board_id, Some(&task.id), "assignment", &title, None,
-                    ).await {
+                    if let Ok(notif) = self
+                        .db
+                        .create_notification(
+                            &assignee_user.id,
+                            board_id,
+                            Some(&task.id),
+                            "assignment",
+                            &title,
+                            None,
+                        )
+                        .await
+                    {
                         notifications::broadcast(&self.notif_tx, &notif);
                     }
                 }
@@ -283,26 +319,33 @@ impl KanbanMcpServer {
             }
             "move_task" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
                 }
                 let column_id = json_str(data, "column_id")?;
-                let position = data
-                    .get("position")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(0);
+                let position = data.get("position").and_then(Value::as_i64).unwrap_or(0);
 
                 let task = self
                     .db
-                    .move_task(task_id, column_id, position).await?
+                    .move_task(task_id, column_id, position)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
-                Ok(format!("moved task {} to column {}", task.id, task.column_id))
+                Ok(format!(
+                    "moved task {} to column {}",
+                    task.id, task.column_id
+                ))
             }
             "delete_task" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -318,20 +361,22 @@ impl KanbanMcpServer {
                 let wip_limit = data.get("wip_limit").and_then(Value::as_i64);
                 let color = data.get("color").and_then(Value::as_str);
 
-                let col = self.db.create_column(board_id, name, wip_limit, color).await?;
+                let col = self
+                    .db
+                    .create_column(board_id, name, wip_limit, color)
+                    .await?;
                 Ok(format!("created column {}", col.id))
             }
             "update_column" => {
                 let column_id = json_str(data, "column_id")?;
                 let name = data.get("name").and_then(Value::as_str);
-                let wip_limit = data
-                    .get("wip_limit")
-                    .map(|v| v.as_i64());
-                let color = data
-                    .get("color")
-                    .map(|v| v.as_str());
+                let wip_limit = data.get("wip_limit").map(|v| v.as_i64());
+                let color = data.get("color").map(|v| v.as_str());
 
-                let updated = self.db.update_column(column_id, name, wip_limit, color).await?;
+                let updated = self
+                    .db
+                    .update_column(column_id, name, wip_limit, color)
+                    .await?;
                 if !updated {
                     bail!("column not found: {column_id}");
                 }
@@ -360,7 +405,8 @@ impl KanbanMcpServer {
 
                 let board = self
                     .db
-                    .update_board(board_id, name, description).await?
+                    .update_board(board_id, name, description)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("board not found: {board_id}"))?;
                 Ok(format!("updated board {}", board.id))
             }
@@ -373,7 +419,10 @@ impl KanbanMcpServer {
             }
             "set_field_value" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -381,7 +430,9 @@ impl KanbanMcpServer {
                 let field_id = json_str(data, "field_id")?;
                 let value = json_str(data, "value")?;
 
-                self.db.set_custom_field_value(task_id, field_id, value).await?;
+                self.db
+                    .set_custom_field_value(task_id, field_id, value)
+                    .await?;
                 Ok(format!("set field {field_id} on task {task_id}"))
             }
             "create_field" => {
@@ -391,12 +442,18 @@ impl KanbanMcpServer {
                     .ok_or_else(|| anyhow::anyhow!("invalid field_type: {field_type_str}"))?;
                 let config = data.get("config").and_then(Value::as_str);
 
-                let field = self.db.create_custom_field(board_id, name, field_type, config).await?;
+                let field = self
+                    .db
+                    .create_custom_field(board_id, name, field_type, config)
+                    .await?;
                 Ok(format!("created field {}", field.id))
             }
             "add_comment" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -408,19 +465,35 @@ impl KanbanMcpServer {
 
                 // Comment + mention notification triggers
                 let mentioned_ids = parse_mentions(content);
-                let participants = self.db.get_task_participant_ids(task_id).await.unwrap_or_default();
+                let participants = self
+                    .db
+                    .get_task_participant_ids(task_id)
+                    .await
+                    .unwrap_or_default();
 
                 for pid in &participants {
-                    if pid == user_id || mentioned_ids.contains(pid) { continue; }
+                    if pid == user_id || mentioned_ids.contains(pid) {
+                        continue;
+                    }
                     let title = format!("New comment on \"{}\"", existing.title);
-                    if let Ok(notif) = self.db.create_notification(pid, board_id, Some(task_id), "comment", &title, None).await {
+                    if let Ok(notif) = self
+                        .db
+                        .create_notification(pid, board_id, Some(task_id), "comment", &title, None)
+                        .await
+                    {
                         notifications::broadcast(&self.notif_tx, &notif);
                     }
                 }
                 for mid in &mentioned_ids {
-                    if mid == user_id { continue; }
+                    if mid == user_id {
+                        continue;
+                    }
                     let title = format!("You were mentioned in \"{}\"", existing.title);
-                    if let Ok(notif) = self.db.create_notification(mid, board_id, Some(task_id), "mention", &title, None).await {
+                    if let Ok(notif) = self
+                        .db
+                        .create_notification(mid, board_id, Some(task_id), "mention", &title, None)
+                        .await
+                    {
                         notifications::broadcast(&self.notif_tx, &notif);
                     }
                 }
@@ -429,15 +502,24 @@ impl KanbanMcpServer {
             }
             "update_comment" => {
                 let comment_id = json_str(data, "comment_id")?;
-                let comment = self.db.get_comment(comment_id).await?
+                let comment = self
+                    .db
+                    .get_comment(comment_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("comment not found: {comment_id}"))?;
-                let task = self.db.get_task(&comment.task_id).await?
+                let task = self
+                    .db
+                    .get_task(&comment.task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {}", comment.task_id))?;
                 if task.board_id != *board_id {
                     bail!("comment's task does not belong to board {board_id}");
                 }
                 let content = json_str(data, "content")?;
-                let updated = self.db.update_comment(comment_id, content).await?
+                let updated = self
+                    .db
+                    .update_comment(comment_id, content)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("failed to update comment {comment_id}"))?;
                 let _ = self.db.log_activity(board_id, Some(&comment.task_id), &comment.user_id, "comment_updated",
                     Some(&serde_json::json!({"task_id": &comment.task_id, "comment_id": comment_id}).to_string())).await;
@@ -445,9 +527,15 @@ impl KanbanMcpServer {
             }
             "delete_comment" => {
                 let comment_id = json_str(data, "comment_id")?;
-                let comment = self.db.get_comment(comment_id).await?
+                let comment = self
+                    .db
+                    .get_comment(comment_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("comment not found: {comment_id}"))?;
-                let task = self.db.get_task(&comment.task_id).await?
+                let task = self
+                    .db
+                    .get_task(&comment.task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {}", comment.task_id))?;
                 if task.board_id != *board_id {
                     bail!("comment's task does not belong to board {board_id}");
@@ -466,7 +554,10 @@ impl KanbanMcpServer {
             }
             "update_label" => {
                 let label_id = json_str(data, "label_id")?;
-                let existing = self.db.get_label(label_id).await?
+                let existing = self
+                    .db
+                    .get_label(label_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("label not found: {label_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("label {label_id} does not belong to board {board_id}");
@@ -478,7 +569,10 @@ impl KanbanMcpServer {
             }
             "delete_label" => {
                 let label_id = json_str(data, "label_id")?;
-                let existing = self.db.get_label(label_id).await?
+                let existing = self
+                    .db
+                    .get_label(label_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("label not found: {label_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("label {label_id} does not belong to board {board_id}");
@@ -489,7 +583,10 @@ impl KanbanMcpServer {
             "add_label" => {
                 let task_id = json_str(data, "task_id")?;
                 let label_id = json_str(data, "label_id")?;
-                let task = self.db.get_task(task_id).await?
+                let task = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if task.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -500,7 +597,10 @@ impl KanbanMcpServer {
             "remove_label" => {
                 let task_id = json_str(data, "task_id")?;
                 let label_id = json_str(data, "label_id")?;
-                let task = self.db.get_task(task_id).await?
+                let task = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if task.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -511,56 +611,98 @@ impl KanbanMcpServer {
             // ----- Archive -----
             "archive_task" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
                 }
                 self.db.archive_task(task_id).await?;
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
-                let _ = self.db.log_activity(board_id, Some(task_id), user_id, "task_archived", None).await;
+                let _ = self
+                    .db
+                    .log_activity(board_id, Some(task_id), user_id, "task_archived", None)
+                    .await;
                 Ok(format!("archived task {task_id}"))
             }
             "unarchive_task" => {
                 let task_id = json_str(data, "task_id")?;
-                let existing = self.db.get_task(task_id).await?
+                let existing = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if existing.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
                 }
                 self.db.unarchive_task(task_id).await?;
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
-                let _ = self.db.log_activity(board_id, Some(task_id), user_id, "task_unarchived", None).await;
+                let _ = self
+                    .db
+                    .log_activity(board_id, Some(task_id), user_id, "task_unarchived", None)
+                    .await;
                 Ok(format!("unarchived task {task_id}"))
             }
             "archive_column" => {
                 let column_id = json_str(data, "column_id")?;
                 let columns = self.db.list_columns(board_id).await?;
-                let col = columns.iter().find(|c| c.id == column_id)
-                    .ok_or_else(|| anyhow::anyhow!("column {column_id} not found in board {board_id}"))?;
+                let col = columns.iter().find(|c| c.id == column_id).ok_or_else(|| {
+                    anyhow::anyhow!("column {column_id} not found in board {board_id}")
+                })?;
                 let col_name = col.name.clone();
                 let count = self.db.archive_column(column_id).await?;
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
-                let _ = self.db.log_activity(board_id, None, user_id, "column_archived",
-                    Some(&serde_json::json!({"column_name": col_name, "task_count": count}).to_string())).await;
+                let _ = self
+                    .db
+                    .log_activity(
+                        board_id,
+                        None,
+                        user_id,
+                        "column_archived",
+                        Some(
+                            &serde_json::json!({"column_name": col_name, "task_count": count})
+                                .to_string(),
+                        ),
+                    )
+                    .await;
                 Ok(format!("archived column {column_id} ({count} tasks)"))
             }
             "unarchive_column" => {
                 let column_id = json_str(data, "column_id")?;
                 let (_, archived_cols) = self.db.list_archived(board_id).await?;
-                let col = archived_cols.iter().find(|c| c.id == column_id)
-                    .ok_or_else(|| anyhow::anyhow!("archived column {column_id} not found in board {board_id}"))?;
+                let col = archived_cols
+                    .iter()
+                    .find(|c| c.id == column_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("archived column {column_id} not found in board {board_id}")
+                    })?;
                 let col_name = col.name.clone();
                 let count = self.db.unarchive_column(column_id).await?;
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
-                let _ = self.db.log_activity(board_id, None, user_id, "column_unarchived",
-                    Some(&serde_json::json!({"column_name": col_name, "task_count": count}).to_string())).await;
+                let _ = self
+                    .db
+                    .log_activity(
+                        board_id,
+                        None,
+                        user_id,
+                        "column_unarchived",
+                        Some(
+                            &serde_json::json!({"column_name": col_name, "task_count": count})
+                                .to_string(),
+                        ),
+                    )
+                    .await;
                 Ok(format!("unarchived column {column_id} ({count} tasks)"))
             }
             // ----- Attachments -----
             "delete_attachment" => {
                 let attachment_id = json_str(data, "attachment_id")?;
-                let att = self.db.get_attachment(attachment_id).await?
+                let att = self
+                    .db
+                    .get_attachment(attachment_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("attachment not found: {attachment_id}"))?;
                 self.db.delete_attachment(attachment_id).await?;
                 let uploads_dir = std::path::PathBuf::from(
@@ -573,7 +715,10 @@ impl KanbanMcpServer {
             "create_subtask" => {
                 let task_id = json_str(data, "task_id")?;
                 let title = json_str(data, "title")?;
-                let task = self.db.get_task(task_id).await?
+                let task = self
+                    .db
+                    .get_task(task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
                 if task.board_id != *board_id {
                     bail!("task {task_id} does not belong to board {board_id}");
@@ -583,24 +728,38 @@ impl KanbanMcpServer {
             }
             "update_subtask" => {
                 let subtask_id = json_str(data, "subtask_id")?;
-                let existing = self.db.get_subtask(subtask_id).await?
+                let existing = self
+                    .db
+                    .get_subtask(subtask_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("subtask not found: {subtask_id}"))?;
                 // Verify subtask's parent task belongs to board
-                let task = self.db.get_task(&existing.task_id).await?
+                let task = self
+                    .db
+                    .get_task(&existing.task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("parent task not found"))?;
                 if task.board_id != *board_id {
                     bail!("subtask {subtask_id} does not belong to board {board_id}");
                 }
                 let title = data.get("title").and_then(Value::as_str);
                 let completed = data.get("completed").and_then(Value::as_bool);
-                self.db.update_subtask(subtask_id, title, completed, None).await?;
+                self.db
+                    .update_subtask(subtask_id, title, completed, None)
+                    .await?;
                 Ok(format!("updated subtask {subtask_id}"))
             }
             "delete_subtask" => {
                 let subtask_id = json_str(data, "subtask_id")?;
-                let existing = self.db.get_subtask(subtask_id).await?
+                let existing = self
+                    .db
+                    .get_subtask(subtask_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("subtask not found: {subtask_id}"))?;
-                let task = self.db.get_task(&existing.task_id).await?
+                let task = self
+                    .db
+                    .get_task(&existing.task_id)
+                    .await?
                     .ok_or_else(|| anyhow::anyhow!("parent task not found"))?;
                 if task.board_id != *board_id {
                     bail!("subtask {subtask_id} does not belong to board {board_id}");
@@ -624,21 +783,26 @@ impl KanbanMcpServer {
             }
             "duplicate_board" => {
                 let name = json_str(data, "name")?;
-                crate::api::validation::validate_title(name)
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                crate::api::validation::validate_title(name).map_err(|e| anyhow::anyhow!("{e}"))?;
                 let include_tasks = data
                     .get("include_tasks")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(true);
                 let user_id = data.get("user_id").and_then(Value::as_str).unwrap_or("mcp");
-                let board = self.db.duplicate_board(board_id, name, include_tasks, user_id).await?;
-                let _ = self.db.log_activity(
-                    &board.id,
-                    None,
-                    user_id,
-                    "board_duplicated",
-                    Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
-                ).await;
+                let board = self
+                    .db
+                    .duplicate_board(board_id, name, include_tasks, user_id)
+                    .await?;
+                let _ = self
+                    .db
+                    .log_activity(
+                        &board.id,
+                        None,
+                        user_id,
+                        "board_duplicated",
+                        Some(&serde_json::json!({"source_board_id": board_id}).to_string()),
+                    )
+                    .await;
                 Ok(format!("duplicated board {} as {}", board_id, board.id))
             }
             other => bail!("unknown action: {other}"),
@@ -668,7 +832,8 @@ impl KanbanMcpServer {
             task_id: None,
             query: None,
             include_archived: None,
-        }).await
+        })
+        .await
     }
 
     // -----------------------------------------------------------------------
@@ -679,7 +844,9 @@ impl KanbanMcpServer {
     pub async fn handle_ask(&self, params: BoardAskParams) -> Result<String> {
         let format = params.format.as_deref().unwrap_or("text");
         let engine = super::board_ask::AskEngine::new(self.db.clone());
-        engine.answer(&params.board_id, &params.question, format).await
+        engine
+            .answer(&params.board_id, &params.question, format)
+            .await
     }
 
     /// Parse and apply KBF delta operations to the database.
@@ -689,19 +856,22 @@ impl KanbanMcpServer {
     /// - `>col|title|desc|pri|who|pos+` -> create a task
     /// - `>id-` -> delete a task
     async fn apply_deltas(&self, board_id: &str, delta_str: &str) -> Result<()> {
-        let deltas =
-            kbf::decode_deltas(delta_str).context("failed to parse KBF deltas")?;
+        let deltas = kbf::decode_deltas(delta_str).context("failed to parse KBF deltas")?;
 
         for delta in deltas {
             match delta {
                 kbf::Delta::Update { id, field, value } => {
-                    self.apply_field_update(board_id, &id, &field, &value).await?;
+                    self.apply_field_update(board_id, &id, &field, &value)
+                        .await?;
                 }
                 kbf::Delta::Create { row } => {
                     self.apply_create(board_id, &row).await?;
                 }
                 kbf::Delta::Delete { id } => {
-                    let existing = self.db.get_task(&id).await?
+                    let existing = self
+                        .db
+                        .get_task(&id)
+                        .await?
                         .ok_or_else(|| anyhow::anyhow!("task not found: {id}"))?;
                     if existing.board_id != board_id {
                         bail!("task {id} does not belong to board {board_id}");
@@ -725,7 +895,10 @@ impl KanbanMcpServer {
         field: &str,
         value: &str,
     ) -> Result<()> {
-        let existing = self.db.get_task(task_id).await?
+        let existing = self
+            .db
+            .get_task(task_id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
         if existing.board_id != board_id {
             bail!("task {task_id} does not belong to board {board_id}");
@@ -733,17 +906,20 @@ impl KanbanMcpServer {
         match field {
             "title" => {
                 self.db
-                    .update_task(task_id, Some(value), None, None, None, None).await?;
+                    .update_task(task_id, Some(value), None, None, None, None)
+                    .await?;
             }
             "desc" => {
                 self.db
-                    .update_task(task_id, None, Some(Some(value)), None, None, None).await?;
+                    .update_task(task_id, None, Some(Some(value)), None, None, None)
+                    .await?;
             }
             "pri" => {
                 let priority = kbf_bridge::priority_from_short_or_full(value)
                     .ok_or_else(|| anyhow::anyhow!("invalid priority: {value}"))?;
                 self.db
-                    .update_task(task_id, None, None, Some(priority), None, None).await?;
+                    .update_task(task_id, None, None, Some(priority), None, None)
+                    .await?;
             }
             "who" => {
                 let assignee = if value.is_empty() {
@@ -752,11 +928,18 @@ impl KanbanMcpServer {
                     Some(Some(value))
                 };
                 self.db
-                    .update_task(task_id, None, None, None, assignee, None).await?;
+                    .update_task(task_id, None, None, None, assignee, None)
+                    .await?;
             }
             "due" => {
-                let due = if value.is_empty() { Some(None) } else { Some(Some(value)) };
-                self.db.update_task(task_id, None, None, None, None, due).await?;
+                let due = if value.is_empty() {
+                    Some(None)
+                } else {
+                    Some(Some(value))
+                };
+                self.db
+                    .update_task(task_id, None, None, None, None, due)
+                    .await?;
             }
             "col" => {
                 // Move task to different column, keep position 0
@@ -769,9 +952,7 @@ impl KanbanMcpServer {
                     .get_task(task_id)
                     .await?
                     .ok_or_else(|| anyhow::anyhow!("task not found: {task_id}"))?;
-                let pos: i64 = value
-                    .parse()
-                    .context("invalid position value")?;
+                let pos: i64 = value.parse().context("invalid position value")?;
                 self.db.move_task(task_id, &task.column_id, pos).await?;
             }
             _ => {
@@ -804,7 +985,8 @@ impl KanbanMcpServer {
         }
 
         self.db
-            .create_task(board_id, col, title, desc, pri, who).await?;
+            .create_task(board_id, col, title, desc, pri, who)
+            .await?;
 
         Ok(())
     }
@@ -826,16 +1008,16 @@ fn json_str<'a>(data: &'a Value, field: &str) -> Result<&'a str> {
 // ---------------------------------------------------------------------------
 
 pub mod api {
-    use axum::{Json, Extension, extract::State};
+    use axum::{Extension, Json, extract::State};
     use serde_json::Value;
 
+    use super::*;
     use crate::api::error::ApiError;
     use crate::api::middleware::AuthUser;
     use crate::api::permissions;
     use crate::db::Db;
     use crate::db::models::Role;
     use crate::notifications::NotifTx;
-    use super::*;
 
     pub async fn query(
         State(db): State<Db>,
@@ -868,16 +1050,25 @@ pub mod api {
     ) -> Result<Json<Value>, ApiError> {
         if params.action == "create_board" {
             // Any authenticated user can create a board — they become owner.
-            let name = params.data.get("name")
+            let name = params
+                .data
+                .get("name")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("missing required field: name"))?;
             let description = params.data.get("description").and_then(|v| v.as_str());
             let board = db.create_board(name, description).await?;
-            db.add_board_member(&board.id, &user.id, Role::Owner).await?;
-            return Ok(Json(serde_json::json!({ "result": format!("created board {}", board.id) })));
+            db.add_board_member(&board.id, &user.id, Role::Owner)
+                .await?;
+            return Ok(Json(
+                serde_json::json!({ "result": format!("created board {}", board.id) }),
+            ));
         }
 
-        let min_role = if params.action == "delete_board" { Role::Owner } else { Role::Member };
+        let min_role = if params.action == "delete_board" {
+            Role::Owner
+        } else {
+            Role::Member
+        };
         permissions::require_role(&db, &params.board_id, &user.id, min_role).await?;
 
         let server = KanbanMcpServer::new(db, notif_tx);
@@ -1048,9 +1239,16 @@ mod tests {
     async fn test_query_board_json_all() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "JSON task", None, Priority::Medium, None)
-            .await
-            .unwrap();
+        db.create_task(
+            &board_id,
+            &col_id,
+            "JSON task",
+            None,
+            Priority::Medium,
+            None,
+        )
+        .await
+        .unwrap();
 
         let server = KanbanMcpServer::new(db, test_notif_tx());
         let result = server
@@ -1100,17 +1298,24 @@ mod tests {
         let (board_id, _) = seed(&db).await;
 
         let server = KanbanMcpServer::new(db, test_notif_tx());
-        let result = server.handle_query(BoardQueryParams {
-            board_id,
-            scope: None,
-            format: Some("xml".into()),
-            task_id: None,
-            query: None,
-            include_archived: None,
-        }).await;
+        let result = server
+            .handle_query(BoardQueryParams {
+                board_id,
+                scope: None,
+                format: Some("xml".into()),
+                task_id: None,
+                query: None,
+                include_archived: None,
+            })
+            .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("unsupported format"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("unsupported format")
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -1204,7 +1409,10 @@ mod tests {
     async fn test_mutate_move_task() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        let col2 = db.create_column(&board_id, "Done", None, None).await.unwrap();
+        let col2 = db
+            .create_column(&board_id, "Done", None, None)
+            .await
+            .unwrap();
         let task = db
             .create_task(&board_id, &col_id, "Task", None, Priority::Medium, None)
             .await
@@ -1450,11 +1658,13 @@ mod tests {
     async fn test_mutate_unknown_action() {
         let db = test_db().await;
         let server = KanbanMcpServer::new(db, test_notif_tx());
-        let result = server.handle_mutate(BoardMutateParams {
-            board_id: "any".into(),
-            action: "explode".into(),
-            data: serde_json::json!({}),
-        }).await;
+        let result = server
+            .handle_mutate(BoardMutateParams {
+                board_id: "any".into(),
+                action: "explode".into(),
+                data: serde_json::json!({}),
+            })
+            .await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("unknown action"));
@@ -1466,12 +1676,14 @@ mod tests {
         let (board_id, _) = seed(&db).await;
 
         let server = KanbanMcpServer::new(db, test_notif_tx());
-        let result = server.handle_mutate(BoardMutateParams {
-            board_id,
-            action: "create_task".into(),
-            data: serde_json::json!({ "title": "No column" }),
-            // missing column_id
-        }).await;
+        let result = server
+            .handle_mutate(BoardMutateParams {
+                board_id,
+                action: "create_task".into(),
+                data: serde_json::json!({ "title": "No column" }),
+                // missing column_id
+            })
+            .await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("column_id"));
@@ -1538,7 +1750,14 @@ mod tests {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
         let task = db
-            .create_task(&board_id, &col_id, "To Delete", None, Priority::Medium, None)
+            .create_task(
+                &board_id,
+                &col_id,
+                "To Delete",
+                None,
+                Priority::Medium,
+                None,
+            )
             .await
             .unwrap();
 

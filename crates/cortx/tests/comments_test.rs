@@ -14,9 +14,13 @@ async fn comment_on_task_creates_formatted_comment() {
     let column_id = create_test_column(orch.kanwise().db(), &board_id).await;
     let task_id = create_test_task(orch.kanwise().db(), &board_id, &column_id, "Test task").await;
 
-    orch.comment_on_task(&task_id, AgentCommentEvent::Bug, "Found null pointer in auth module")
-        .await
-        .unwrap();
+    orch.comment_on_task(
+        &task_id,
+        AgentCommentEvent::Bug,
+        "Found null pointer in auth module",
+    )
+    .await
+    .unwrap();
 
     let comments = get_task_comments(orch.kanwise().db(), &task_id).await;
     assert_eq!(comments.len(), 1);
@@ -45,7 +49,9 @@ async fn create_test_board(db: &kanwise::db::Db) -> String {
             rusqlite::params![id, now, now],
         )?;
         Ok(id)
-    }).await.unwrap()
+    })
+    .await
+    .unwrap()
 }
 
 async fn create_test_column(db: &kanwise::db::Db, board_id: &str) -> String {
@@ -57,10 +63,17 @@ async fn create_test_column(db: &kanwise::db::Db, board_id: &str) -> String {
             rusqlite::params![id, bid],
         )?;
         Ok(id)
-    }).await.unwrap()
+    })
+    .await
+    .unwrap()
 }
 
-async fn create_test_task(db: &kanwise::db::Db, board_id: &str, column_id: &str, title: &str) -> String {
+async fn create_test_task(
+    db: &kanwise::db::Db,
+    board_id: &str,
+    column_id: &str,
+    title: &str,
+) -> String {
     let bid = board_id.to_string();
     let cid = column_id.to_string();
     let t = title.to_string();
@@ -85,5 +98,7 @@ async fn get_task_comments(db: &kanwise::db::Db, task_id: &str) -> Vec<String> {
             .filter_map(|r| r.ok())
             .collect();
         Ok(rows)
-    }).await.unwrap()
+    })
+    .await
+    .unwrap()
 }

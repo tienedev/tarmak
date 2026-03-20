@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::db::Db;
+use anyhow::Result;
 
 pub async fn purge_unconfirmed_chains(db: &Db, age_days: u32) -> Result<u64> {
     let age_days = age_days as i64;

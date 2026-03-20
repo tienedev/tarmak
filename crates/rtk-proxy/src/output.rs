@@ -61,9 +61,8 @@ impl OutputProcessor {
     }
 }
 
-static CARGO_PANIC_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"panicked at ([^:]+):(\d+):\d+:\n(.+)").unwrap()
-});
+static CARGO_PANIC_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"panicked at ([^:]+):(\d+):\d+:\n(.+)").unwrap());
 
 static CARGO_SUMMARY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored").unwrap()
@@ -79,7 +78,10 @@ pub fn parse_cargo_test(output: &str) -> ParsedOutput {
         });
     }
     let summary = if let Some(cap) = CARGO_SUMMARY_RE.captures(output) {
-        format!("{} passed; {} failed; {} ignored", &cap[1], &cap[2], &cap[3])
+        format!(
+            "{} passed; {} failed; {} ignored",
+            &cap[1], &cap[2], &cap[3]
+        )
     } else {
         String::new()
     };

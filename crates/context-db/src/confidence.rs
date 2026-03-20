@@ -19,13 +19,7 @@ pub async fn count_commits_since(file: &str, since: &str, cwd: &str) -> u32 {
     let cwd = cwd.to_string();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
-            .args([
-                "log",
-                "--oneline",
-                &format!("--since={since}"),
-                "--",
-                &file,
-            ])
+            .args(["log", "--oneline", &format!("--since={since}"), "--", &file])
             .current_dir(&cwd)
             .output();
         match output {

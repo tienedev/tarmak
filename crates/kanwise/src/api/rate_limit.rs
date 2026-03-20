@@ -64,7 +64,10 @@ impl RateLimiter {
 
 fn extract_client_ip(req: &Request<Body>) -> String {
     // Prefer X-Forwarded-For if present (behind reverse proxy)
-    if let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok())
+    if let Some(xff) = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
         && let Some(first) = xff.split(',').next()
     {
         let ip = first.trim();

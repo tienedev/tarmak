@@ -1,12 +1,16 @@
-use rtk_proxy::sandbox::Sandbox;
 use rtk_proxy::policy::SandboxConfig;
+use rtk_proxy::sandbox::Sandbox;
 use std::path::PathBuf;
 
 fn test_config() -> SandboxConfig {
     SandboxConfig {
         default_timeout: "5s".to_string(),
         env_passthrough: vec!["PATH".to_string(), "HOME".to_string()],
-        env_redact: vec!["*_KEY".to_string(), "*_TOKEN".to_string(), "*_SECRET".to_string()],
+        env_redact: vec![
+            "*_KEY".to_string(),
+            "*_TOKEN".to_string(),
+            "*_SECRET".to_string(),
+        ],
     }
 }
 
@@ -14,7 +18,11 @@ fn test_config() -> SandboxConfig {
 fn test_cwd_validation_allows_project_root() {
     let sandbox = Sandbox::new(&test_config(), PathBuf::from("/tmp/project"));
     assert!(sandbox.validate_cwd(&PathBuf::from("/tmp/project")).is_ok());
-    assert!(sandbox.validate_cwd(&PathBuf::from("/tmp/project/src")).is_ok());
+    assert!(
+        sandbox
+            .validate_cwd(&PathBuf::from("/tmp/project/src"))
+            .is_ok()
+    );
 }
 
 #[test]
@@ -22,7 +30,11 @@ fn test_cwd_validation_rejects_escape() {
     let sandbox = Sandbox::new(&test_config(), PathBuf::from("/tmp/project"));
     assert!(sandbox.validate_cwd(&PathBuf::from("/tmp")).is_err());
     assert!(sandbox.validate_cwd(&PathBuf::from("/etc")).is_err());
-    assert!(sandbox.validate_cwd(&PathBuf::from("/tmp/project/../other")).is_err());
+    assert!(
+        sandbox
+            .validate_cwd(&PathBuf::from("/tmp/project/../other"))
+            .is_err()
+    );
 }
 
 #[test]

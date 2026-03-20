@@ -13,7 +13,9 @@ async fn test_purge_unconfirmed_chains() {
     .unwrap();
 
     // Purge with a 0-day threshold (purge everything unconfirmed)
-    let purged = context_db::purge::purge_unconfirmed_chains(db.db(), 0).await.unwrap();
+    let purged = context_db::purge::purge_unconfirmed_chains(db.db(), 0)
+        .await
+        .unwrap();
     assert_eq!(purged, 1);
 }
 

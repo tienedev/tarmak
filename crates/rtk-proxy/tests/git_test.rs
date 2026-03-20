@@ -52,12 +52,32 @@ async fn test_git_status_snapshot_non_git_dir() {
 #[tokio::test]
 async fn test_create_checkpoint() {
     let dir = TempDir::new().unwrap();
-    Command::new("git").args(["init"]).current_dir(dir.path()).output().unwrap();
-    Command::new("git").args(["config", "user.email", "test@test.com"]).current_dir(dir.path()).output().unwrap();
-    Command::new("git").args(["config", "user.name", "test"]).current_dir(dir.path()).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "user.name", "test"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
     std::fs::write(dir.path().join("a.txt"), "hello").unwrap();
-    Command::new("git").args(["add", "."]).current_dir(dir.path()).output().unwrap();
-    Command::new("git").args(["commit", "-m", "init"]).current_dir(dir.path()).output().unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
 
     std::fs::write(dir.path().join("a.txt"), "modified").unwrap();
     let created = git::create_checkpoint(dir.path()).await;
@@ -72,12 +92,32 @@ async fn test_create_checkpoint() {
 #[tokio::test]
 async fn test_create_checkpoint_clean_tree() {
     let dir = TempDir::new().unwrap();
-    Command::new("git").args(["init"]).current_dir(dir.path()).output().unwrap();
-    Command::new("git").args(["config", "user.email", "test@test.com"]).current_dir(dir.path()).output().unwrap();
-    Command::new("git").args(["config", "user.name", "test"]).current_dir(dir.path()).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "user.name", "test"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
     std::fs::write(dir.path().join("a.txt"), "hello").unwrap();
-    Command::new("git").args(["add", "."]).current_dir(dir.path()).output().unwrap();
-    Command::new("git").args(["commit", "-m", "init"]).current_dir(dir.path()).output().unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
 
     let created = git::create_checkpoint(dir.path()).await;
     assert!(!created);

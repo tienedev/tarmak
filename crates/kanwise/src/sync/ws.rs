@@ -6,12 +6,12 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use futures::stream::StreamExt;
 use futures::SinkExt;
+use futures::stream::StreamExt;
 use serde::Deserialize;
-use tokio::sync::{broadcast, RwLock};
-use yrs::{Transact, Update};
+use tokio::sync::{RwLock, broadcast};
 use yrs::updates::decoder::Decode;
+use yrs::{Transact, Update};
 
 use super::doc::BoardDocManager;
 use crate::db::Db;
@@ -48,7 +48,10 @@ impl SyncState {
 
     /// Record that we just persisted state for this board.
     async fn mark_persisted(&self, board_id: &str) {
-        self.last_persist.write().await.insert(board_id.to_string(), Instant::now());
+        self.last_persist
+            .write()
+            .await
+            .insert(board_id.to_string(), Instant::now());
     }
 
     /// Get (or create) the broadcast channel for a given board.
@@ -119,7 +122,9 @@ pub async fn ws_handler(
         Ok(u) => {
             // Verify the user is a member of this board.
             match state.db.get_board_member(&board_id, &u.id).await {
-                Ok(Some(_)) => ws.on_upgrade(move |socket| handle_socket(socket, board_id, state)).into_response(),
+                Ok(Some(_)) => ws
+                    .on_upgrade(move |socket| handle_socket(socket, board_id, state))
+                    .into_response(),
                 _ => StatusCode::FORBIDDEN.into_response(),
             }
         }
@@ -157,11 +162,7 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
     // 4. Spawn a task that forwards broadcast messages to this client's WebSocket sender.
     let send_task = tokio::spawn(async move {
         while let Ok(data) = rx.recv().await {
-            if ws_tx
-                .send(Message::Binary(data.into()))
-                .await
-                .is_err()
-            {
+            if ws_tx.send(Message::Binary(data.into())).await.is_err() {
                 break;
             }
         }
@@ -191,7 +192,9 @@ async fn handle_socket(socket: WebSocket, board_id: String, state: Arc<SyncState
                     if state.should_persist(&board_id).await {
                         let state_bytes = BoardDocManager::encode_full_state(&doc);
                         if let Err(e) = state.db.save_crdt_state(&board_id, &state_bytes).await {
-                            tracing::warn!("Failed to persist CRDT state for board {board_id}: {e}");
+                            tracing::warn!(
+                                "Failed to persist CRDT state for board {board_id}: {e}"
+                            );
                         }
                         state.mark_persisted(&board_id).await;
                     }

@@ -96,24 +96,20 @@ fn restore_checkpoint_sync(cwd: &Path) -> bool {
         .current_dir(cwd)
         .output();
     let stash_ref = match list {
-        Ok(out) => {
-            String::from_utf8_lossy(&out.stdout)
-                .lines()
-                .find(|l| l.contains(CHECKPOINT_MSG))
-                .and_then(|l| l.split(':').next())
-                .map(|s| s.to_string())
-        }
+        Ok(out) => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .find(|l| l.contains(CHECKPOINT_MSG))
+            .and_then(|l| l.split(':').next())
+            .map(|s| s.to_string()),
         Err(_) => None,
     };
     match stash_ref {
-        Some(r) => {
-            Command::new("git")
-                .args(["stash", "pop", &r])
-                .current_dir(cwd)
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        }
+        Some(r) => Command::new("git")
+            .args(["stash", "pop", &r])
+            .current_dir(cwd)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false),
         None => false,
     }
 }

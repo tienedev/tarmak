@@ -75,9 +75,7 @@ pub struct MemoryMcpServer {
 
 impl MemoryMcpServer {
     pub fn new(ctx: ContextDb) -> Self {
-        Self {
-            ctx: Arc::new(ctx),
-        }
+        Self { ctx: Arc::new(ctx) }
     }
 }
 
@@ -198,27 +196,26 @@ impl ServerHandler for MemoryMcpServer {
                 }
                 "memory_status" => {
                     let exec_count = ctx.execution_count().await.unwrap_or(0);
-                    let db_size =
-                        crate::purge::db_size_bytes(ctx.db()).await.unwrap_or(0);
+                    let db_size = crate::purge::db_size_bytes(ctx.db()).await.unwrap_or(0);
                     let chain_count: u64 = ctx
                         .db()
                         .with_conn(|conn| {
-                            Ok(conn.query_row(
-                                "SELECT COUNT(*) FROM causal_chains",
-                                [],
-                                |r| r.get(0),
-                            )?)
+                            Ok(
+                                conn.query_row("SELECT COUNT(*) FROM causal_chains", [], |r| {
+                                    r.get(0)
+                                })?,
+                            )
                         })
                         .await
                         .unwrap_or(0);
                     let fact_count: u64 = ctx
                         .db()
                         .with_conn(|conn| {
-                            Ok(conn.query_row(
-                                "SELECT COUNT(*) FROM project_facts",
-                                [],
-                                |r| r.get(0),
-                            )?)
+                            Ok(
+                                conn.query_row("SELECT COUNT(*) FROM project_facts", [], |r| {
+                                    r.get(0)
+                                })?,
+                            )
                         })
                         .await
                         .unwrap_or(0);

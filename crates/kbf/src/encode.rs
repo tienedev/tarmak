@@ -110,9 +110,7 @@ mod tests {
             Delta::Create {
                 row: vec!["t3".into(), "New task".into(), "todo".into()],
             },
-            Delta::Delete {
-                id: "t2".into(),
-            },
+            Delta::Delete { id: "t2".into() },
         ];
         let encoded = encode_delta(&deltas);
         assert_eq!(encoded, ">t1.status=done\n>t3|New task|todo+\n>t2-");

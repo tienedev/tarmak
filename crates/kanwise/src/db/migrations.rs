@@ -63,7 +63,9 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v1(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v1 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v1 transaction")?;
     tx.execute_batch(
         "
         -- Boards
@@ -200,7 +202,9 @@ fn v1(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v2(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v2 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v2 transaction")?;
     tx.execute_batch(
         "
         -- Add password_hash to users (nullable for existing users)
@@ -241,7 +245,9 @@ fn v2(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v3(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v3 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v3 transaction")?;
     tx.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS board_crdt_state (
@@ -265,7 +271,9 @@ fn v3(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v4(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v4 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v4 transaction")?;
     tx.execute_batch(
         "
         -- Labels (per board, reusable across tasks)
@@ -331,7 +339,9 @@ fn v5(conn: &Connection) -> anyhow::Result<()> {
     )
     .context("v5: create FTS5 virtual table")?;
 
-    let tx = conn.unchecked_transaction().context("begin v5 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v5 transaction")?;
     tx.execute_batch(
         "
         -- Triggers to keep index in sync
@@ -411,7 +421,9 @@ fn v5(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v6(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v6 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v6 transaction")?;
     tx.execute_batch(
         "
         -- Archive support
@@ -445,7 +457,9 @@ fn v6(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v7(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v7 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v7 transaction")?;
     tx.execute_batch(
         "
         ALTER TABLE comments ADD COLUMN updated_at TEXT;
@@ -471,7 +485,9 @@ fn v7(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v8(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v8 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v8 transaction")?;
     tx.execute_batch(
         "
         CREATE TABLE notifications (
@@ -502,7 +518,9 @@ fn v8(conn: &Connection) -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn v9(conn: &Connection) -> anyhow::Result<()> {
-    let tx = conn.unchecked_transaction().context("begin v9 transaction")?;
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v9 transaction")?;
     tx.execute_batch(
         "
         ALTER TABLE tasks ADD COLUMN locked_by TEXT;
@@ -607,10 +625,13 @@ mod tests {
         assert_eq!(ver, 9);
 
         // Verify new column exists
-        conn.execute_batch("SELECT password_hash FROM users LIMIT 0").unwrap();
+        conn.execute_batch("SELECT password_hash FROM users LIMIT 0")
+            .unwrap();
         // Verify new table exists
-        conn.execute_batch("SELECT 1 FROM api_keys LIMIT 0").unwrap();
+        conn.execute_batch("SELECT 1 FROM api_keys LIMIT 0")
+            .unwrap();
         // Verify CRDT state table exists
-        conn.execute_batch("SELECT 1 FROM board_crdt_state LIMIT 0").unwrap();
+        conn.execute_batch("SELECT 1 FROM board_crdt_state LIMIT 0")
+            .unwrap();
     }
 }
