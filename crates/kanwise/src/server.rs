@@ -52,7 +52,7 @@ pub async fn run_http_server() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
+    let db_path = crate::db_path();
 
     tracing::info!(db_path = %db_path, "Starting kanwise");
 
@@ -140,7 +140,7 @@ pub async fn run_http_server() -> anyhow::Result<()> {
 }
 
 pub async fn reset_password(email: &str) -> anyhow::Result<()> {
-    let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
+    let db_path = crate::db_path();
     let db = db::Db::new(&db_path).await?;
 
     let user = db
