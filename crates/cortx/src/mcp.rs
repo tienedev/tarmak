@@ -527,7 +527,9 @@ impl ServerHandler for CortxMcpServer {
                     let tasks_json = match args.get("tasks").and_then(|v| v.as_array()) {
                         Some(a) => a.clone(),
                         None => {
-                            return Ok(CallToolResult::error(vec![Content::text("missing: tasks")]));
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing: tasks",
+                            )]));
                         }
                     };
                     let mut tasks = Vec::new();
@@ -670,9 +672,9 @@ impl ServerHandler for CortxMcpServer {
                                 "test" => "cargo test --workspace",
                                 "build" => "cargo build --workspace",
                                 other => {
-                                    return Ok(CallToolResult::error(vec![Content::text(format!(
-                                        "unknown gate: {other}"
-                                    ))]));
+                                    return Ok(CallToolResult::error(vec![Content::text(
+                                        format!("unknown gate: {other}"),
+                                    )]));
                                 }
                             };
                             cmds.push((name.to_string(), cmd.to_string()));
@@ -694,9 +696,9 @@ impl ServerHandler for CortxMcpServer {
                                     cmds
                                 }
                                 Err(e) => {
-                                    return Ok(CallToolResult::error(vec![Content::text(format!(
-                                        "invalid cortx-gates.toml: {e}"
-                                    ))]));
+                                    return Ok(CallToolResult::error(vec![Content::text(
+                                        format!("invalid cortx-gates.toml: {e}"),
+                                    )]));
                                 }
                             },
                             Err(_) => {
