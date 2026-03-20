@@ -1,12 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/cortx-types",
     "crates/kanwise",
     "crates/kbf",
-    "crates/rtk-proxy",
-    "crates/context-db",
-    "crates/cortx",
 ]
 
 [workspace.package]
@@ -37,7 +33,5 @@ rand = "0.9"
 hex = "0.4"
 mime_guess = "2"
 argon2 = { version = "0.5", features = ["std"] }
-password-hash = { version = "0.5", features = ["getrandom"] }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
-toml = "0.8"

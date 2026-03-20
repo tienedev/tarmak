@@ -1,7 +1,0 @@
-[gates]
-tests = "cargo test --workspace"
-lint = "cargo clippy --workspace -- -D warnings"
-max_diff_lines = 500
-
-[gates.optional]
-format = "cargo fmt --check"
