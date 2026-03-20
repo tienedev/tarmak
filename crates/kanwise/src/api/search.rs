@@ -4,11 +4,11 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::db::Db;
-use crate::db::models::{Role, SearchResult};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use crate::db::Db;
+use crate::db::models::{Role, SearchResult};
 
 #[derive(Deserialize)]
 pub struct SearchParams {
@@ -30,6 +30,8 @@ pub async fn search(
         return Ok(Json(vec![]));
     }
     let include_archived = params.include_archived.unwrap_or(false);
-    let results = db.search_board(&board_id, q, limit, include_archived).await?;
+    let results = db
+        .search_board(&board_id, q, limit, include_archived)
+        .await?;
     Ok(Json(results))
 }

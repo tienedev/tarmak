@@ -4,11 +4,11 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::db::Db;
-use crate::db::models::{CustomField, FieldType, Role, TaskCustomFieldValue};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use crate::db::Db;
+use crate::db::models::{CustomField, FieldType, Role, TaskCustomFieldValue};
 
 // ---- Request bodies --------------------------------------------------------
 
@@ -42,9 +42,18 @@ pub async fn create(
     Json(body): Json<CreateField>,
 ) -> Result<Json<CustomField>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
-    let field = db.create_custom_field(&board_id, &body.name, body.field_type, None).await?;
-    let _ = db.log_activity(&board_id, None, &user.id, "field_created",
-        Some(&serde_json::json!({"name": &field.name}).to_string())).await;
+    let field = db
+        .create_custom_field(&board_id, &body.name, body.field_type, None)
+        .await?;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "field_created",
+            Some(&serde_json::json!({"name": &field.name}).to_string()),
+        )
+        .await;
     Ok(Json(field))
 }
 
@@ -79,7 +88,14 @@ pub async fn set_value(
         return Err(ApiError::NotFound("field not found".into()));
     }
     let value = db.set_custom_field_value(&tid, &fid, &body.value).await?;
-    let _ = db.log_activity(&board_id, Some(&tid), &user.id, "field_value_set",
-        Some(&serde_json::json!({"field_id": &fid, "value": &body.value}).to_string())).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            Some(&tid),
+            &user.id,
+            "field_value_set",
+            Some(&serde_json::json!({"field_id": &fid, "value": &body.value}).to_string()),
+        )
+        .await;
     Ok(Json(value))
 }

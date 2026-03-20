@@ -1,7 +1,7 @@
 use anyhow::Context;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
 use argon2::password_hash::rand_core::OsRng;
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use chrono::{Duration, Utc};
 use rand::Rng;
 use rusqlite::params;
@@ -52,8 +52,7 @@ pub fn hash_password(password: &str) -> anyhow::Result<String> {
 }
 
 pub fn verify_password(password: &str, hash: &str) -> anyhow::Result<bool> {
-    let parsed = PasswordHash::new(hash)
-        .map_err(|e| anyhow::anyhow!("parse hash: {e}"))?;
+    let parsed = PasswordHash::new(hash).map_err(|e| anyhow::anyhow!("parse hash: {e}"))?;
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok())
@@ -108,11 +107,9 @@ pub async fn validate_session(db: &Db, token: &str) -> anyhow::Result<User> {
                 email: row.get(2)?,
                 avatar_url: row.get(3)?,
                 is_agent: is_agent != 0,
-                created_at: chrono::DateTime::parse_from_rfc3339(
-                    &row.get::<_, String>(5)?,
-                )
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now()),
+                created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
             })
         })?;
 
@@ -278,12 +275,15 @@ mod tests {
             .unwrap();
 
         // Owner creates an invite
-        let invite_token =
-            create_invite_link(&db, &board.id, "member", &owner.id).await.unwrap();
+        let invite_token = create_invite_link(&db, &board.id, "member", &owner.id)
+            .await
+            .unwrap();
         assert_eq!(invite_token.len(), 64);
 
         // Invitee accepts
-        accept_invite(&db, &invite_token, &invitee.id).await.unwrap();
+        accept_invite(&db, &invite_token, &invitee.id)
+            .await
+            .unwrap();
 
         // Verify board_members row exists
         let role: String = db

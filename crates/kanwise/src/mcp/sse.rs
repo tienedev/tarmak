@@ -28,22 +28,22 @@ use axum::{
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use rmcp::{
     RoleServer, ServiceExt,
+    handler::server::ServerHandler,
     model::{
         CallToolRequestParam, CallToolResult, Content, Implementation, InitializeResult,
         ListToolsResult, PaginatedRequestParam, ServerCapabilities, ServerInfo, Tool,
     },
-    handler::server::ServerHandler,
     service::RequestContext,
 };
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
+use super::KanbanMcpServer;
 use crate::api::middleware::AuthUser;
 use crate::api::permissions;
 use crate::db::Db;
 use crate::db::models::Role;
 use crate::notifications::NotifTx;
-use super::KanbanMcpServer;
 
 // ---------------------------------------------------------------------------
 // Tool definitions (same schema as the stdio MCP server)
@@ -120,9 +120,7 @@ impl ServerHandler for McpSseHandler {
     fn get_info(&self) -> ServerInfo {
         InitializeResult {
             protocol_version: Default::default(),
-            capabilities: ServerCapabilities::builder()
-                .enable_tools()
-                .build(),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
                 name: "kanwise".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
@@ -166,9 +164,16 @@ impl ServerHandler for McpSseHandler {
                                 }
                             } else {
                                 match permissions::require_role(
-                                    &db, &params.board_id, &user_id, Role::Viewer,
-                                ).await {
-                                    Ok(_) => server.handle_query(params).await.map_err(|e| e.to_string()),
+                                    &db,
+                                    &params.board_id,
+                                    &user_id,
+                                    Role::Viewer,
+                                )
+                                .await
+                                {
+                                    Ok(_) => {
+                                        server.handle_query(params).await.map_err(|e| e.to_string())
+                                    }
                                     Err(e) => Err(e.to_string()),
                                 }
                             }
@@ -181,15 +186,25 @@ impl ServerHandler for McpSseHandler {
                         Ok(params) => {
                             if params.action == "create_board" {
                                 let res: Result<String, String> = async {
-                                    let name = params.data.get("name")
+                                    let name = params
+                                        .data
+                                        .get("name")
                                         .and_then(|v| v.as_str())
-                                        .ok_or_else(|| "missing required field: name".to_string())?;
-                                    let description = params.data.get("description").and_then(|v| v.as_str());
-                                    let board = db.create_board(name, description).await.map_err(|e| e.to_string())?;
+                                        .ok_or_else(|| {
+                                            "missing required field: name".to_string()
+                                        })?;
+                                    let description =
+                                        params.data.get("description").and_then(|v| v.as_str());
+                                    let board = db
+                                        .create_board(name, description)
+                                        .await
+                                        .map_err(|e| e.to_string())?;
                                     db.add_board_member(&board.id, &user_id, Role::Owner)
-                                        .await.map_err(|e| e.to_string())?;
+                                        .await
+                                        .map_err(|e| e.to_string())?;
                                     Ok(format!("created board {}", board.id))
-                                }.await;
+                                }
+                                .await;
                                 res
                             } else {
                                 let min_role = if params.action == "delete_board" {
@@ -198,9 +213,17 @@ impl ServerHandler for McpSseHandler {
                                     Role::Member
                                 };
                                 match permissions::require_role(
-                                    &db, &params.board_id, &user_id, min_role,
-                                ).await {
-                                    Ok(_) => server.handle_mutate(params).await.map_err(|e| e.to_string()),
+                                    &db,
+                                    &params.board_id,
+                                    &user_id,
+                                    min_role,
+                                )
+                                .await
+                                {
+                                    Ok(_) => server
+                                        .handle_mutate(params)
+                                        .await
+                                        .map_err(|e| e.to_string()),
                                     Err(e) => Err(e.to_string()),
                                 }
                             }
@@ -212,9 +235,16 @@ impl ServerHandler for McpSseHandler {
                         Err(e) => Err(format!("invalid params: {e}")),
                         Ok(params) => {
                             match permissions::require_role(
-                                &db, &params.board_id, &user_id, Role::Member,
-                            ).await {
-                                Ok(_) => server.handle_sync(params).await.map_err(|e| e.to_string()),
+                                &db,
+                                &params.board_id,
+                                &user_id,
+                                Role::Member,
+                            )
+                            .await
+                            {
+                                Ok(_) => {
+                                    server.handle_sync(params).await.map_err(|e| e.to_string())
+                                }
                                 Err(e) => Err(e.to_string()),
                             }
                         }

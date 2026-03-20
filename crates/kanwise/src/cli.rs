@@ -351,10 +351,10 @@ pub async fn export_board(board_id: &str, output: Option<String>) -> anyhow::Res
 }
 
 pub async fn import_board(file: &str, owner_email: &str) -> anyhow::Result<()> {
-    let content = std::fs::read_to_string(file)
-        .map_err(|e| anyhow::anyhow!("Cannot read {file}: {e}"))?;
-    let export: BoardExport = serde_json::from_str(&content)
-        .map_err(|e| anyhow::anyhow!("Invalid JSON: {e}"))?;
+    let content =
+        std::fs::read_to_string(file).map_err(|e| anyhow::anyhow!("Cannot read {file}: {e}"))?;
+    let export: BoardExport =
+        serde_json::from_str(&content).map_err(|e| anyhow::anyhow!("Invalid JSON: {e}"))?;
 
     if export.version != 1 {
         anyhow::bail!("Unsupported export version: {}", export.version);
@@ -642,7 +642,10 @@ mod tests {
     #[tokio::test]
     async fn export_import_roundtrip() {
         let db = Db::in_memory().await.unwrap();
-        let board = db.create_board("Roundtrip Test", Some("desc")).await.unwrap();
+        let board = db
+            .create_board("Roundtrip Test", Some("desc"))
+            .await
+            .unwrap();
         let user = db
             .create_user("Test User", "test@test.com", None, false, Some("hash"))
             .await
@@ -656,13 +659,22 @@ mod tests {
             .await
             .unwrap();
         let task = db
-            .create_task(&board.id, &col.id, "Task 1", Some("description"), Priority::High, None)
+            .create_task(
+                &board.id,
+                &col.id,
+                "Task 1",
+                Some("description"),
+                Priority::High,
+                None,
+            )
             .await
             .unwrap();
         let label = db.create_label(&board.id, "Bug", "#ff0000").await.unwrap();
         db.add_task_label(&task.id, &label.id).await.unwrap();
         db.create_subtask(&task.id, "Subtask 1").await.unwrap();
-        db.create_comment(&task.id, &user.id, "A comment").await.unwrap();
+        db.create_comment(&task.id, &user.id, "A comment")
+            .await
+            .unwrap();
 
         // Build export
         let columns = db.get_all_columns_for_board(&board.id).await.unwrap();
@@ -672,7 +684,10 @@ mod tests {
         let subtasks = db.get_subtasks_for_board(&board.id).await.unwrap();
         let comments = db.get_comments_for_board(&board.id).await.unwrap();
         let custom_fields = db.list_custom_fields(&board.id).await.unwrap();
-        let field_values = db.get_custom_field_values_for_board(&board.id).await.unwrap();
+        let field_values = db
+            .get_custom_field_values_for_board(&board.id)
+            .await
+            .unwrap();
 
         let export = BoardExport {
             version: 1,

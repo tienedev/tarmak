@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use cortx_types::Budget;
 use std::collections::VecDeque;
 use std::time::Instant;

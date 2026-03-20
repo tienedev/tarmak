@@ -4,7 +4,11 @@ use rusqlite::OptionalExtension;
 
 use crate::db::Db;
 
-pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> Result<Vec<MemoryHint>> {
+pub async fn recall(
+    db: &Db,
+    query: RecallQuery,
+    project_root: Option<&str>,
+) -> Result<Vec<MemoryHint>> {
     let mut hints = Vec::new();
 
     // FTS5 text search on project_facts
@@ -49,7 +53,7 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 let placeholders: Vec<String> =
                     (1..=files.len()).map(|i| format!("?{i}")).collect();
                 let sql = format!(
-                    "SELECT id, trigger_file, trigger_error, resolution_file, confidence
+                    "SELECT id, trigger_file, trigger_error, resolution_file, confidence, last_verified
                      FROM causal_chains WHERE trigger_file IN ({}) AND confidence >= ?{}
                      ORDER BY confidence DESC LIMIT 10",
                     placeholders.join(","),
@@ -63,20 +67,20 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 let params_refs: Vec<&dyn rusqlite::types::ToSql> =
                     params.iter().map(|p| p.as_ref()).collect();
                 let mut stmt = conn.prepare(&sql)?;
-                let results: Vec<(String, String, Option<String>, String, f64)> = stmt
+                let results: Vec<(String, String, Option<String>, String, f64, String)> = stmt
                     .query_map(&*params_refs, |row| {
-                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
                     })?
                     .filter_map(|r| r.ok())
                     .collect();
                 Ok(results)
             })
             .await?;
-        for (id, trigger, error, resolution, raw_confidence) in chain_results {
+        for (id, trigger, error, resolution, raw_confidence, last_verified) in chain_results {
             let confidence = match project_root {
                 Some(cwd) => {
                     let commits =
-                        crate::confidence::count_commits_since(&trigger, "1970-01-01", cwd);
+                        crate::confidence::count_commits_since(&trigger, &last_verified, cwd).await;
                     crate::confidence::compute_confidence(
                         raw_confidence,
                         commits,
@@ -110,13 +114,13 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 for pattern in &patterns {
                     let like_pattern = format!("%{pattern}%");
                     let mut stmt = conn.prepare(
-                        "SELECT id, trigger_file, trigger_error, resolution_file, confidence
+                        "SELECT id, trigger_file, trigger_error, resolution_file, confidence, last_verified
                          FROM causal_chains WHERE trigger_error LIKE ?1 AND confidence >= ?2
                          ORDER BY confidence DESC LIMIT 10",
                     )?;
-                    let rows: Vec<(String, String, Option<String>, String, f64)> = stmt
+                    let rows: Vec<(String, String, Option<String>, String, f64, String)> = stmt
                         .query_map(rusqlite::params![like_pattern, min_conf], |row| {
-                            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
                         })?
                         .filter_map(|r| r.ok())
                         .collect();
@@ -125,11 +129,11 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
                 Ok(all_results)
             })
             .await?;
-        for (id, trigger, error, resolution, raw_confidence) in error_results {
+        for (id, trigger, error, resolution, raw_confidence, last_verified) in error_results {
             let confidence = match project_root_owned.as_deref() {
                 Some(cwd) => {
                     let commits =
-                        crate::confidence::count_commits_since(&trigger, "1970-01-01", cwd);
+                        crate::confidence::count_commits_since(&trigger, &last_verified, cwd).await;
                     crate::confidence::compute_confidence(
                         raw_confidence,
                         commits,
@@ -141,9 +145,7 @@ pub async fn recall(db: &Db, query: RecallQuery, project_root: Option<&str>) -> 
             let error_str = error.as_deref().unwrap_or("unknown error");
             hints.push(MemoryHint {
                 kind: "causal_chain".to_string(),
-                summary: format!(
-                    "When {trigger} fails with \"{error_str}\", check {resolution}"
-                ),
+                summary: format!("When {trigger} fails with \"{error_str}\", check {resolution}"),
                 confidence,
                 source: MemorySource::Proxy,
                 chain_id: Some(id.clone()),
@@ -180,20 +182,27 @@ pub async fn recall_for_preflight(
     let command_results = db
         .with_conn(move |conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, trigger_file, trigger_error, resolution_file, confidence
+                "SELECT id, trigger_file, trigger_error, resolution_file, confidence, last_verified
                  FROM causal_chains WHERE trigger_command = ?1 AND confidence >= 0.5
                  ORDER BY confidence DESC LIMIT 10",
             )?;
-            let results: Vec<(String, String, Option<String>, String, f64)> = stmt
+            let results: Vec<(String, String, Option<String>, String, f64, String)> = stmt
                 .query_map(rusqlite::params![cmd], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
                 })?
                 .filter_map(|r| r.ok())
                 .collect();
             Ok(results)
         })
         .await?;
-    for (id, trigger, error, resolution, raw_confidence) in command_results {
+    for (id, trigger, error, resolution, raw_confidence, last_verified) in command_results {
         // Skip duplicates already found by file-based search
         if hints.iter().any(|h| h.chain_id.as_deref() == Some(&id)) {
             continue;
@@ -201,7 +210,7 @@ pub async fn recall_for_preflight(
         let confidence = match project_root_owned.as_deref() {
             Some(cwd) => {
                 let commits =
-                    crate::confidence::count_commits_since(&trigger, "1970-01-01", cwd);
+                    crate::confidence::count_commits_since(&trigger, &last_verified, cwd).await;
                 crate::confidence::compute_confidence(
                     raw_confidence,
                     commits,
@@ -226,10 +235,7 @@ pub async fn recall_for_preflight(
     Ok(hints)
 }
 
-pub async fn last_failure_for_command(
-    db: &Db,
-    command: &str,
-) -> Result<Option<ExecutionRecord>> {
+pub async fn last_failure_for_command(db: &Db, command: &str) -> Result<Option<ExecutionRecord>> {
     let command = command.to_string();
     db.with_conn(move |conn| {
         let mut stmt = conn.prepare(

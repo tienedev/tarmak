@@ -63,7 +63,13 @@ impl AskEngine {
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id as &dyn rusqlite::types::ToSql])
         }).await?;
-        self.format_tasks(&tasks, "overdue tasks", format, tasks.first().map(|t| t.board_id.as_str()).unwrap_or("")).await
+        self.format_tasks(
+            &tasks,
+            "overdue tasks",
+            format,
+            tasks.first().map(|t| t.board_id.as_str()).unwrap_or(""),
+        )
+        .await
     }
 
     async fn query_due_range(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
@@ -83,7 +89,11 @@ impl AskEngine {
             let mut stmt = conn.prepare(&sql)?;
             Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
         }).await?;
-        let label = if days == 0 { "tasks due today" } else { "tasks due this week" };
+        let label = if days == 0 {
+            "tasks due today"
+        } else {
+            "tasks due this week"
+        };
         self.format_tasks(&tasks, label, format, board_id).await
     }
 
@@ -98,7 +108,8 @@ impl AskEngine {
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
         }).await?;
-        self.format_tasks(&tasks, "unassigned tasks", format, board_id).await
+        self.format_tasks(&tasks, "unassigned tasks", format, board_id)
+            .await
     }
 
     async fn query_no_labels(&self, board_id: &str, format: &str) -> Result<String> {
@@ -113,7 +124,8 @@ impl AskEngine {
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
         }).await?;
-        self.format_tasks(&tasks, "tasks with no labels", format, board_id).await
+        self.format_tasks(&tasks, "tasks with no labels", format, board_id)
+            .await
     }
 
     async fn query_stale(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
@@ -132,7 +144,8 @@ impl AskEngine {
             let mut stmt = conn.prepare(&sql)?;
             Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
         }).await?;
-        self.format_tasks(&tasks, "stale tasks", format, board_id).await
+        self.format_tasks(&tasks, "stale tasks", format, board_id)
+            .await
     }
 
     async fn query_high_priority(&self, board_id: &str, format: &str) -> Result<String> {
@@ -146,7 +159,8 @@ impl AskEngine {
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
         }).await?;
-        self.format_tasks(&tasks, "high priority tasks", format, board_id).await
+        self.format_tasks(&tasks, "high priority tasks", format, board_id)
+            .await
     }
 
     async fn query_no_due_date(&self, board_id: &str, format: &str) -> Result<String> {
@@ -160,7 +174,8 @@ impl AskEngine {
             )?;
             Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
         }).await?;
-        self.format_tasks(&tasks, "tasks with no due date", format, board_id).await
+        self.format_tasks(&tasks, "tasks with no due date", format, board_id)
+            .await
     }
 
     async fn query_archived(&self, board_id: &str, format: &str) -> Result<String> {
@@ -333,7 +348,12 @@ impl AskEngine {
         }).await
     }
 
-    async fn search_fallback(&self, board_id: &str, question: &str, format: &str) -> Result<String> {
+    async fn search_fallback(
+        &self,
+        board_id: &str,
+        question: &str,
+        format: &str,
+    ) -> Result<String> {
         match format {
             "kbf" => kbf_bridge::encode_search_results(&self.db, board_id, question).await,
             "json" => {
@@ -348,7 +368,10 @@ impl AskEngine {
                 }
                 let mut lines = vec![format!("{} search results:", results.len())];
                 for r in &results {
-                    lines.push(format!("- [{}] {}: {}", r.entity_type, r.entity_id, r.snippet));
+                    lines.push(format!(
+                        "- [{}] {}: {}",
+                        r.entity_type, r.entity_id, r.snippet
+                    ));
                 }
                 Ok(lines.join("\n"))
             }
@@ -400,7 +423,13 @@ impl AskEngine {
         Ok(result)
     }
 
-    async fn format_tasks(&self, tasks: &[Task], label: &str, format: &str, board_id: &str) -> Result<String> {
+    async fn format_tasks(
+        &self,
+        tasks: &[Task],
+        label: &str,
+        format: &str,
+        board_id: &str,
+    ) -> Result<String> {
         match format {
             "json" => Ok(serde_json::to_string(tasks).context("serialize tasks")?),
             "kbf" => {
@@ -459,7 +488,10 @@ mod tests {
 
     async fn seed(db: &Db) -> (String, String) {
         let board = db.create_board("Test Board", Some("A test")).await.unwrap();
-        let col = db.create_column(&board.id, "To Do", None, None).await.unwrap();
+        let col = db
+            .create_column(&board.id, "To Do", None, None)
+            .await
+            .unwrap();
         (board.id, col.id)
     }
 
@@ -474,11 +506,25 @@ mod tests {
     async fn test_ask_stats() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "Task A", None, Priority::High, Some("alice")).await.unwrap();
-        db.create_task(&board_id, &col_id, "Task B", None, Priority::Low, None).await.unwrap();
+        db.create_task(
+            &board_id,
+            &col_id,
+            "Task A",
+            None,
+            Priority::High,
+            Some("alice"),
+        )
+        .await
+        .unwrap();
+        db.create_task(&board_id, &col_id, "Task B", None, Priority::Low, None)
+            .await
+            .unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "give me a summary", "text").await.unwrap();
+        let result = engine
+            .answer(&board_id, "give me a summary", "text")
+            .await
+            .unwrap();
         assert!(result.contains("summary"));
         assert!(result.contains("2 tasks total"));
     }
@@ -487,11 +533,25 @@ mod tests {
     async fn test_ask_unassigned() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "Orphan", None, Priority::Medium, None).await.unwrap();
-        db.create_task(&board_id, &col_id, "Owned", None, Priority::Medium, Some("bob")).await.unwrap();
+        db.create_task(&board_id, &col_id, "Orphan", None, Priority::Medium, None)
+            .await
+            .unwrap();
+        db.create_task(
+            &board_id,
+            &col_id,
+            "Owned",
+            None,
+            Priority::Medium,
+            Some("bob"),
+        )
+        .await
+        .unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "show unassigned tasks", "text").await.unwrap();
+        let result = engine
+            .answer(&board_id, "show unassigned tasks", "text")
+            .await
+            .unwrap();
         assert!(result.contains("Orphan"));
         assert!(!result.contains("Owned"));
     }
@@ -500,11 +560,18 @@ mod tests {
     async fn test_ask_high_priority() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "Critical", None, Priority::Urgent, None).await.unwrap();
-        db.create_task(&board_id, &col_id, "Normal", None, Priority::Medium, None).await.unwrap();
+        db.create_task(&board_id, &col_id, "Critical", None, Priority::Urgent, None)
+            .await
+            .unwrap();
+        db.create_task(&board_id, &col_id, "Normal", None, Priority::Medium, None)
+            .await
+            .unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "urgent tasks", "text").await.unwrap();
+        let result = engine
+            .answer(&board_id, "urgent tasks", "text")
+            .await
+            .unwrap();
         assert!(result.contains("Critical"));
         assert!(!result.contains("Normal"));
     }
@@ -513,10 +580,15 @@ mod tests {
     async fn test_ask_json_format() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "Task X", None, Priority::High, None).await.unwrap();
+        db.create_task(&board_id, &col_id, "Task X", None, Priority::High, None)
+            .await
+            .unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "high priority", "json").await.unwrap();
+        let result = engine
+            .answer(&board_id, "high priority", "json")
+            .await
+            .unwrap();
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["title"], "Task X");
@@ -526,7 +598,9 @@ mod tests {
     async fn test_ask_kbf_format() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "KBF Task", None, Priority::Urgent, None).await.unwrap();
+        db.create_task(&board_id, &col_id, "KBF Task", None, Priority::Urgent, None)
+            .await
+            .unwrap();
 
         let engine = AskEngine::new(db);
         let result = engine.answer(&board_id, "urgent", "kbf").await.unwrap();
@@ -538,10 +612,22 @@ mod tests {
     async fn test_ask_fallback_search() {
         let db = test_db().await;
         let (board_id, col_id) = seed(&db).await;
-        db.create_task(&board_id, &col_id, "Authentication module", Some("Fix the login bug"), Priority::Medium, None).await.unwrap();
+        db.create_task(
+            &board_id,
+            &col_id,
+            "Authentication module",
+            Some("Fix the login bug"),
+            Priority::Medium,
+            None,
+        )
+        .await
+        .unwrap();
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "Authentication", "text").await.unwrap();
+        let result = engine
+            .answer(&board_id, "Authentication", "text")
+            .await
+            .unwrap();
         assert!(result.contains("Authentication"));
     }
 
@@ -551,7 +637,10 @@ mod tests {
         let (board_id, _col_id) = seed(&db).await;
 
         let engine = AskEngine::new(db);
-        let result = engine.answer(&board_id, "show unassigned", "text").await.unwrap();
+        let result = engine
+            .answer(&board_id, "show unassigned", "text")
+            .await
+            .unwrap();
         assert!(result.contains("No unassigned"));
     }
 }

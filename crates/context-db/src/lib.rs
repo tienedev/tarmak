@@ -55,10 +55,7 @@ impl ContextDb {
         confidence::reinforce_confidence(&self.db, chain_id, delta).await
     }
 
-    pub async fn store_session_report(
-        &self,
-        report: &report::SessionReport,
-    ) -> anyhow::Result<()> {
+    pub async fn store_session_report(&self, report: &report::SessionReport) -> anyhow::Result<()> {
         report::store_session_report(&self.db, report).await
     }
 

@@ -24,8 +24,8 @@ use axum::{
 };
 
 use crate::db::Db;
-use crate::mcp::tools::api as mcp_api;
 use crate::mcp::sse as mcp_sse;
+use crate::mcp::tools::api as mcp_api;
 use crate::notifications::NotifTx;
 
 async fn health() -> Json<serde_json::Value> {
@@ -34,8 +34,10 @@ async fn health() -> Json<serde_json::Value> {
 
 /// Build the full API router with all resource routes.
 pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) -> Router {
-    let board_item = Router::new()
-        .route("/", get(boards::get).put(boards::update).delete(boards::delete));
+    let board_item = Router::new().route(
+        "/",
+        get(boards::get).put(boards::update).delete(boards::delete),
+    );
 
     let columns = Router::new()
         .route("/", get(columns::list).post(columns::create))
@@ -57,18 +59,30 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) 
         .route("/{sid}", put(subtasks::update).delete(subtasks::delete));
 
     let task_item = Router::new()
-        .route("/", get(tasks::get).put(tasks::update).delete(tasks::delete))
+        .route(
+            "/",
+            get(tasks::get).put(tasks::update).delete(tasks::delete),
+        )
         .route("/move", patch(tasks::move_task))
         .route("/archive", post(archive::archive_task))
         .route("/unarchive", post(archive::unarchive_task))
         .route("/duplicate", post(tasks::duplicate))
         .nest("/fields", task_fields)
         .route("/comments", get(comments::list).post(comments::create))
-        .route("/comments/{cid}", put(comments::update).delete(comments::delete))
+        .route(
+            "/comments/{cid}",
+            put(comments::update).delete(comments::delete),
+        )
         .nest("/labels", task_labels)
         .nest("/subtasks", task_subtasks)
-        .route("/attachments", get(attachments::list).post(attachments::upload))
-        .route("/attachments/{aid}", axum::routing::delete(attachments::delete));
+        .route(
+            "/attachments",
+            get(attachments::list).post(attachments::upload),
+        )
+        .route(
+            "/attachments/{aid}",
+            axum::routing::delete(attachments::delete),
+        );
 
     let board_tasks = Router::new()
         .route("/", get(tasks::list).post(tasks::create))
@@ -78,8 +92,8 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) 
         .route("/", get(labels::list).post(labels::create))
         .route("/{lid}", put(labels::update).delete(labels::delete));
 
-    let board_fields = Router::new()
-        .route("/", get(custom_fields::list).post(custom_fields::create));
+    let board_fields =
+        Router::new().route("/", get(custom_fields::list).post(custom_fields::create));
 
     let per_board = Router::new()
         .merge(board_item)
@@ -135,7 +149,10 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) 
         .route("/auth/me", get(auth::me))
         .route("/auth/accept", post(auth::accept))
         .route("/auth/invite", get(auth::list_invites).post(auth::invite))
-        .route("/auth/invite/{invite_id}", axum::routing::delete(auth::revoke_invite))
+        .route(
+            "/auth/invite/{invite_id}",
+            axum::routing::delete(auth::revoke_invite),
+        )
         .layer(axum::middleware::from_fn_with_state(
             db.clone(),
             middleware::auth_middleware,

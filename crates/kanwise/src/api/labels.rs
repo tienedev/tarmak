@@ -4,17 +4,15 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::db::Db;
-use crate::db::models::{Label, Role};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use crate::db::Db;
+use crate::db::models::{Label, Role};
 
 // Color validation: must be #RRGGBB hex
 fn is_valid_color(s: &str) -> bool {
-    s.len() == 7
-        && s.starts_with('#')
-        && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 #[derive(Deserialize)]
@@ -52,16 +50,27 @@ pub async fn create(
 ) -> Result<Json<Label>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     if body.name.trim().is_empty() || body.name.len() > 50 {
-        return Err(ApiError::BadRequest("label name must be 1-50 characters".into()));
+        return Err(ApiError::BadRequest(
+            "label name must be 1-50 characters".into(),
+        ));
     }
     if !is_valid_color(&body.color) {
-        return Err(ApiError::BadRequest("color must be #RRGGBB hex format".into()));
+        return Err(ApiError::BadRequest(
+            "color must be #RRGGBB hex format".into(),
+        ));
     }
-    let label = db.create_label(&board_id, body.name.trim(), &body.color).await?;
-    let _ = db.log_activity(
-        &board_id, None, &user.id, "label_created",
-        Some(&serde_json::json!({"name": &label.name, "color": &label.color}).to_string()),
-    ).await;
+    let label = db
+        .create_label(&board_id, body.name.trim(), &body.color)
+        .await?;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "label_created",
+            Some(&serde_json::json!({"name": &label.name, "color": &label.color}).to_string()),
+        )
+        .await;
     Ok(Json(label))
 }
 
@@ -72,20 +81,31 @@ pub async fn update(
     Json(body): Json<UpdateLabel>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
-    let existing = db.get_label(&label_id).await?.ok_or_else(|| ApiError::NotFound("label not found".into()))?;
+    let existing = db
+        .get_label(&label_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("label not found".into()))?;
     if existing.board_id != board_id {
         return Err(ApiError::NotFound("label not found".into()));
     }
     if let Some(ref c) = body.color
         && !is_valid_color(c)
     {
-        return Err(ApiError::BadRequest("color must be #RRGGBB hex format".into()));
+        return Err(ApiError::BadRequest(
+            "color must be #RRGGBB hex format".into(),
+        ));
     }
-    db.update_label(&label_id, body.name.as_deref(), body.color.as_deref()).await?;
-    let _ = db.log_activity(
-        &board_id, None, &user.id, "label_updated",
-        Some(&serde_json::json!({"name": existing.name}).to_string()),
-    ).await;
+    db.update_label(&label_id, body.name.as_deref(), body.color.as_deref())
+        .await?;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "label_updated",
+            Some(&serde_json::json!({"name": existing.name}).to_string()),
+        )
+        .await;
     Ok(Json(serde_json::json!({"updated": true})))
 }
 
@@ -95,15 +115,23 @@ pub async fn delete(
     Path((board_id, label_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
-    let existing = db.get_label(&label_id).await?.ok_or_else(|| ApiError::NotFound("label not found".into()))?;
+    let existing = db
+        .get_label(&label_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("label not found".into()))?;
     if existing.board_id != board_id {
         return Err(ApiError::NotFound("label not found".into()));
     }
     db.delete_label(&label_id).await?;
-    let _ = db.log_activity(
-        &board_id, None, &user.id, "label_deleted",
-        Some(&serde_json::json!({"name": existing.name}).to_string()),
-    ).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "label_deleted",
+            Some(&serde_json::json!({"name": existing.name}).to_string()),
+        )
+        .await;
     Ok(Json(serde_json::json!({"deleted": true})))
 }
 
@@ -114,15 +142,33 @@ pub async fn attach(
     Json(body): Json<AttachLabel>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
-    let task = db.get_task(&task_id).await?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
-    if task.board_id != board_id { return Err(ApiError::NotFound("task not found".into())); }
-    let label = db.get_label(&body.label_id).await?.ok_or_else(|| ApiError::NotFound("label not found".into()))?;
-    if label.board_id != board_id { return Err(ApiError::NotFound("label not found".into())); }
+    let task = db
+        .get_task(&task_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if task.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
+    let label = db
+        .get_label(&body.label_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("label not found".into()))?;
+    if label.board_id != board_id {
+        return Err(ApiError::NotFound("label not found".into()));
+    }
     db.add_task_label(&task_id, &body.label_id).await?;
-    let _ = db.log_activity(
-        &board_id, Some(&task_id), &user.id, "label_added",
-        Some(&serde_json::json!({"task_title": task.title, "label_name": label.name}).to_string()),
-    ).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            Some(&task_id),
+            &user.id,
+            "label_added",
+            Some(
+                &serde_json::json!({"task_title": task.title, "label_name": label.name})
+                    .to_string(),
+            ),
+        )
+        .await;
     Ok(Json(serde_json::json!({"ok": true})))
 }
 
@@ -132,13 +178,29 @@ pub async fn detach(
     Path((board_id, task_id, label_id)): Path<(String, String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
-    let task = db.get_task(&task_id).await?.ok_or_else(|| ApiError::NotFound("task not found".into()))?;
-    if task.board_id != board_id { return Err(ApiError::NotFound("task not found".into())); }
-    let label = db.get_label(&label_id).await?.ok_or_else(|| ApiError::NotFound("label not found".into()))?;
+    let task = db
+        .get_task(&task_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
+    if task.board_id != board_id {
+        return Err(ApiError::NotFound("task not found".into()));
+    }
+    let label = db
+        .get_label(&label_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("label not found".into()))?;
     db.remove_task_label(&task_id, &label_id).await?;
-    let _ = db.log_activity(
-        &board_id, Some(&task_id), &user.id, "label_removed",
-        Some(&serde_json::json!({"task_title": task.title, "label_name": label.name}).to_string()),
-    ).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            Some(&task_id),
+            &user.id,
+            "label_removed",
+            Some(
+                &serde_json::json!({"task_title": task.title, "label_name": label.name})
+                    .to_string(),
+            ),
+        )
+        .await;
     Ok(Json(serde_json::json!({"ok": true})))
 }

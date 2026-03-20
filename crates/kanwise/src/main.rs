@@ -75,7 +75,9 @@ async fn main() -> anyhow::Result<()> {
         Some(Cli::ResetPassword { email }) => kanwise::server::reset_password(&email).await,
         Some(Cli::Backup { output }) => kanwise::cli::backup(output).await,
         Some(Cli::Restore { file, force }) => kanwise::cli::restore(&file, force).await,
-        Some(Cli::Export { board_id, output }) => kanwise::cli::export_board(&board_id, output).await,
+        Some(Cli::Export { board_id, output }) => {
+            kanwise::cli::export_board(&board_id, output).await
+        }
         Some(Cli::Import { file, owner }) => kanwise::cli::import_board(&file, &owner).await,
         Some(Cli::Users { command }) => match command {
             UsersCommand::List => kanwise::cli::list_users().await,
@@ -84,10 +86,11 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run_mcp_stdio() -> anyhow::Result<()> {
-    eprintln!("WARNING: MCP stdio mode has no authentication. Intended for local single-user use only.");
+    eprintln!(
+        "WARNING: MCP stdio mode has no authentication. Intended for local single-user use only."
+    );
 
-    let db_path =
-        std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
+    let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string());
     let db = db::Db::new(&db_path).await?;
 
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -95,7 +98,8 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
     let stdin = BufReader::new(tokio::io::stdin());
     let mut stdout = tokio::io::stdout();
 
-    let (notif_sender, _) = tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
+    let (notif_sender, _) =
+        tokio::sync::broadcast::channel::<(String, db::models::Notification)>(256);
     let notif_tx = notifications::NotifTx(notif_sender);
     let server = mcp::KanbanMcpServer::new(db, notif_tx);
 
@@ -194,14 +198,8 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                 let result = match tool_name {
                     "board_query" => {
                         let qp = mcp::BoardQueryParams {
-                            board_id: args["board_id"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
-                            scope: args
-                                .get("scope")
-                                .and_then(|v| v.as_str())
-                                .map(String::from),
+                            board_id: args["board_id"].as_str().unwrap_or("").to_string(),
+                            scope: args.get("scope").and_then(|v| v.as_str()).map(String::from),
                             format: args
                                 .get("format")
                                 .and_then(|v| v.as_str())
@@ -210,10 +208,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                                 .get("task_id")
                                 .and_then(|v| v.as_str())
                                 .map(String::from),
-                            query: args
-                                .get("query")
-                                .and_then(|v| v.as_str())
-                                .map(String::from),
+                            query: args.get("query").and_then(|v| v.as_str()).map(String::from),
                             include_archived: args
                                 .get("include_archived")
                                 .and_then(|v| v.as_bool()),
@@ -222,31 +217,16 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                     }
                     "board_mutate" => {
                         let mp = mcp::BoardMutateParams {
-                            board_id: args["board_id"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
-                            action: args["action"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
-                            data: args
-                                .get("data")
-                                .cloned()
-                                .unwrap_or(serde_json::json!({})),
+                            board_id: args["board_id"].as_str().unwrap_or("").to_string(),
+                            action: args["action"].as_str().unwrap_or("").to_string(),
+                            data: args.get("data").cloned().unwrap_or(serde_json::json!({})),
                         };
                         server.handle_mutate(mp).await.map_err(|e| e.to_string())
                     }
                     "board_sync" => {
                         let sp = mcp::BoardSyncParams {
-                            board_id: args["board_id"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
-                            delta: args
-                                .get("delta")
-                                .and_then(|v| v.as_str())
-                                .map(String::from),
+                            board_id: args["board_id"].as_str().unwrap_or("").to_string(),
+                            delta: args.get("delta").and_then(|v| v.as_str()).map(String::from),
                             format: args
                                 .get("format")
                                 .and_then(|v| v.as_str())
@@ -256,14 +236,8 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                     }
                     "board_ask" => {
                         let ap = mcp::BoardAskParams {
-                            board_id: args["board_id"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
-                            question: args["question"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
+                            board_id: args["board_id"].as_str().unwrap_or("").to_string(),
+                            question: args["question"].as_str().unwrap_or("").to_string(),
                             format: args
                                 .get("format")
                                 .and_then(|v| v.as_str())

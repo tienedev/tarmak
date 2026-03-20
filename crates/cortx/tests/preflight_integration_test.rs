@@ -40,7 +40,10 @@ async fn preflight_injects_hints_before_execution() {
         "pre-flight should inject at least one hint for a known failure pattern"
     );
     assert!(
-        result.hints.iter().any(|h| h.summary.contains("src/main.rs")),
+        result
+            .hints
+            .iter()
+            .any(|h| h.summary.contains("src/main.rs")),
         "hint should reference the trigger file"
     );
 }

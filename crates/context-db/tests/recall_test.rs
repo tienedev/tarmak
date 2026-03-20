@@ -1,4 +1,6 @@
-use cortx_types::{CodeLocation, ExecutionRecord, Memory, MemoryOrgan, MemorySource, RecallQuery, Tier};
+use cortx_types::{
+    CodeLocation, ExecutionRecord, Memory, MemoryOrgan, MemorySource, RecallQuery, Tier,
+};
 
 #[tokio::test]
 async fn test_recall_fts5_search() {
@@ -113,6 +115,9 @@ async fn test_recall_error_patterns() {
         })
         .await
         .unwrap();
-    assert!(!hints.is_empty(), "Should find causal chain matching error pattern");
+    assert!(
+        !hints.is_empty(),
+        "Should find causal chain matching error pattern"
+    );
     assert!(hints[0].summary.contains("auth.rs"));
 }

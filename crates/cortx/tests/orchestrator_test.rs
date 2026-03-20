@@ -6,7 +6,9 @@ async fn test_execute_and_remember_stores_execution() {
     let policy_toml = include_str!("../../../policies/cortx-policy.toml");
     let proxy = rtk_proxy::Proxy::from_toml(policy_toml, PathBuf::from(".")).unwrap();
     let memory = context_db::ContextDb::in_memory().await.unwrap();
-    let orch = cortx::orchestrator::Orchestrator::without_kanwise(proxy, memory).await.unwrap();
+    let orch = cortx::orchestrator::Orchestrator::without_kanwise(proxy, memory)
+        .await
+        .unwrap();
 
     let cmd = Command {
         cmd: "echo hello".to_string(),
@@ -25,7 +27,9 @@ async fn test_execute_and_remember_stores_on_failure() {
     let policy_toml = include_str!("../../../policies/cortx-policy.toml");
     let proxy = rtk_proxy::Proxy::from_toml(policy_toml, PathBuf::from(".")).unwrap();
     let memory = context_db::ContextDb::in_memory().await.unwrap();
-    let orch = cortx::orchestrator::Orchestrator::without_kanwise(proxy, memory).await.unwrap();
+    let orch = cortx::orchestrator::Orchestrator::without_kanwise(proxy, memory)
+        .await
+        .unwrap();
 
     let cmd = Command {
         cmd: "false".to_string(),

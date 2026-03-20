@@ -61,12 +61,7 @@ async fn main() -> anyhow::Result<()> {
                 println!("No matching memories found.");
             } else {
                 for h in &hints {
-                    println!(
-                        "[{:.0}%] {}: {}",
-                        h.confidence * 100.0,
-                        h.kind,
-                        h.summary
-                    );
+                    println!("[{:.0}%] {}: {}", h.confidence * 100.0, h.kind, h.summary);
                 }
             }
         }
@@ -87,15 +82,10 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Cli::Purge { db }) => {
             let ctx = context_db::ContextDb::new(&db, None).await?;
-            let chains =
-                context_db::purge::purge_unconfirmed_chains(ctx.db(), 60).await?;
-            let archived =
-                context_db::purge::archive_low_confidence(ctx.db(), 0.1).await?;
-            let old =
-                context_db::purge::purge_old_executions(ctx.db(), 90).await?;
-            let size =
-                context_db::purge::purge_if_over_size(ctx.db(), 100 * 1024 * 1024)
-                    .await?;
+            let chains = context_db::purge::purge_unconfirmed_chains(ctx.db(), 60).await?;
+            let archived = context_db::purge::archive_low_confidence(ctx.db(), 0.1).await?;
+            let old = context_db::purge::purge_old_executions(ctx.db(), 90).await?;
+            let size = context_db::purge::purge_if_over_size(ctx.db(), 100 * 1024 * 1024).await?;
             println!(
                 "Purged: {chains} unconfirmed chains, {archived} archived, {old} old executions, {size} size-limited"
             );

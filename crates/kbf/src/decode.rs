@@ -77,11 +77,7 @@ pub fn decode_full(input: &str) -> Result<Decoded, DecodeError> {
         if fields.len() > field_count {
             return Err(DecodeError::InvalidRow {
                 line: i + 2, // 1-indexed, schema is line 1
-                msg: format!(
-                    "expected {} fields, got {}",
-                    field_count,
-                    fields.len()
-                ),
+                msg: format!("expected {} fields, got {}", field_count, fields.len()),
             });
         }
 
@@ -265,9 +261,7 @@ mod tests {
             Delta::Create {
                 row: vec!["t3".into(), "New".into(), "todo".into()],
             },
-            Delta::Delete {
-                id: "t2".into(),
-            },
+            Delta::Delete { id: "t2".into() },
         ];
         let encoded = encode_delta(&deltas);
         let decoded = decode_deltas(&encoded).unwrap();

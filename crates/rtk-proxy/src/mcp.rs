@@ -10,8 +10,8 @@ use rmcp::{
     service::RequestContext,
 };
 
-use cortx_types::{ActionOrgan, Command, ExecutionMode};
 use crate::proxy::Proxy;
+use cortx_types::{ActionOrgan, Command, ExecutionMode};
 
 fn tool_definitions() -> Vec<Tool> {
     vec![
@@ -114,9 +114,11 @@ impl ServerHandler for ProxyMcpServer {
                 "proxy_exec" => {
                     let cmd_str = match args.get("command").and_then(|v| v.as_str()) {
                         Some(s) => s.to_string(),
-                        None => return Ok(CallToolResult::error(vec![Content::text(
-                            "missing required field: command",
-                        )])),
+                        None => {
+                            return Ok(CallToolResult::error(vec![Content::text(
+                                "missing required field: command",
+                            )]));
+                        }
                     };
                     let cwd = args
                         .get("cwd")
@@ -166,7 +168,7 @@ impl ServerHandler for ProxyMcpServer {
                     ))
                 }
                 "proxy_rollback" => {
-                    if crate::git::restore_checkpoint(&project_root) {
+                    if crate::git::restore_checkpoint(&project_root).await {
                         Ok("Checkpoint restored successfully.".to_string())
                     } else {
                         Err("No checkpoint found to restore.".to_string())

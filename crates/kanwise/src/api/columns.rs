@@ -4,11 +4,11 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::db::Db;
-use crate::db::models::{Column, Role};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use crate::db::Db;
+use crate::db::models::{Column, Role};
 
 // ---- Request bodies --------------------------------------------------------
 
@@ -49,9 +49,18 @@ pub async fn create(
     Json(body): Json<CreateColumn>,
 ) -> Result<Json<Column>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
-    let column = db.create_column(&board_id, &body.name, None, body.color.as_deref()).await?;
-    let _ = db.log_activity(&board_id, None, &user.id, "column_created",
-        Some(&serde_json::json!({"name": &column.name}).to_string())).await;
+    let column = db
+        .create_column(&board_id, &body.name, None, body.color.as_deref())
+        .await?;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "column_created",
+            Some(&serde_json::json!({"name": &column.name}).to_string()),
+        )
+        .await;
     Ok(Json(column))
 }
 
@@ -68,12 +77,21 @@ pub async fn update(
         return Err(ApiError::NotFound("column not found".into()));
     }
     let color = body.color.as_ref().map(|c| c.as_deref());
-    let updated = db.update_column(&cid, body.name.as_deref(), body.wip_limit, color).await?;
+    let updated = db
+        .update_column(&cid, body.name.as_deref(), body.wip_limit, color)
+        .await?;
     if !updated {
         return Err(ApiError::NotFound("column not found".into()));
     }
-    let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
-        Some(&serde_json::json!({"column_id": &cid}).to_string())).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "column_updated",
+            Some(&serde_json::json!({"column_id": &cid}).to_string()),
+        )
+        .await;
     Ok(Json(serde_json::json!({ "updated": true })))
 }
 
@@ -92,8 +110,15 @@ pub async fn move_col(
     if !moved {
         return Err(ApiError::NotFound("column not found".into()));
     }
-    let _ = db.log_activity(&board_id, None, &user.id, "column_updated",
-        Some(&serde_json::json!({"column_id": &cid, "position": body.position}).to_string())).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "column_updated",
+            Some(&serde_json::json!({"column_id": &cid, "position": body.position}).to_string()),
+        )
+        .await;
     Ok(Json(serde_json::json!({ "moved": true })))
 }
 
@@ -112,7 +137,14 @@ pub async fn delete(
     if !deleted {
         return Err(ApiError::NotFound("column not found".into()));
     }
-    let _ = db.log_activity(&board_id, None, &user.id, "column_deleted",
-        Some(&serde_json::json!({"column_id": &cid}).to_string())).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            None,
+            &user.id,
+            "column_deleted",
+            Some(&serde_json::json!({"column_id": &cid}).to_string()),
+        )
+        .await;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

@@ -64,11 +64,15 @@ pub async fn register(
     validation::validate_password(&body.password)?;
 
     if let Some(_existing) = db.get_user_by_email(&body.email).await? {
-        return Err(ApiError::Conflict("user with this email already exists".into()));
+        return Err(ApiError::Conflict(
+            "user with this email already exists".into(),
+        ));
     }
 
     let password_hash = auth::hash_password(&body.password)?;
-    let user = db.create_user(&body.name, &body.email, None, false, Some(&password_hash)).await?;
+    let user = db
+        .create_user(&body.name, &body.email, None, false, Some(&password_hash))
+        .await?;
     let token = auth::create_session(&db, &user.id).await?;
 
     Ok(Json(AuthResponse { token, user }))
@@ -86,7 +90,8 @@ pub async fn login(
         .await?
         .ok_or_else(|| ApiError::BadRequest("invalid email or password".into()))?;
 
-    let hash = db.get_password_hash(&user.id)
+    let hash = db
+        .get_password_hash(&user.id)
         .await?
         .ok_or_else(|| ApiError::BadRequest("invalid email or password".into()))?;
 
@@ -105,16 +110,23 @@ pub async fn invite(
     Json(body): Json<InviteRequest>,
 ) -> Result<Json<InviteResponse>, ApiError> {
     // Only owners can create invites
-    permissions::require_role(&db, &body.board_id, &user.id, crate::db::models::Role::Owner).await?;
+    permissions::require_role(
+        &db,
+        &body.board_id,
+        &user.id,
+        crate::db::models::Role::Owner,
+    )
+    .await?;
 
     // Validate role
     let valid_roles = ["owner", "member", "viewer"];
     if !valid_roles.contains(&body.role.as_str()) {
-        return Err(ApiError::BadRequest("invalid role: must be owner, member, or viewer".into()));
+        return Err(ApiError::BadRequest(
+            "invalid role: must be owner, member, or viewer".into(),
+        ));
     }
 
-    let invite_token =
-        auth::create_invite_link(&db, &body.board_id, &body.role, &user.id).await?;
+    let invite_token = auth::create_invite_link(&db, &body.board_id, &body.role, &user.id).await?;
 
     let invite_url = format!("/invite/{invite_token}");
     Ok(Json(InviteResponse { invite_url }))
@@ -127,21 +139,27 @@ pub async fn accept(
     Json(body): Json<AcceptRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let invite_token_hash = crate::auth::hash_token(&body.invite_token);
-    let board_id = db.with_conn({
-        let invite_token_hash = invite_token_hash.clone();
-        move |conn| {
-            conn.query_row(
-                "SELECT board_id FROM invite_links WHERE token = ?1",
-                rusqlite::params![invite_token_hash],
-                |row| row.get::<_, String>(0),
-            ).map_err(|e| anyhow::anyhow!("invite lookup: {e}"))
-        }
-    }).await.ok();
+    let board_id = db
+        .with_conn({
+            let invite_token_hash = invite_token_hash.clone();
+            move |conn| {
+                conn.query_row(
+                    "SELECT board_id FROM invite_links WHERE token = ?1",
+                    rusqlite::params![invite_token_hash],
+                    |row| row.get::<_, String>(0),
+                )
+                .map_err(|e| anyhow::anyhow!("invite lookup: {e}"))
+            }
+        })
+        .await
+        .ok();
 
     auth::accept_invite(&db, &body.invite_token, &user.id).await?;
 
     if let Some(bid) = board_id {
-        let _ = db.log_activity(&bid, None, &user.id, "member_joined", None).await;
+        let _ = db
+            .log_activity(&bid, None, &user.id, "member_joined", None)
+            .await;
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))
@@ -180,30 +198,32 @@ pub async fn list_invites(
 
     let now = chrono::Utc::now().to_rfc3339();
     let board_id = board_id.clone();
-    let invites = db.with_conn(move |conn| {
-        let mut stmt = conn.prepare(
-            "SELECT id, board_id, role, token, expires_at, created_by
+    let invites = db
+        .with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, role, token, expires_at, created_by
              FROM invite_links
              WHERE board_id = ?1 AND expires_at > ?2
              ORDER BY expires_at DESC",
-        )?;
-        let rows = stmt.query_map(rusqlite::params![board_id, now], |row| {
-            let raw_hash: String = row.get(3)?;
-            Ok(InviteLinkInfo {
-                id: row.get(0)?,
-                board_id: row.get(1)?,
-                role: row.get(2)?,
-                token: format!("{}...", &raw_hash[..8.min(raw_hash.len())]),
-                expires_at: row.get(4)?,
-                created_by: row.get(5)?,
-            })
-        })?;
-        let mut result = Vec::new();
-        for r in rows {
-            result.push(r?);
-        }
-        Ok(result)
-    }).await?;
+            )?;
+            let rows = stmt.query_map(rusqlite::params![board_id, now], |row| {
+                let raw_hash: String = row.get(3)?;
+                Ok(InviteLinkInfo {
+                    id: row.get(0)?,
+                    board_id: row.get(1)?,
+                    role: row.get(2)?,
+                    token: format!("{}...", &raw_hash[..8.min(raw_hash.len())]),
+                    expires_at: row.get(4)?,
+                    created_by: row.get(5)?,
+                })
+            })?;
+            let mut result = Vec::new();
+            for r in rows {
+                result.push(r?);
+            }
+            Ok(result)
+        })
+        .await?;
 
     Ok(Json(invites))
 }
@@ -216,13 +236,17 @@ pub async fn revoke_invite(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Look up the invite's board to verify ownership.
     let invite_id_owned = invite_id.clone();
-    let board_id: String = db.with_conn(move |conn| {
-        conn.query_row(
-            "SELECT board_id FROM invite_links WHERE id = ?1",
-            rusqlite::params![invite_id_owned],
-            |row| row.get(0),
-        ).map_err(|e| anyhow::anyhow!(e))
-    }).await.map_err(|_| ApiError::NotFound("invite not found".into()))?;
+    let board_id: String = db
+        .with_conn(move |conn| {
+            conn.query_row(
+                "SELECT board_id FROM invite_links WHERE id = ?1",
+                rusqlite::params![invite_id_owned],
+                |row| row.get(0),
+            )
+            .map_err(|e| anyhow::anyhow!(e))
+        })
+        .await
+        .map_err(|_| ApiError::NotFound("invite not found".into()))?;
 
     permissions::require_role(&db, &board_id, &user.id, crate::db::models::Role::Owner).await?;
 
@@ -233,6 +257,7 @@ pub async fn revoke_invite(
             rusqlite::params![invite_id_owned],
         )?;
         Ok(())
-    }).await?;
+    })
+    .await?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }

@@ -5,25 +5,33 @@ on:
     branches: [main]
     paths:
       - "crates/**"
-      - "kbf/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "cortx-policy.toml"
+      - "policies/**"
       - ".github/workflows/backend.yml"
   pull_request:
     branches: [main]
     paths:
       - "crates/**"
-      - "kbf/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "cortx-policy.toml"
+      - "policies/**"
       - ".github/workflows/backend.yml"
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --check
+
   test:
     runs-on: ubuntu-latest
     steps:

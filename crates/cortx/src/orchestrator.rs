@@ -1,8 +1,7 @@
 use anyhow::Result;
 use cortx_types::{
-    AgentCommentEvent,
-    ActionOrgan, Budget, Command, ExecutionRecord, ExecutionResult, Memory, MemoryOrgan,
-    PlanningOrgan, RecallQuery, Status, Tier,
+    ActionOrgan, AgentCommentEvent, Budget, Command, ExecutionRecord, ExecutionResult, Memory,
+    MemoryOrgan, PlanningOrgan, RecallQuery, Status, Tier,
 };
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -89,7 +88,10 @@ impl Orchestrator {
     /// Mark a task as complete via kanwise and increment the session counter.
     pub async fn complete_task(&self, task_id: &str) -> Result<()> {
         self.kanwise.complete_task(task_id).await?;
-        { let mut c = self.tasks_completed.lock().unwrap(); *c += 1; }
+        {
+            let mut c = self.tasks_completed.lock().unwrap();
+            *c += 1;
+        }
         Ok(())
     }
 
@@ -130,7 +132,10 @@ impl Orchestrator {
     ) -> Result<()> {
         let uid = self.get_or_create_agent_user().await?;
         let formatted = format!("[agent:cortx] {} — {}", event.label(), content);
-        self.kanwise.db().create_agent_comment(task_id, &uid, &formatted).await?;
+        self.kanwise
+            .db()
+            .create_agent_comment(task_id, &uid, &formatted)
+            .await?;
         Ok(())
     }
 
@@ -149,11 +154,21 @@ impl Orchestrator {
             errors.join("\n"),
             suggestion
         );
-        self.comment_on_task(task_id, AgentCommentEvent::Escalation, &content).await?;
-        self.kanwise.db().add_label_to_task(task_id, board_id, "needs-human").await?;
-        self.kanwise.db().remove_label_from_task(task_id, "in-progress").await?;
+        self.comment_on_task(task_id, AgentCommentEvent::Escalation, &content)
+            .await?;
+        self.kanwise
+            .db()
+            .add_label_to_task(task_id, board_id, "needs-human")
+            .await?;
+        self.kanwise
+            .db()
+            .remove_label_from_task(task_id, "in-progress")
+            .await?;
         self.kanwise.release_task(task_id, "escalated").await?;
-        { let mut e = self.tasks_escalated.lock().unwrap(); *e += 1; }
+        {
+            let mut e = self.tasks_escalated.lock().unwrap();
+            *e += 1;
+        }
         Ok(())
     }
 

@@ -7,11 +7,11 @@ use axum::{
 };
 use std::path::PathBuf;
 
-use crate::db::Db;
-use crate::db::models::{Attachment, Role};
 use super::error::ApiError;
 use super::middleware::AuthUser;
 use super::permissions;
+use crate::db::Db;
+use crate::db::models::{Attachment, Role};
 
 fn uploads_dir() -> PathBuf {
     PathBuf::from(std::env::var("KANBAN_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()))
@@ -80,31 +80,35 @@ pub async fn upload(
         .await
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("write error: {e}")))?;
 
-    let attachment = db.create_attachment(
-        &id,
-        &tid,
-        &board_id,
-        &filename,
-        &mime_type,
-        data.len() as i64,
-        &storage_key,
-        Some(&user.id),
-    ).await?;
+    let attachment = db
+        .create_attachment(
+            &id,
+            &tid,
+            &board_id,
+            &filename,
+            &mime_type,
+            data.len() as i64,
+            &storage_key,
+            Some(&user.id),
+        )
+        .await?;
 
-    let _ = db.log_activity(
-        &board_id,
-        Some(&tid),
-        &user.id,
-        "attachment_added",
-        Some(
-            &serde_json::json!({
-                "task_title": &task.title,
-                "filename": &filename,
-                "size_bytes": data.len(),
-            })
-            .to_string(),
-        ),
-    ).await;
+    let _ = db
+        .log_activity(
+            &board_id,
+            Some(&tid),
+            &user.id,
+            "attachment_added",
+            Some(
+                &serde_json::json!({
+                    "task_title": &task.title,
+                    "filename": &filename,
+                    "size_bytes": data.len(),
+                })
+                .to_string(),
+            ),
+        )
+        .await;
 
     Ok(Json(attachment))
 }
@@ -145,7 +149,9 @@ pub async fn download(
             header::CONTENT_DISPOSITION,
             format!(
                 "inline; filename=\"{}\"",
-                att.filename.replace('\"', "\\\"").replace(['\\', '\n', '\r'], "_")
+                att.filename
+                    .replace('\"', "\\\"")
+                    .replace(['\\', '\n', '\r'], "_")
             ),
         )
         .body(Body::from(data))
@@ -173,19 +179,21 @@ pub async fn delete(
     let _ = tokio::fs::remove_file(&path).await;
 
     if let Some(task) = task {
-        let _ = db.log_activity(
-            &board_id,
-            Some(&tid),
-            &user.id,
-            "attachment_deleted",
-            Some(
-                &serde_json::json!({
-                    "task_title": &task.title,
-                    "filename": &att.filename,
-                })
-                .to_string(),
-            ),
-        ).await;
+        let _ = db
+            .log_activity(
+                &board_id,
+                Some(&tid),
+                &user.id,
+                "attachment_deleted",
+                Some(
+                    &serde_json::json!({
+                        "task_title": &task.title,
+                        "filename": &att.filename,
+                    })
+                    .to_string(),
+                ),
+            )
+            .await;
     }
 
     Ok(Json(serde_json::json!({ "deleted": true })))
