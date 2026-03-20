@@ -12,7 +12,25 @@ pub mod sync;
 pub use db::Db;
 pub use notifications::NotifTx;
 
-use cortx_types::{PlanningOrgan, Priority, Task as CortxTask, TaskFilter};
+use db::models::Priority;
+
+#[derive(Debug, Clone)]
+pub struct TaskSummary {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub priority: Priority,
+    pub labels: Vec<String>,
+    pub column_id: String,
+    pub due_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TaskFilter {
+    pub board_id: Option<String>,
+    pub label: Option<String>,
+    pub priority_min: Option<Priority>,
+}
 
 pub struct DecomposeTask {
     pub title: String,
@@ -39,9 +57,9 @@ impl Kanwise {
         &self,
         board_id: &str,
         agent_id: &str,
-    ) -> anyhow::Result<Option<CortxTask>> {
+    ) -> anyhow::Result<Option<TaskSummary>> {
         match self.db.claim_task(board_id, agent_id).await? {
-            Some((task, labels)) => Ok(Some(CortxTask {
+            Some((task, labels)) => Ok(Some(TaskSummary {
                 id: task.id,
                 title: task.title,
                 description: task.description,
@@ -65,9 +83,9 @@ impl Kanwise {
         &self,
         task_id: &str,
         agent_id: &str,
-    ) -> anyhow::Result<Option<CortxTask>> {
+    ) -> anyhow::Result<Option<TaskSummary>> {
         match self.db.claim_specific_task(task_id, agent_id).await? {
-            Some((task, labels)) => Ok(Some(CortxTask {
+            Some((task, labels)) => Ok(Some(TaskSummary {
                 id: task.id,
                 title: task.title,
                 description: task.description,
@@ -133,10 +151,9 @@ impl Kanwise {
             .create_tasks_batch(board_id, &first_col.id, batch)
             .await
     }
-}
 
-impl PlanningOrgan for Kanwise {
-    async fn get_next_task(&self, filter: TaskFilter) -> anyhow::Result<CortxTask> {
+    /// Get the next task matching the given filter.
+    pub async fn get_next_task(&self, filter: TaskFilter) -> anyhow::Result<TaskSummary> {
         let label = filter.label.as_deref().unwrap_or("ai-ready");
         let result = self
             .db
@@ -144,7 +161,7 @@ impl PlanningOrgan for Kanwise {
             .await?;
 
         match result {
-            Some((task, labels)) => Ok(CortxTask {
+            Some((task, labels)) => Ok(TaskSummary {
                 id: task.id,
                 title: task.title,
                 description: task.description,
@@ -157,7 +174,8 @@ impl PlanningOrgan for Kanwise {
         }
     }
 
-    async fn complete_task(&self, id: &str) -> anyhow::Result<()> {
+    /// Complete a task by moving it to the last column.
+    pub async fn complete_task(&self, id: &str) -> anyhow::Result<()> {
         let task_id = id.to_string();
         let task_data = self
             .db
@@ -172,13 +190,14 @@ impl PlanningOrgan for Kanwise {
         Ok(())
     }
 
-    async fn list_tasks(&self, board_id: &str) -> anyhow::Result<Vec<CortxTask>> {
+    /// List all tasks for a board as summaries with labels.
+    pub async fn list_tasks_summary(&self, board_id: &str) -> anyhow::Result<Vec<TaskSummary>> {
         let tasks = self.db.list_tasks(board_id, 1000, 0).await?;
         let mut result = Vec::with_capacity(tasks.len());
         for t in tasks {
             let labels = self.db.get_task_labels(&t.id).await?;
             let label_names: Vec<String> = labels.iter().map(|l| l.name.clone()).collect();
-            result.push(CortxTask {
+            result.push(TaskSummary {
                 id: t.id,
                 title: t.title,
                 description: t.description,

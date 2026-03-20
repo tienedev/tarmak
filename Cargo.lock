@@ -884,7 +884,6 @@ dependencies = [
  "axum",
  "chrono",
  "clap",
- "cortx-types",
  "dashmap",
  "futures",
  "hex",

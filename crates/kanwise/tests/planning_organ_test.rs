@@ -1,4 +1,4 @@
-use cortx_types::{PlanningOrgan, TaskFilter};
+use kanwise::TaskFilter;
 
 #[tokio::test]
 async fn test_get_next_task_returns_ai_ready_tasks() {
@@ -19,7 +19,7 @@ async fn test_get_next_task_returns_ai_ready_tasks() {
             &col.id,
             "Fix auth bug",
             None,
-            cortx_types::Priority::High,
+            kanwise::db::models::Priority::High,
             None,
         )
         .await
@@ -55,7 +55,7 @@ async fn test_list_tasks_maps_labels() {
             &col.id,
             "Task 1",
             None,
-            cortx_types::Priority::Medium,
+            kanwise::db::models::Priority::Medium,
             None,
         )
         .await
@@ -63,7 +63,7 @@ async fn test_list_tasks_maps_labels() {
     db.add_task_label(&task.id, &label.id).await.unwrap();
 
     let organ = kanwise::Kanwise::new(db);
-    let tasks = organ.list_tasks(&board.id).await.unwrap();
+    let tasks = organ.list_tasks_summary(&board.id).await.unwrap();
     assert_eq!(tasks.len(), 1);
     assert!(tasks[0].labels.contains(&"urgent".to_string()));
 }

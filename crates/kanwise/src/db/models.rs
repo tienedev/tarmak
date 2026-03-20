@@ -2,10 +2,63 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
-// Priority (re-exported from cortx-types)
+// Priority
 // ---------------------------------------------------------------------------
 
-pub use cortx_types::Priority;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Priority {
+    Low,
+    Medium,
+    High,
+    Urgent,
+}
+
+impl Priority {
+    pub fn short(&self) -> &'static str {
+        match self {
+            Self::Low => "l",
+            Self::Medium => "m",
+            Self::High => "h",
+            Self::Urgent => "u",
+        }
+    }
+
+    pub fn from_short(s: &str) -> Option<Self> {
+        match s {
+            "l" => Some(Self::Low),
+            "m" => Some(Self::Medium),
+            "h" => Some(Self::High),
+            "u" => Some(Self::Urgent),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Urgent => "urgent",
+        }
+    }
+
+    pub fn from_str_db(s: &str) -> Option<Self> {
+        match s {
+            "low" => Some(Self::Low),
+            "medium" => Some(Self::Medium),
+            "high" => Some(Self::High),
+            "urgent" => Some(Self::Urgent),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for Priority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 // ---------------------------------------------------------------------------
 // FieldType

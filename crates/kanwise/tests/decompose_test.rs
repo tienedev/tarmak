@@ -1,4 +1,4 @@
-use cortx_types::Priority;
+use kanwise::db::models::Priority;
 use kanwise::{DecomposeTask, Kanwise};
 
 fn now_rfc3339() -> String {
