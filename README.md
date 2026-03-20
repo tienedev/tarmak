@@ -26,8 +26,8 @@ frontend/    # React 19 + TypeScript + Tailwind + shadcn/ui
 ### From source
 
 ```bash
-git clone https://github.com/tienedev/cortx.git
-cd cortx
+git clone https://github.com/tienedev/kanwise.git
+cd kanwise
 cargo build --workspace
 ```
 
@@ -47,7 +47,7 @@ kanwise serve
 kanwise mcp
 
 # Docker
-docker run -d -p 3001:3001 -v kanwise-data:/data ghcr.io/tienedev/cortx:latest
+docker run -d -p 3001:3001 -v kanwise-data:/data ghcr.io/tienedev/kanwise:latest
 ```
 
 ### MCP configuration
@@ -132,8 +132,8 @@ Argon2 passwords, session tokens, API keys.
 ## Contributing
 
 ```bash
-git clone https://github.com/tienedev/cortx.git
-cd cortx
+git clone https://github.com/tienedev/kanwise.git
+cd kanwise
 make install  # frontend dependencies
 make dev      # backend (3001) + frontend (3000) with hot reload
 ```
