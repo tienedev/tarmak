@@ -19,7 +19,7 @@ RUN cargo build --release
 # Stage 3: Runtime
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates && mkdir -p /data
-COPY --from=backend /app/target/release/cortx /usr/local/bin/
+COPY --from=backend /app/target/release/kanwise /usr/local/bin/
 EXPOSE 3001
-ENV DATABASE_PATH=/data/cortx.db
-CMD ["cortx", "web"]
+ENV DATABASE_PATH=/data/kanwise.db
+CMD ["kanwise", "serve"]

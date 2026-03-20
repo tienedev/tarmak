@@ -7,7 +7,6 @@ on:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "policies/**"
       - ".github/workflows/backend.yml"
   pull_request:
     branches: [main]
@@ -15,7 +14,6 @@ on:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "policies/**"
       - ".github/workflows/backend.yml"
 
 env:
@@ -76,8 +74,4 @@ jobs:
         run: cargo build --workspace
 
       - name: Verify binaries
-        run: |
-          ./target/debug/kanwise --help
-          ./target/debug/rtk-proxy --help
-          ./target/debug/context-db --help
-          ./target/debug/cortx --help
+        run: ./target/debug/kanwise --help

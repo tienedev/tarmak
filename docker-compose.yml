@@ -1,16 +1,16 @@
 services:
-  cortx:
+  kanwise:
     build: .
     restart: unless-stopped
     ports:
       - "3001:3001"
     volumes:
-      - cortx-data:/data
+      - kanwise-data:/data
     environment:
-      - DATABASE_PATH=/data/cortx.db
+      - DATABASE_PATH=/data/kanwise.db
       - RUST_LOG=info
       # IMPORTANT: Set this to your domain to avoid CORS errors.
       # - KANBAN_ALLOWED_ORIGINS=https://kanwise.dev
 
 volumes:
-  cortx-data:
+  kanwise-data:

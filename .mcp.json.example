@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "cortx": {
-      "command": "cortx",
-      "args": ["serve", "--project", "."],
+    "kanwise": {
+      "command": "kanwise",
+      "args": ["mcp"],
       "env": {}
     }
   }

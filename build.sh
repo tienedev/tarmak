@@ -4,4 +4,4 @@ echo "Building frontend..."
 cd frontend && pnpm build && cd ..
 echo "Building backend..."
 cargo build --release
-echo "Done! Binaries at target/release/{cortx,kanwise,rtk-proxy,context-db}"
+echo "Done! Binary at target/release/kanwise"

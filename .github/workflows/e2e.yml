@@ -46,7 +46,7 @@ jobs:
 
       # Run
       - name: Start kanwise
-        run: DATABASE_PATH=/tmp/cortx-e2e.db RATE_LIMIT_MAX=10000 ./target/release/kanwise &
+        run: DATABASE_PATH=/tmp/kanwise-e2e.db RATE_LIMIT_MAX=10000 ./target/release/kanwise &
       - name: Wait for health
         run: timeout 30 bash -c 'until curl -sf http://localhost:3001/api/v1/health; do sleep 1; done'
       - name: Run E2E tests
