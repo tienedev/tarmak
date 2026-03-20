@@ -1,0 +1,13 @@
+/target
+/frontend/node_modules
+/frontend/dist
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.env
+.mcp.json
+.worktrees/
+.claude/
+.superpowers/
+.DS_Store

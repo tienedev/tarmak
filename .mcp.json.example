@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "kanwise": {
+      "command": "kanwise",
+      "args": ["mcp"],
+      "env": {}
+    }
+  }
+}
