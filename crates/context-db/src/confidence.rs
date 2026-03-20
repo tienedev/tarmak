@@ -13,21 +13,28 @@ pub fn compute_confidence(base: f64, commits_since_verified: u32, normalizer: u3
     base * (1.0 - churn_rate)
 }
 
-pub fn count_commits_since(file: &str, since: &str, cwd: &str) -> u32 {
-    let output = Command::new("git")
-        .args([
-            "log",
-            "--oneline",
-            &format!("--since={since}"),
-            "--",
-            file,
-        ])
-        .current_dir(cwd)
-        .output();
-    match output {
-        Ok(out) => String::from_utf8_lossy(&out.stdout).lines().count() as u32,
-        Err(_) => 0,
-    }
+pub async fn count_commits_since(file: &str, since: &str, cwd: &str) -> u32 {
+    let file = file.to_string();
+    let since = since.to_string();
+    let cwd = cwd.to_string();
+    tokio::task::spawn_blocking(move || {
+        let output = Command::new("git")
+            .args([
+                "log",
+                "--oneline",
+                &format!("--since={since}"),
+                "--",
+                &file,
+            ])
+            .current_dir(&cwd)
+            .output();
+        match output {
+            Ok(out) => String::from_utf8_lossy(&out.stdout).lines().count() as u32,
+            Err(_) => 0,
+        }
+    })
+    .await
+    .unwrap_or(0)
 }
 
 /// Reinforce (or penalize) a causal chain's confidence.

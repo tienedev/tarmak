@@ -166,7 +166,7 @@ impl ServerHandler for ProxyMcpServer {
                     ))
                 }
                 "proxy_rollback" => {
-                    if crate::git::restore_checkpoint(&project_root) {
+                    if crate::git::restore_checkpoint(&project_root).await {
                         Ok("Checkpoint restored successfully.".to_string())
                     } else {
                         Err("No checkpoint found to restore.".to_string())

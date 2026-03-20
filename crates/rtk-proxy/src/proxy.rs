@@ -77,9 +77,9 @@ impl ActionOrgan for Proxy {
         if cmd.mode == ExecutionMode::Admin {
             let executor = Executor::new(self.sandbox.timeout_secs());
             let env: Vec<(String, String)> = std::env::vars().collect();
-            let before_snapshot = crate::git::status_snapshot(&cmd.cwd);
+            let before_snapshot = crate::git::status_snapshot(&cmd.cwd).await;
             let raw = executor.run(&cmd.cmd, &cmd.cwd, &env).await?;
-            let after_snapshot = crate::git::status_snapshot(&cmd.cwd);
+            let after_snapshot = crate::git::status_snapshot(&cmd.cwd).await;
             let files_touched = crate::git::diff_snapshots(&before_snapshot, &after_snapshot);
             let (output, truncated) = self
                 .output_processor
@@ -156,19 +156,19 @@ impl ActionOrgan for Proxy {
         // Checkpoint before monitored/dangerous commands
         let _checkpoint_created = match tier {
             Tier::Monitored if self.policy.checkpoint.before_monitored => {
-                crate::git::create_checkpoint(&cmd.cwd)
+                crate::git::create_checkpoint(&cmd.cwd).await
             }
             Tier::Dangerous if self.policy.checkpoint.before_dangerous => {
-                crate::git::create_checkpoint(&cmd.cwd)
+                crate::git::create_checkpoint(&cmd.cwd).await
             }
             _ => false,
         };
 
         // Execute
-        let before_snapshot = crate::git::status_snapshot(&cmd.cwd);
+        let before_snapshot = crate::git::status_snapshot(&cmd.cwd).await;
         let executor = Executor::new(self.sandbox.timeout_secs());
         let raw = executor.run(&cmd.cmd, &cmd.cwd, &env_filtered).await?;
-        let after_snapshot = crate::git::status_snapshot(&cmd.cwd);
+        let after_snapshot = crate::git::status_snapshot(&cmd.cwd).await;
         let files_touched = crate::git::diff_snapshots(&before_snapshot, &after_snapshot);
 
         // Output processing

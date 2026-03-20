@@ -197,7 +197,7 @@ async fn main() -> anyhow::Result<()> {
             else { println!("\nSome checks failed."); std::process::exit(1); }
         }
         Some(Cli::Rollback) => {
-            if rtk_proxy::git::restore_checkpoint(&std::env::current_dir()?) {
+            if rtk_proxy::git::restore_checkpoint(&std::env::current_dir()?).await {
                 println!("Checkpoint restored.");
             } else {
                 println!("No checkpoint found.");

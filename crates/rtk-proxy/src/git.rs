@@ -3,7 +3,14 @@ use std::path::Path;
 use std::process::Command;
 
 /// Snapshot of `git status --porcelain` output as a map of file -> status line.
-pub fn status_snapshot(cwd: &Path) -> HashMap<String, String> {
+pub async fn status_snapshot(cwd: &Path) -> HashMap<String, String> {
+    let cwd = cwd.to_path_buf();
+    tokio::task::spawn_blocking(move || status_snapshot_sync(&cwd))
+        .await
+        .unwrap_or_default()
+}
+
+fn status_snapshot_sync(cwd: &Path) -> HashMap<String, String> {
     let output = Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(cwd)
@@ -43,7 +50,14 @@ pub fn diff_snapshots(
 const CHECKPOINT_MSG: &str = "cortx-checkpoint";
 
 /// Create a git stash checkpoint. Returns true if a stash was created.
-pub fn create_checkpoint(cwd: &Path) -> bool {
+pub async fn create_checkpoint(cwd: &Path) -> bool {
+    let cwd = cwd.to_path_buf();
+    tokio::task::spawn_blocking(move || create_checkpoint_sync(&cwd))
+        .await
+        .unwrap_or(false)
+}
+
+fn create_checkpoint_sync(cwd: &Path) -> bool {
     // Count stashes before
     let before = Command::new("git")
         .args(["stash", "list"])
@@ -57,7 +71,7 @@ pub fn create_checkpoint(cwd: &Path) -> bool {
         .current_dir(cwd)
         .output();
 
-    // Count stashes after — if it grew, a stash was created
+    // Count stashes after
     let after = Command::new("git")
         .args(["stash", "list"])
         .current_dir(cwd)
@@ -69,7 +83,14 @@ pub fn create_checkpoint(cwd: &Path) -> bool {
 }
 
 /// Restore the most recent cortx checkpoint. Returns true if restored.
-pub fn restore_checkpoint(cwd: &Path) -> bool {
+pub async fn restore_checkpoint(cwd: &Path) -> bool {
+    let cwd = cwd.to_path_buf();
+    tokio::task::spawn_blocking(move || restore_checkpoint_sync(&cwd))
+        .await
+        .unwrap_or(false)
+}
+
+fn restore_checkpoint_sync(cwd: &Path) -> bool {
     let list = Command::new("git")
         .args(["stash", "list"])
         .current_dir(cwd)

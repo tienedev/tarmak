@@ -236,7 +236,7 @@ impl ServerHandler for CortxMcpServer {
                         orch.session_id(), b.commands_remaining, b.cpu_seconds_remaining))
                 }
                 "proxy_rollback" => {
-                    if rtk_proxy::git::restore_checkpoint(&project_root) {
+                    if rtk_proxy::git::restore_checkpoint(&project_root).await {
                         Ok("Checkpoint restored.".into())
                     } else {
                         Err("No checkpoint found.".into())
