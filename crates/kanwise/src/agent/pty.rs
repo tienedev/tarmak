@@ -90,18 +90,17 @@ echo "This terminal window can be closed."
                 return Ok(code);
             }
             // Fallback: detect dead process even if trap didn't fire
-            if pid_file.exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&pid_file).await {
-                    if let Ok(pid) = content.trim().parse::<u32>() {
-                        let alive = std::process::Command::new("kill")
-                            .args(["-0", &pid.to_string()])
-                            .output()
-                            .map(|o| o.status.success())
-                            .unwrap_or(false);
-                        if !alive {
-                            return Ok(1);
-                        }
-                    }
+            if pid_file.exists()
+                && let Ok(content) = tokio::fs::read_to_string(&pid_file).await
+                && let Ok(pid) = content.trim().parse::<u32>()
+            {
+                let alive = std::process::Command::new("kill")
+                    .args(["-0", &pid.to_string()])
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+                if !alive {
+                    return Ok(1);
                 }
             }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;

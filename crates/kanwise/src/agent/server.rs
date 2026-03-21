@@ -391,12 +391,11 @@ async fn ws_handler(
             .bearer_auth(token)
             .send()
             .await
+            && resp.status().is_success()
         {
-            if resp.status().is_success() {
-                let mut cache = state.validated_tokens.write().await;
-                cache.insert(token.clone());
-                authorized = true;
-            }
+            let mut cache = state.validated_tokens.write().await;
+            cache.insert(token.clone());
+            authorized = true;
         }
     }
 
@@ -498,28 +497,28 @@ fn discover_skills(
                     if let Some(install_path) = install.get("installPath").and_then(|p| p.as_str())
                     {
                         let skills_dir = PathBuf::from(install_path).join("skills");
-                        if skills_dir.is_dir() {
-                            if let Ok(entries) = std::fs::read_dir(&skills_dir) {
-                                for entry in entries.flatten() {
-                                    let dir_name =
-                                        entry.file_name().to_string_lossy().to_string();
-                                    let dedup_key = format!("{plugin_id}/{dir_name}");
-                                    if !seen_dirs.insert(dedup_key) {
-                                        continue;
-                                    }
-                                    let skill_md = entry.path().join("SKILL.md");
-                                    if skill_md.exists() {
-                                        let content =
-                                            std::fs::read_to_string(&skill_md).unwrap_or_default();
-                                        let (name, description) = parse_skill_frontmatter(&content);
-                                        skills.push(serde_json::json!({
-                                            "name": name.unwrap_or_else(|| dir_name.clone()),
-                                            "description": description.unwrap_or_default(),
-                                            "dir": dir_name,
-                                            "plugin": plugin_id,
-                                            "enabled": enabled,
-                                        }));
-                                    }
+                        if skills_dir.is_dir()
+                            && let Ok(entries) = std::fs::read_dir(&skills_dir)
+                        {
+                            for entry in entries.flatten() {
+                                let dir_name =
+                                    entry.file_name().to_string_lossy().to_string();
+                                let dedup_key = format!("{plugin_id}/{dir_name}");
+                                if !seen_dirs.insert(dedup_key) {
+                                    continue;
+                                }
+                                let skill_md = entry.path().join("SKILL.md");
+                                if skill_md.exists() {
+                                    let content =
+                                        std::fs::read_to_string(&skill_md).unwrap_or_default();
+                                    let (name, description) = parse_skill_frontmatter(&content);
+                                    skills.push(serde_json::json!({
+                                        "name": name.unwrap_or_else(|| dir_name.clone()),
+                                        "description": description.unwrap_or_default(),
+                                        "dir": dir_name,
+                                        "plugin": plugin_id,
+                                        "enabled": enabled,
+                                    }));
                                 }
                             }
                         }
@@ -592,10 +591,10 @@ fn collect_mcp_servers(
     };
 
     // Global: ~/.claude/.mcp.json
-    if let Some(gm) = global_mcp {
-        if let Some(obj) = gm.get("mcpServers").and_then(|s| s.as_object()) {
-            add_from(obj, "global");
-        }
+    if let Some(gm) = global_mcp
+        && let Some(obj) = gm.get("mcpServers").and_then(|s| s.as_object())
+    {
+        add_from(obj, "global");
     }
 
     if let Some(uc) = user_config {
@@ -604,18 +603,18 @@ fn collect_mcp_servers(
             add_from(obj, "user");
         }
         // Local-scope: projects[workdir].mcpServers in ~/.claude.json
-        if let Some(proj) = uc.get("projects").and_then(|p| p.get(workdir)) {
-            if let Some(obj) = proj.get("mcpServers").and_then(|s| s.as_object()) {
-                add_from(obj, "local");
-            }
+        if let Some(proj) = uc.get("projects").and_then(|p| p.get(workdir))
+            && let Some(obj) = proj.get("mcpServers").and_then(|s| s.as_object())
+        {
+            add_from(obj, "local");
         }
     }
 
     // Project-scope: <project>/.mcp.json
-    if let Some(pm) = project_mcp {
-        if let Some(obj) = pm.get("mcpServers").and_then(|s| s.as_object()) {
-            add_from(obj, "project");
-        }
+    if let Some(pm) = project_mcp
+        && let Some(obj) = pm.get("mcpServers").and_then(|s| s.as_object())
+    {
+        add_from(obj, "project");
     }
 
     servers
@@ -721,15 +720,14 @@ pub async fn run_agent_server(
         .bearer_auth(&server_token)
         .send()
         .await
+        && let Ok(boards) = resp.json::<Vec<serde_json::Value>>().await
     {
-        if let Ok(boards) = resp.json::<Vec<serde_json::Value>>().await {
-            let repo_urls: Vec<String> = boards
-                .iter()
-                .filter_map(|b| b.get("repo_url").and_then(|v| v.as_str()).map(|s| s.to_string()))
-                .collect();
-            if !repo_urls.is_empty() {
-                let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
-            }
+        let repo_urls: Vec<String> = boards
+            .iter()
+            .filter_map(|b| b.get("repo_url").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .collect();
+        if !repo_urls.is_empty() {
+            let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
         }
     }
 
