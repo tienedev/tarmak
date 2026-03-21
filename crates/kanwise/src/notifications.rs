@@ -2,7 +2,6 @@ use regex::Regex;
 use std::sync::LazyLock;
 use tokio::sync::broadcast;
 
-use crate::db::Db;
 use crate::db::models::Notification;
 
 /// Broadcast channel wrapper for notification delivery.
@@ -30,36 +29,6 @@ pub fn parse_mentions(html: &str) -> Vec<String> {
         .captures_iter(html)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
         .collect()
-}
-
-// ---------------------------------------------------------------------------
-// Shared trigger helpers
-// ---------------------------------------------------------------------------
-
-/// Create notification for each recipient, broadcast each.
-/// Skips `exclude_user_id` (typically the actor).
-#[allow(dead_code, clippy::too_many_arguments)]
-pub async fn notify_users(
-    db: &Db,
-    tx: &NotifTx,
-    recipients: &[String],
-    exclude_user_id: &str,
-    board_id: &str,
-    task_id: Option<&str>,
-    notif_type: &str,
-    title: &str,
-) {
-    for uid in recipients {
-        if uid == exclude_user_id {
-            continue;
-        }
-        if let Ok(notif) = db
-            .create_notification(uid, board_id, task_id, notif_type, title, None)
-            .await
-        {
-            broadcast(tx, &notif);
-        }
-    }
 }
 
 #[cfg(test)]
