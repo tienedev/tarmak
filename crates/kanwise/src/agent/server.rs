@@ -134,18 +134,16 @@ async fn run(
     headers: axum::http::HeaderMap,
     Json(body): Json<RunRequest>,
 ) -> Result<Json<RunResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_agent_token(&state, &headers)
-        .await
-        .map_err(|s| {
-            (
-                s,
-                Json(ErrorResponse {
-                    error: "unauthorized".to_string(),
-                    message: "Invalid agent token".to_string(),
-                    hint: "Check the token displayed when starting kanwise agent".to_string(),
-                }),
-            )
-        })?;
+    check_agent_token(&state, &headers).await.map_err(|s| {
+        (
+            s,
+            Json(ErrorResponse {
+                error: "unauthorized".to_string(),
+                message: "Invalid agent token".to_string(),
+                hint: "Check the token displayed when starting kanwise agent".to_string(),
+            }),
+        )
+    })?;
 
     // Resolve repo_url → workdir
     let cache = state.repo_cache.read().await;
@@ -501,8 +499,7 @@ fn discover_skills(
                             && let Ok(entries) = std::fs::read_dir(&skills_dir)
                         {
                             for entry in entries.flatten() {
-                                let dir_name =
-                                    entry.file_name().to_string_lossy().to_string();
+                                let dir_name = entry.file_name().to_string_lossy().to_string();
                                 let dedup_key = format!("{plugin_id}/{dir_name}");
                                 if !seen_dirs.insert(dedup_key) {
                                     continue;
@@ -620,7 +617,6 @@ fn collect_mcp_servers(
     servers
 }
 
-
 async fn get_config(
     State(state): State<AgentState>,
     headers: axum::http::HeaderMap,
@@ -652,8 +648,7 @@ async fn get_config(
         let workdir_path = PathBuf::from(workdir);
         let project_claude_md = read_file_string(&workdir_path.join("CLAUDE.md"));
         let project_mcp = read_json_file(&workdir_path.join(".mcp.json"));
-        let project_settings =
-            read_json_file(&workdir_path.join(".claude").join("settings.json"));
+        let project_settings = read_json_file(&workdir_path.join(".claude").join("settings.json"));
         let mcp_servers = collect_mcp_servers(&global_mcp, &user_config, &project_mcp, workdir);
 
         // Skills: merge global + project enabled plugins, then discover
@@ -724,7 +719,11 @@ pub async fn run_agent_server(
     {
         let repo_urls: Vec<String> = boards
             .iter()
-            .filter_map(|b| b.get("repo_url").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .filter_map(|b| {
+                b.get("repo_url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
             .collect();
         if !repo_urls.is_empty() {
             let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
