@@ -25,6 +25,7 @@ pub struct CreateBoard {
 pub struct UpdateBoard {
     pub name: Option<String>,
     pub description: Option<String>,
+    pub repo_url: Option<Option<String>>,
 }
 
 #[derive(Deserialize)]
@@ -79,7 +80,12 @@ pub async fn update(
     permissions::require_role(&db, &id, &user.id, Role::Owner).await?;
     let description = body.description.as_ref().map(|d| Some(d.as_str()));
     let board = db
-        .update_board(&id, body.name.as_deref(), description)
+        .update_board(
+            &id,
+            body.name.as_deref(),
+            description,
+            body.repo_url.as_ref().map(|o| o.as_deref()),
+        )
         .await?
         .ok_or_else(|| ApiError::NotFound("board not found".into()))?;
     Ok(Json(board))

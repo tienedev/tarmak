@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod agent_sessions;
 pub mod api_keys;
 pub mod archive;
 pub mod attachments;
@@ -95,6 +96,17 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) 
     let board_fields =
         Router::new().route("/", get(custom_fields::list).post(custom_fields::create));
 
+    let agent_session_item = Router::new()
+        .route("/", get(agent_sessions::get).put(agent_sessions::update))
+        .route("/cancel", post(agent_sessions::cancel));
+
+    let board_agent_sessions = Router::new()
+        .route(
+            "/",
+            get(agent_sessions::list).post(agent_sessions::create),
+        )
+        .nest("/{sid}", agent_session_item);
+
     let per_board = Router::new()
         .merge(board_item)
         .route("/members", get(boards::members))
@@ -106,7 +118,8 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) 
         .nest("/columns", columns)
         .nest("/tasks", board_tasks)
         .nest("/labels", board_labels)
-        .nest("/fields", board_fields);
+        .nest("/fields", board_fields)
+        .nest("/agent-sessions", board_agent_sessions);
 
     let boards = Router::new()
         .route("/", get(boards::list).post(boards::create))

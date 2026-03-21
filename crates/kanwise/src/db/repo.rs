@@ -51,6 +51,7 @@ impl Db {
                 id,
                 name,
                 description,
+                repo_url: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             })
@@ -66,14 +67,15 @@ impl Db {
     pub async fn list_boards(&self) -> anyhow::Result<Vec<Board>> {
         self.with_conn(move |conn| {
             let mut stmt =
-                conn.prepare("SELECT id, name, description, created_at, updated_at FROM boards ORDER BY created_at")?;
+                conn.prepare("SELECT id, name, description, repo_url, created_at, updated_at FROM boards ORDER BY created_at")?;
             let rows = stmt.query_map([], |row| {
                 Ok(Board {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: parse_dt(&row.get::<_, String>(3)?)?,
-                    updated_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    repo_url: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    updated_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             let mut boards = Vec::new();
@@ -90,10 +92,12 @@ impl Db {
         id: &str,
         name: Option<&str>,
         description: Option<Option<&str>>,
+        repo_url: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Board>> {
         let id = id.to_string();
         let name = name.map(String::from);
         let description = description.map(|d| d.map(String::from));
+        let repo_url = repo_url.map(|r| r.map(String::from));
         self.with_conn(move |conn| {
             let mut sets = Vec::new();
             let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -105,6 +109,17 @@ impl Db {
             if let Some(d) = description {
                 sets.push("description = ?");
                 values.push(Box::new(d));
+            }
+            if let Some(r) = repo_url {
+                match r {
+                    Some(url) => {
+                        sets.push("repo_url = ?");
+                        values.push(Box::new(url));
+                    }
+                    None => {
+                        sets.push("repo_url = NULL");
+                    }
+                }
             }
 
             if !sets.is_empty() {
@@ -136,15 +151,16 @@ impl Db {
 
 fn get_board_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Board>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, description, created_at, updated_at FROM boards WHERE id = ?1",
+        "SELECT id, name, description, repo_url, created_at, updated_at FROM boards WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(params![id], |row| {
         Ok(Board {
             id: row.get(0)?,
             name: row.get(1)?,
             description: row.get(2)?,
-            created_at: parse_dt(&row.get::<_, String>(3)?)?,
-            updated_at: parse_dt(&row.get::<_, String>(4)?)?,
+            repo_url: row.get(3)?,
+            created_at: parse_dt(&row.get::<_, String>(4)?)?,
+            updated_at: parse_dt(&row.get::<_, String>(5)?)?,
         })
     })?;
     match rows.next() {
@@ -778,6 +794,7 @@ impl Db {
                 id: new_board_id,
                 name: new_name,
                 description: None,
+                repo_url: None,
                 created_at: now_dt,
                 updated_at: now_dt,
             })
@@ -1799,7 +1816,7 @@ impl Db {
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
-                "SELECT b.id, b.name, b.description, b.created_at, b.updated_at
+                "SELECT b.id, b.name, b.description, b.repo_url, b.created_at, b.updated_at
                  FROM boards b
                  JOIN board_members bm ON bm.board_id = b.id
                  WHERE bm.user_id = ?1
@@ -1810,8 +1827,9 @@ impl Db {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: parse_dt(&row.get::<_, String>(3)?)?,
-                    updated_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    repo_url: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    updated_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             let mut out = Vec::new();
@@ -3152,6 +3170,184 @@ impl Db {
 }
 
 // ---------------------------------------------------------------------------
+// Agent Sessions
+// ---------------------------------------------------------------------------
+
+fn map_agent_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentSession> {
+    let status_str: String = row.get(3)?;
+    let started_str: Option<String> = row.get(7)?;
+    let finished_str: Option<String> = row.get(8)?;
+    let created_str: String = row.get(11)?;
+    Ok(AgentSession {
+        id: row.get(0)?,
+        board_id: row.get(1)?,
+        task_id: row.get(2)?,
+        status: AgentSessionStatus::from_str_db(&status_str).unwrap_or(AgentSessionStatus::Running),
+        user_id: row.get(4)?,
+        branch_name: row.get(5)?,
+        agent_profile_id: row.get(6)?,
+        started_at: started_str.as_deref().and_then(|s| parse_dt(s).ok()),
+        finished_at: finished_str.as_deref().and_then(|s| parse_dt(s).ok()),
+        exit_code: row.get(9)?,
+        log: row.get(10)?,
+        created_at: parse_dt(&created_str).unwrap_or_else(|_| Utc::now()),
+    })
+}
+
+impl Db {
+    pub async fn create_agent_session(
+        &self,
+        id: Option<&str>,
+        board_id: &str,
+        task_id: &str,
+        user_id: &str,
+        branch_name: Option<&str>,
+    ) -> anyhow::Result<AgentSession> {
+        let id = id.map(|s| s.to_string());
+        let board_id = board_id.to_string();
+        let task_id = task_id.to_string();
+        let user_id = user_id.to_string();
+        let branch_name = branch_name.map(|s| s.to_string());
+        self.with_conn(move |conn| {
+            let id = id.unwrap_or_else(new_id);
+            let now = now_iso();
+            conn.execute(
+                "INSERT INTO agent_sessions (id, board_id, task_id, status, user_id, branch_name, started_at, created_at)
+                 VALUES (?1, ?2, ?3, 'running', ?4, ?5, ?6, ?6)",
+                params![id, board_id, task_id, user_id, branch_name, now],
+            )?;
+            let created_at = parse_dt(&now).unwrap_or_else(|_| Utc::now());
+            Ok(AgentSession {
+                id,
+                board_id,
+                task_id,
+                status: AgentSessionStatus::Running,
+                user_id,
+                branch_name,
+                agent_profile_id: None,
+                started_at: Some(created_at),
+                finished_at: None,
+                exit_code: None,
+                log: None,
+                created_at,
+            })
+        })
+        .await
+    }
+
+    pub async fn list_agent_sessions(
+        &self,
+        board_id: &str,
+        task_id: Option<&str>,
+    ) -> anyhow::Result<Vec<AgentSession>> {
+        let board_id = board_id.to_string();
+        let task_id = task_id.map(|s| s.to_string());
+        self.with_conn(move |conn| {
+            let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match &task_id {
+                Some(tid) => (
+                    "SELECT id, board_id, task_id, status, user_id, branch_name, agent_profile_id, started_at, finished_at, exit_code, log, created_at FROM agent_sessions WHERE board_id = ?1 AND task_id = ?2 ORDER BY created_at DESC".to_string(),
+                    vec![Box::new(board_id) as Box<dyn rusqlite::types::ToSql>, Box::new(tid.clone())],
+                ),
+                None => (
+                    "SELECT id, board_id, task_id, status, user_id, branch_name, agent_profile_id, started_at, finished_at, exit_code, log, created_at FROM agent_sessions WHERE board_id = ?1 ORDER BY created_at DESC".to_string(),
+                    vec![Box::new(board_id) as Box<dyn rusqlite::types::ToSql>],
+                ),
+            };
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|v| v.as_ref()).collect();
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(param_refs.as_slice(), map_agent_session_row)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+        })
+        .await
+    }
+
+    pub async fn get_agent_session(&self, id: &str) -> anyhow::Result<Option<AgentSession>> {
+        let id = id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, task_id, status, user_id, branch_name, agent_profile_id, started_at, finished_at, exit_code, log, created_at FROM agent_sessions WHERE id = ?1"
+            )?;
+            let mut rows = stmt.query_map(params![id], map_agent_session_row)?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    pub async fn update_agent_session(
+        &self,
+        id: &str,
+        status: Option<AgentSessionStatus>,
+        exit_code: Option<i32>,
+        log: Option<&str>,
+    ) -> anyhow::Result<Option<AgentSession>> {
+        let id = id.to_string();
+        let log = log.map(|s| s.to_string());
+        let status_clone = status.clone();
+        self.with_conn(move |conn| {
+            let mut sets = Vec::new();
+            let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(s) = &status_clone {
+                sets.push("status = ?");
+                values.push(Box::new(s.as_str().to_string()));
+                if matches!(s, AgentSessionStatus::Success | AgentSessionStatus::Failed | AgentSessionStatus::Cancelled) {
+                    sets.push("finished_at = ?");
+                    values.push(Box::new(now_iso()));
+                }
+            }
+            if let Some(code) = exit_code {
+                sets.push("exit_code = ?");
+                values.push(Box::new(code));
+            }
+            if let Some(l) = &log {
+                sets.push("log = ?");
+                values.push(Box::new(l.clone()));
+            }
+
+            if !sets.is_empty() {
+                values.push(Box::new(id.clone()));
+                let sql = format!("UPDATE agent_sessions SET {} WHERE id = ?", sets.join(", "));
+                let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+                conn.execute(&sql, param_refs.as_slice())?;
+            }
+
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, task_id, status, user_id, branch_name, agent_profile_id, started_at, finished_at, exit_code, log, created_at FROM agent_sessions WHERE id = ?1"
+            )?;
+            let mut rows = stmt.query_map(params![id], map_agent_session_row)?;
+            match rows.next() {
+                Some(r) => Ok(Some(r?)),
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    pub async fn cancel_agent_session(&self, id: &str) -> anyhow::Result<Option<AgentSession>> {
+        let id = id.to_string();
+        self.update_agent_session(&id, Some(AgentSessionStatus::Cancelled), None, None).await
+    }
+
+    pub async fn get_running_sessions_for_board(
+        &self,
+        board_id: &str,
+    ) -> anyhow::Result<Vec<AgentSession>> {
+        let board_id = board_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, board_id, task_id, status, user_id, branch_name, agent_profile_id, started_at, finished_at, exit_code, log, created_at FROM agent_sessions WHERE board_id = ?1 AND status = 'running'"
+            )?;
+            let rows = stmt.query_map(params![board_id], map_agent_session_row)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+        })
+        .await
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -3202,7 +3398,7 @@ mod tests {
 
         // Update
         let updated = db
-            .update_board(&board.id, Some("Renamed"), None)
+            .update_board(&board.id, Some("Renamed"), None, None)
             .await
             .unwrap()
             .expect("board exists");

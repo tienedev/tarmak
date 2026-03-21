@@ -57,6 +57,21 @@ enum Cli {
         /// User email
         email: String,
     },
+    /// Run the local agent server for Claude Code sessions
+    Agent {
+        /// Kanwise server URL
+        #[arg(long)]
+        server: String,
+        /// Agent port (default: 9876)
+        #[arg(long, default_value = "9876")]
+        port: u16,
+        /// Auth token for Kanwise server
+        #[arg(long, env = "KANWISE_TOKEN")]
+        token: String,
+        /// Allowed CORS origins (comma-separated)
+        #[arg(long, default_value = "http://localhost:3000,http://localhost:3001")]
+        allowed_origins: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -82,6 +97,18 @@ async fn main() -> anyhow::Result<()> {
         Some(Cli::Users { command }) => match command {
             UsersCommand::List => kanwise::cli::list_users().await,
         },
+        Some(Cli::Agent {
+            server,
+            port,
+            token,
+            allowed_origins,
+        }) => {
+            let origins: Vec<String> = allowed_origins
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
+            kanwise::agent::server::run_agent_server(server, token, port, origins).await
+        }
     }
 }
 

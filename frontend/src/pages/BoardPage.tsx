@@ -14,7 +14,8 @@ import { BoardSettingsPanel } from '@/components/board/BoardSettingsPanel'
 import { useFilteredTasks } from '@/hooks/useFilters'
 import { useSync } from '@/hooks/useSync'
 import { usePresence } from '@/hooks/usePresence'
-import type { Task } from '@/lib/api'
+import type { Task, AgentSession } from '@/lib/api'
+import { TerminalDrawer } from '@/components/board/TerminalDrawer'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
 import { ArchivePanel } from '@/components/board/ArchivePanel'
 import { SearchBar } from '@/components/board/SearchBar'
@@ -60,6 +61,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [duplicateName, setDuplicateName] = useState('')
   const [duplicateIncludeTasks, setDuplicateIncludeTasks] = useState(true)
   const [duplicating, setDuplicating] = useState(false)
+  const [terminalSession, setTerminalSession] = useState<AgentSession | null>(null)
 
   // Real-time sync and presence
   const { provider, status } = useSync(boardId)
@@ -331,6 +333,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
         task={selectedTask}
         open={detailOpen}
         onClose={handleDetailClose}
+        onOpenTerminal={setTerminalSession}
       />
 
       {/* Board settings panel */}
@@ -383,6 +386,12 @@ export function BoardPage({ boardId }: BoardPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TerminalDrawer
+        session={terminalSession}
+        open={terminalSession !== null}
+        onClose={() => setTerminalSession(null)}
+      />
 
       <ConnectionStatus status={status} />
     </div>
