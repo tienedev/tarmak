@@ -1,8 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Task } from '@/lib/api'
+import type { Task, AgentSession } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { isLightColor } from '@/lib/color'
+import { SessionIndicator } from './SessionIndicator'
 import type { LucideIcon } from 'lucide-react'
 import {
   GripVertical,
@@ -25,9 +26,10 @@ interface TaskCardProps {
   task: Task
   overlay?: boolean
   onClick?: () => void
+  latestSession?: AgentSession
 }
 
-export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
+export function TaskCard({ task, overlay, onClick, latestSession }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -103,6 +105,9 @@ export function TaskCard({ task, overlay, onClick }: TaskCardProps) {
 
       {/* Metadata row */}
       <div className="mt-2 flex items-center gap-2">
+        {/* Agent session indicator */}
+        <SessionIndicator session={latestSession} />
+
         {/* Priority icon */}
         {priorityCfg && (
           <div className={cn('flex items-center gap-1', priorityCfg.color)} title={priorityCfg.label}>
