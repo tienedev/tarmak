@@ -3,9 +3,17 @@ use std::path::{Path, PathBuf};
 /// Result of auto-detecting a component's install mode.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ComponentMode {
-    Local { repo: PathBuf },
-    Docker { image: String, compose_file: PathBuf, service: String },
-    BinaryOnly { path: PathBuf },
+    Local {
+        repo: PathBuf,
+    },
+    Docker {
+        image: String,
+        compose_file: PathBuf,
+        service: String,
+    },
+    BinaryOnly {
+        path: PathBuf,
+    },
     NotFound,
 }
 
@@ -23,7 +31,13 @@ pub struct RealSystem;
 impl SystemContext for RealSystem {
     fn docker_running(&self, name: &str) -> Option<String> {
         std::process::Command::new("docker")
-            .args(["ps", "--filter", &format!("name={name}"), "--format", "{{.Image}}"])
+            .args([
+                "ps",
+                "--filter",
+                &format!("name={name}"),
+                "--format",
+                "{{.Image}}",
+            ])
             .output()
             .ok()
             .filter(|o| o.status.success())
@@ -43,7 +57,11 @@ impl SystemContext for RealSystem {
 
     fn find_compose_file(&self, near: &Path) -> Option<PathBuf> {
         let candidate = near.join("docker-compose.yml");
-        if candidate.exists() { Some(candidate) } else { None }
+        if candidate.exists() {
+            Some(candidate)
+        } else {
+            None
+        }
     }
 }
 
@@ -80,7 +98,9 @@ pub fn detect_kanwise(ctx: &dyn SystemContext, workspace_root: &Path) -> Compone
 
     // 2. Local crate in workspace
     if ctx.path_exists(&workspace_root.join("crates/kanwise/Cargo.toml")) {
-        return ComponentMode::Local { repo: workspace_root.to_path_buf() };
+        return ComponentMode::Local {
+            repo: workspace_root.to_path_buf(),
+        };
     }
 
     // 3. Binary in PATH

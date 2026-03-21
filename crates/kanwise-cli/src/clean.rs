@@ -6,13 +6,11 @@ static ANSI_RE: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
-static PROGRESS_BAR_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\s*\[[\s=\->]+\]\s*\d*%?\s*$|^\s*\d{1,3}%\s*$").unwrap()
-});
+static PROGRESS_BAR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\s*\[[\s=\->]+\]\s*\d*%?\s*$|^\s*\d{1,3}%\s*$").unwrap());
 
-static SPINNER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷|/\-\\]\s").unwrap()
-});
+static SPINNER_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷|/\-\\]\s").unwrap());
 
 /// Clean a single line of output. Returns `None` if the line should be suppressed.
 /// Caller must maintain `prev_blank` across calls for blank-line deduplication.

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 use std::process::Command;
 
@@ -76,7 +76,10 @@ pub fn update_local(repo: &Path, crate_name: &str) -> Result<UpdateResult> {
     }
 
     cargo_install(repo, crate_name)?;
-    Ok(UpdateResult::Updated { old_ref: old, new_ref: new })
+    Ok(UpdateResult::Updated {
+        old_ref: old,
+        new_ref: new,
+    })
 }
 
 /// Update a docker component: docker compose pull + up.
@@ -122,11 +125,21 @@ pub fn update_docker(compose_file: &Path, service: &str) -> Result<UpdateResult>
         .unwrap_or_default();
 
     if old_digest == new_digest && !old_digest.is_empty() {
-        Ok(UpdateResult::AlreadyUpToDate { current_ref: old_digest })
+        Ok(UpdateResult::AlreadyUpToDate {
+            current_ref: old_digest,
+        })
     } else {
         Ok(UpdateResult::Updated {
-            old_ref: if old_digest.is_empty() { "none".into() } else { old_digest },
-            new_ref: if new_digest.is_empty() { "unknown".into() } else { new_digest },
+            old_ref: if old_digest.is_empty() {
+                "none".into()
+            } else {
+                old_digest
+            },
+            new_ref: if new_digest.is_empty() {
+                "unknown".into()
+            } else {
+                new_digest
+            },
         })
     }
 }
@@ -162,8 +175,12 @@ pub fn run_update(
         Some(name) => vec![name],
         None => {
             let mut t = vec![];
-            if config.get("kanwise").is_some() { t.push("kanwise"); }
-            if config.get("kanwise-cli").is_some() { t.push("kanwise-cli"); }
+            if config.get("kanwise").is_some() {
+                t.push("kanwise");
+            }
+            if config.get("kanwise-cli").is_some() {
+                t.push("kanwise-cli");
+            }
             if t.is_empty() {
                 bail!("kanwise-cli.json not found or empty — run `kanwise-cli install` first");
             }
@@ -174,7 +191,8 @@ pub fn run_update(
     // Check if any local components are targeted — if so, we need the workspace repo
     let has_local_targets = targets.iter().any(|name| {
         let mode = force_mode.unwrap_or_else(|| {
-            config.get(*name)
+            config
+                .get(*name)
                 .and_then(|c| c.get("mode"))
                 .and_then(|m| m.as_str())
                 .unwrap_or("local")
@@ -193,25 +211,23 @@ pub fn run_update(
                         "repo has uncommitted changes at {} — commit or stash first",
                         repo_path.display()
                     ))),
-                    Ok(false) => {
-                        match current_commit(repo_path) {
-                            Err(e) => Some(Err(e.to_string())),
-                            Ok(old) => {
-                                if let Err(e) = git_pull(repo_path) {
-                                    Some(Err(e.to_string()))
-                                } else {
-                                    match current_commit(repo_path) {
-                                        Err(e) => Some(Err(e.to_string())),
-                                        Ok(new) => Some(Ok((old, new))),
-                                    }
+                    Ok(false) => match current_commit(repo_path) {
+                        Err(e) => Some(Err(e.to_string())),
+                        Ok(old) => {
+                            if let Err(e) = git_pull(repo_path) {
+                                Some(Err(e.to_string()))
+                            } else {
+                                match current_commit(repo_path) {
+                                    Err(e) => Some(Err(e.to_string())),
+                                    Ok(new) => Some(Ok((old, new))),
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
             None => Some(Err(
-                "workspace.repo not configured — use `kanwise-cli update --set-repo /path`".into()
+                "workspace.repo not configured — use `kanwise-cli update --set-repo /path`".into(),
             )),
         }
     } else {
@@ -222,9 +238,12 @@ pub fn run_update(
     for name in targets {
         let comp = config.get(name);
         if comp.is_none() {
-            results.push((name.to_string(), UpdateResult::Skipped {
-                reason: format!("{name} not configured in kanwise-cli.json"),
-            }));
+            results.push((
+                name.to_string(),
+                UpdateResult::Skipped {
+                    reason: format!("{name} not configured in kanwise-cli.json"),
+                },
+            ));
             continue;
         }
         let comp = comp.unwrap();
@@ -233,32 +252,32 @@ pub fn run_update(
             .unwrap_or_else(|| comp.get("mode").and_then(|m| m.as_str()).unwrap_or("local"));
 
         let result = match mode {
-            "local" => {
-                match &pull_result {
-                    Some(Ok((old, new))) => {
-                        if old == new {
-                            Ok(UpdateResult::AlreadyUpToDate { current_ref: old.clone() })
-                        } else {
-                            let repo_path = Path::new(workspace_repo.unwrap());
-                            match cargo_install(repo_path, name) {
-                                Ok(()) => Ok(UpdateResult::Updated {
-                                    old_ref: old.clone(),
-                                    new_ref: new.clone(),
-                                }),
-                                Err(e) => Ok(UpdateResult::Skipped {
-                                    reason: format!("cargo install failed: {e}"),
-                                }),
-                            }
+            "local" => match &pull_result {
+                Some(Ok((old, new))) => {
+                    if old == new {
+                        Ok(UpdateResult::AlreadyUpToDate {
+                            current_ref: old.clone(),
+                        })
+                    } else {
+                        let repo_path = Path::new(workspace_repo.unwrap());
+                        match cargo_install(repo_path, name) {
+                            Ok(()) => Ok(UpdateResult::Updated {
+                                old_ref: old.clone(),
+                                new_ref: new.clone(),
+                            }),
+                            Err(e) => Ok(UpdateResult::Skipped {
+                                reason: format!("cargo install failed: {e}"),
+                            }),
                         }
                     }
-                    Some(Err(reason)) => Ok(UpdateResult::Skipped {
-                        reason: reason.clone(),
-                    }),
-                    None => Ok(UpdateResult::Skipped {
-                        reason: "no workspace repo configured".into(),
-                    }),
                 }
-            }
+                Some(Err(reason)) => Ok(UpdateResult::Skipped {
+                    reason: reason.clone(),
+                }),
+                None => Ok(UpdateResult::Skipped {
+                    reason: "no workspace repo configured".into(),
+                }),
+            },
             "docker" => {
                 let compose = comp.get("compose_file").and_then(|c| c.as_str());
                 let service = comp.get("service").and_then(|s| s.as_str()).unwrap_or(name);
@@ -276,7 +295,9 @@ pub fn run_update(
 
         let result = match result {
             Ok(r) => r,
-            Err(e) => UpdateResult::Skipped { reason: e.to_string() },
+            Err(e) => UpdateResult::Skipped {
+                reason: e.to_string(),
+            },
         };
         results.push((name.to_string(), result));
     }

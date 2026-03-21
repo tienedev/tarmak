@@ -27,11 +27,7 @@ pub fn run_doctor(ctx: &DoctorContext) -> Result<Vec<(String, CheckResult)>> {
 }
 
 fn check_binary(ctx: &DoctorContext) -> CheckResult {
-    CheckResult::Ok(format!(
-        "v{} ({})",
-        ctx.cli_version,
-        ctx.cli_path.display()
-    ))
+    CheckResult::Ok(format!("v{} ({})", ctx.cli_version, ctx.cli_path.display()))
 }
 
 fn check_hook(ctx: &DoctorContext) -> Result<CheckResult> {
@@ -110,10 +106,14 @@ fn check_components(ctx: &DoctorContext) -> Result<CheckResult> {
 
     // Check for at least one component key (kanwise-cli or kanwise)
     let component_names = ["kanwise-cli", "kanwise"];
-    let has_any = component_names.iter().any(|name| config.get(*name).is_some());
+    let has_any = component_names
+        .iter()
+        .any(|name| config.get(*name).is_some());
 
     if !has_any {
-        return Ok(CheckResult::Warning("kanwise-cli.json not found — run `kanwise-cli install`".into()));
+        return Ok(CheckResult::Warning(
+            "kanwise-cli.json not found — run `kanwise-cli install`".into(),
+        ));
     }
 
     let mut parts = vec![];
@@ -122,7 +122,10 @@ fn check_components(ctx: &DoctorContext) -> Result<CheckResult> {
     }
     for name in &component_names {
         if let Some(comp) = config.get(*name) {
-            let mode = comp.get("mode").and_then(|m| m.as_str()).unwrap_or("unknown");
+            let mode = comp
+                .get("mode")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown");
             let detail = match mode {
                 "local" => format!("{name}: local"),
                 "docker" => {

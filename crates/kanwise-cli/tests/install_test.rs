@@ -1,5 +1,7 @@
-use kanwise_cli::install::{install, uninstall, HookRemoveStatus, HookStatus, McpRemoveStatus, McpStatus};
 use kanwise_cli::detect::SystemContext;
+use kanwise_cli::install::{
+    HookRemoveStatus, HookStatus, McpRemoveStatus, McpStatus, install, uninstall,
+};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -160,7 +162,10 @@ fn mcp_configured_when_kanwise_found() {
 
     let mcp = read(&dir, ".mcp.json");
     // command is the absolute path passed as kanwise_path
-    assert_eq!(mcp["mcpServers"]["kanwise"]["command"], kanwise.to_string_lossy().to_string());
+    assert_eq!(
+        mcp["mcpServers"]["kanwise"]["command"],
+        kanwise.to_string_lossy().to_string()
+    );
     assert_eq!(mcp["mcpServers"]["kanwise"]["args"][0], "mcp");
 }
 
@@ -188,9 +193,19 @@ fn mcp_removes_stale_cli_serve_entry() {
     install(dir.path(), Some(kanwise.as_path())).unwrap();
 
     let updated = read(&dir, ".mcp.json");
-    assert!(updated["mcpServers"]["cortx"].is_null(), "stale cortx entry removed"); // legacy
-    assert_eq!(updated["mcpServers"]["other"]["command"], "other-tool", "other entries preserved");
-    assert_eq!(updated["mcpServers"]["kanwise"]["command"], kanwise.to_string_lossy().to_string(), "kanwise added with absolute path");
+    assert!(
+        updated["mcpServers"]["cortx"].is_null(),
+        "stale cortx entry removed"
+    ); // legacy
+    assert_eq!(
+        updated["mcpServers"]["other"]["command"], "other-tool",
+        "other entries preserved"
+    );
+    assert_eq!(
+        updated["mcpServers"]["kanwise"]["command"],
+        kanwise.to_string_lossy().to_string(),
+        "kanwise added with absolute path"
+    );
 }
 
 // --- Hook uninstall ---
@@ -281,19 +296,27 @@ struct MockWorkspaceSystem {
     workspace_root: PathBuf,
 }
 impl SystemContext for MockWorkspaceSystem {
-    fn docker_running(&self, _name: &str) -> Option<String> { None }
+    fn docker_running(&self, _name: &str) -> Option<String> {
+        None
+    }
     fn path_exists(&self, path: &Path) -> bool {
         path == self.workspace_root.join("crates/kanwise/Cargo.toml")
     }
-    fn which(&self, _name: &str) -> Option<PathBuf> { None }
-    fn find_compose_file(&self, _near: &Path) -> Option<PathBuf> { None }
+    fn which(&self, _name: &str) -> Option<PathBuf> {
+        None
+    }
+    fn find_compose_file(&self, _near: &Path) -> Option<PathBuf> {
+        None
+    }
 }
 
 #[test]
 fn detect_and_write_config_writes_cli_json() {
     let dir = setup();
     let workspace_root = PathBuf::from("/proj");
-    let mock = MockWorkspaceSystem { workspace_root: workspace_root.clone() };
+    let mock = MockWorkspaceSystem {
+        workspace_root: workspace_root.clone(),
+    };
     kanwise_cli::install::detect_and_write_config(dir.path(), &workspace_root, &mock).unwrap();
 
     let config_path = kanwise_cli::config::cli_config_path(dir.path());

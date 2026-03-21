@@ -16,8 +16,8 @@ pub fn read_json(path: &Path) -> Result<Value> {
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     let value = serde_json::from_str(&content)
         .with_context(|| format!("malformed JSON in {}", path.display()))?;
     Ok(value)
@@ -40,8 +40,13 @@ pub fn write_json(path: &Path, value: &Value) -> Result<()> {
     file.write_all(content.as_bytes())?;
     file.write_all(b"\n")?;
     file.sync_all()?;
-    fs::rename(&tmp_path, path)
-        .with_context(|| format!("failed to rename {} -> {}", tmp_path.display(), path.display()))?;
+    fs::rename(&tmp_path, path).with_context(|| {
+        format!(
+            "failed to rename {} -> {}",
+            tmp_path.display(),
+            path.display()
+        )
+    })?;
     Ok(())
 }
 

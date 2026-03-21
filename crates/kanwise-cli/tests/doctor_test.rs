@@ -1,4 +1,4 @@
-use kanwise_cli::doctor::{run_doctor, CheckResult, DoctorContext};
+use kanwise_cli::doctor::{CheckResult, DoctorContext, run_doctor};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -101,7 +101,8 @@ fn doctor_shows_component_info_from_cli_json() {
         "kanwise-cli": {"mode": "local"},
         "kanwise": {"mode": "docker", "image": "ghcr.io/tienedev/kanwise:latest"}
     });
-    kanwise_cli::config::write_json(&kanwise_cli::config::cli_config_path(dir.path()), &config).unwrap();
+    kanwise_cli::config::write_json(&kanwise_cli::config::cli_config_path(dir.path()), &config)
+        .unwrap();
 
     let ctx = make_context(&dir);
     let results = run_doctor(&ctx).unwrap();
@@ -109,9 +110,15 @@ fn doctor_shows_component_info_from_cli_json() {
     assert!(comp_check.is_some(), "should have Components check");
     match &comp_check.unwrap().1 {
         CheckResult::Ok(msg) => {
-            assert!(msg.contains("kanwise-cli: local"), "should show kanwise-cli mode");
+            assert!(
+                msg.contains("kanwise-cli: local"),
+                "should show kanwise-cli mode"
+            );
             assert!(msg.contains("kanwise: docker"), "should show kanwise mode");
-            assert!(msg.contains("workspace: /some/path"), "should show workspace repo");
+            assert!(
+                msg.contains("workspace: /some/path"),
+                "should show workspace repo"
+            );
         }
         other => panic!("expected Ok, got {other:?}"),
     }

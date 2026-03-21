@@ -1,6 +1,6 @@
 use crate::config;
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::Path;
 
 // --- Types ---
@@ -79,9 +79,7 @@ fn install_hook(claude_dir: &Path) -> Result<HookStatus> {
             .as_array_mut()
             .unwrap()
             .iter_mut()
-            .filter(|h| {
-                h.get("command").and_then(|c| c.as_str()) == Some("token-cleaner hook")
-            })
+            .filter(|h| h.get("command").and_then(|c| c.as_str()) == Some("token-cleaner hook"))
             .for_each(|h| h["command"] = json!("kanwise-cli hook"));
         config::write_json(&settings_path, &settings)?;
         return Ok(HookStatus::Migrated);
@@ -93,9 +91,7 @@ fn install_hook(claude_dir: &Path) -> Result<HookStatus> {
             .as_array_mut()
             .unwrap()
             .iter_mut()
-            .filter(|h| {
-                h.get("command").and_then(|c| c.as_str()) == Some("cortx hook")
-            })
+            .filter(|h| h.get("command").and_then(|c| c.as_str()) == Some("cortx hook"))
             .for_each(|h| h["command"] = json!("kanwise-cli hook"));
         config::write_json(&settings_path, &settings)?;
         return Ok(HookStatus::Migrated);
@@ -275,7 +271,11 @@ pub fn detect_and_write_config(
 ///   "kanwise": {"mode": "local|docker", ...docker fields if applicable...}
 /// }
 /// ```
-fn write_cli_config(claude_dir: &Path, workspace_root: &Path, kanwise_mode: &crate::detect::ComponentMode) -> Result<()> {
+fn write_cli_config(
+    claude_dir: &Path,
+    workspace_root: &Path,
+    kanwise_mode: &crate::detect::ComponentMode,
+) -> Result<()> {
     let config_path = config::cli_config_path(claude_dir);
     let mut config = json!({
         "workspace": {
@@ -292,7 +292,12 @@ fn write_cli_config(claude_dir: &Path, workspace_root: &Path, kanwise_mode: &cra
                 "mode": "local"
             });
         }
-        crate::detect::ComponentMode::Docker { image, compose_file, service, .. } => {
+        crate::detect::ComponentMode::Docker {
+            image,
+            compose_file,
+            service,
+            ..
+        } => {
             config["kanwise"] = json!({
                 "mode": "docker",
                 "image": image,

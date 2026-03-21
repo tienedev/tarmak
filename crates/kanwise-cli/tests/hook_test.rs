@@ -49,7 +49,10 @@ fn anti_recursion_passthrough() {
         "tool_input": { "command": "kanwise-cli exec -- cargo test" }
     });
     let result = rewrite_hook(&input.to_string());
-    assert!(result.is_none(), "should pass through already-wrapped commands");
+    assert!(
+        result.is_none(),
+        "should pass through already-wrapped commands"
+    );
 }
 
 #[test]
@@ -59,7 +62,10 @@ fn anti_recursion_legacy_token_cleaner() {
         "tool_input": { "command": "token-cleaner exec -- cargo test" }
     });
     let result = rewrite_hook(&input.to_string());
-    assert!(result.is_none(), "should pass through legacy token-cleaner wrapped commands");
+    assert!(
+        result.is_none(),
+        "should pass through legacy token-cleaner wrapped commands"
+    );
 }
 
 #[test]
@@ -85,5 +91,8 @@ fn missing_command_passthrough() {
         "tool_input": {}
     });
     let result = rewrite_hook(&input.to_string());
-    assert!(result.is_none(), "should pass through when command is missing");
+    assert!(
+        result.is_none(),
+        "should pass through when command is missing"
+    );
 }

@@ -38,7 +38,8 @@ fn strip_carriage_return_lines() {
 
 #[test]
 fn strip_progress_bar_only_lines() {
-    let input = "Building:\n[====>        ] 33%\n[========>    ] 66%\n[=============] 100%\nFinished.";
+    let input =
+        "Building:\n[====>        ] 33%\n[========>    ] 66%\n[=============] 100%\nFinished.";
     assert_eq!(clean(input), "Building:\nFinished.\n");
 }
 

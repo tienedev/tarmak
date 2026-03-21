@@ -1,4 +1,4 @@
-use kanwise_cli::detect::{detect_kanwise, ComponentMode, SystemContext};
+use kanwise_cli::detect::{ComponentMode, SystemContext, detect_kanwise};
 use std::path::{Path, PathBuf};
 
 struct MockSystem {
@@ -9,10 +9,18 @@ struct MockSystem {
 }
 
 impl SystemContext for MockSystem {
-    fn docker_running(&self, _name: &str) -> Option<String> { self.docker_image.clone() }
-    fn path_exists(&self, path: &Path) -> bool { self.existing_paths.iter().any(|p| p == path) }
-    fn which(&self, _name: &str) -> Option<PathBuf> { self.which_result.clone() }
-    fn find_compose_file(&self, _near: &Path) -> Option<PathBuf> { self.compose_file.clone() }
+    fn docker_running(&self, _name: &str) -> Option<String> {
+        self.docker_image.clone()
+    }
+    fn path_exists(&self, path: &Path) -> bool {
+        self.existing_paths.iter().any(|p| p == path)
+    }
+    fn which(&self, _name: &str) -> Option<PathBuf> {
+        self.which_result.clone()
+    }
+    fn find_compose_file(&self, _near: &Path) -> Option<PathBuf> {
+        self.compose_file.clone()
+    }
 }
 
 #[test]
@@ -41,7 +49,12 @@ fn local_crate_detected() {
         compose_file: None,
     };
     let result = detect_kanwise(&ctx, Path::new("/proj"));
-    assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj") });
+    assert_eq!(
+        result,
+        ComponentMode::Local {
+            repo: PathBuf::from("/proj")
+        }
+    );
 }
 
 #[test]
@@ -53,7 +66,12 @@ fn binary_only_fallback() {
         compose_file: None,
     };
     let result = detect_kanwise(&ctx, Path::new("/proj"));
-    assert_eq!(result, ComponentMode::BinaryOnly { path: PathBuf::from("/usr/local/bin/kanwise") });
+    assert_eq!(
+        result,
+        ComponentMode::BinaryOnly {
+            path: PathBuf::from("/usr/local/bin/kanwise")
+        }
+    );
 }
 
 #[test]
@@ -65,7 +83,12 @@ fn docker_without_compose_falls_through_to_local() {
         compose_file: None,
     };
     let result = detect_kanwise(&ctx, Path::new("/proj"));
-    assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj") });
+    assert_eq!(
+        result,
+        ComponentMode::Local {
+            repo: PathBuf::from("/proj")
+        }
+    );
 }
 
 #[test]

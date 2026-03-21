@@ -85,7 +85,10 @@ fn update_help_works() {
         .output()
         .expect("failed to run");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Update kanwise-cli"), "should show update help");
+    assert!(
+        stdout.contains("Update kanwise-cli"),
+        "should show update help"
+    );
     assert!(stdout.contains("--docker"), "should show --docker flag");
     assert!(stdout.contains("--local"), "should show --local flag");
     assert!(stdout.contains("--set-repo"), "should show --set-repo flag");

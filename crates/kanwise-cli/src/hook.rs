@@ -9,10 +9,7 @@ pub fn rewrite_hook(input: &str) -> Option<String> {
         return None;
     }
 
-    let command = parsed
-        .get("tool_input")?
-        .get("command")?
-        .as_str()?;
+    let command = parsed.get("tool_input")?.get("command")?.as_str()?;
 
     // Anti-recursion: check both kanwise-cli and legacy token-cleaner prefixes.
     // Trailing space ensures we don't match hypothetical other subcommands.

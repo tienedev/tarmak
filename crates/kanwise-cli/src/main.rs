@@ -3,7 +3,11 @@ use std::io::{self, BufRead, Read, Write};
 use std::process::{Command, Stdio};
 
 #[derive(Parser)]
-#[command(name = "kanwise-cli", version, about = "Configure Claude Code dev environment")]
+#[command(
+    name = "kanwise-cli",
+    version,
+    about = "Configure Claude Code dev environment"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -48,7 +52,12 @@ fn main() {
         Commands::Doctor => cmd_doctor(),
         Commands::Hook => cmd_hook(),
         Commands::Exec { command } => cmd_exec(&command),
-        Commands::Update { component, docker, local, set_repo } => {
+        Commands::Update {
+            component,
+            docker,
+            local,
+            set_repo,
+        } => {
             cmd_update(component.as_deref(), docker, local, set_repo);
         }
     }
@@ -80,27 +89,21 @@ fn cmd_install() {
                 }
                 kanwise_cli::install::McpStatus::KanwiseNotFound => {
                     println!("⚠ kanwise not found in PATH — MCP not configured");
-                    println!(
-                        "  Install via Docker: ghcr.io/tienedev/kanwise:latest"
-                    );
-                    println!(
-                        "  Or build from source: https://github.com/tienedev/kanwise"
-                    );
+                    println!("  Install via Docker: ghcr.io/tienedev/kanwise:latest");
+                    println!("  Or build from source: https://github.com/tienedev/kanwise");
                 }
             }
-            println!(
-                "ℹ Plugin: run these commands in Claude Code:"
-            );
-            println!(
-                "  /plugin marketplace add tienedev/kanwise-skills"
-            );
-            println!(
-                "  /plugin install kanwise-skills@tienedev-kanwise-skills"
-            );
+            println!("ℹ Plugin: run these commands in Claude Code:");
+            println!("  /plugin marketplace add tienedev/kanwise-skills");
+            println!("  /plugin install kanwise-skills@tienedev-kanwise-skills");
 
             // Detect component modes and write kanwise-cli.json
             let workspace_root = kanwise_cli::detect::detect_workspace_root();
-            if let Err(e) = kanwise_cli::install::detect_and_write_config(&claude_dir, &workspace_root, &kanwise_cli::detect::RealSystem) {
+            if let Err(e) = kanwise_cli::install::detect_and_write_config(
+                &claude_dir,
+                &workspace_root,
+                &kanwise_cli::detect::RealSystem,
+            ) {
                 eprintln!("⚠ could not write kanwise-cli.json: {e}");
             }
         }
@@ -194,7 +197,8 @@ fn cmd_exec(args: &[String]) {
 
     // Collect stderr in a background thread (typically small)
     let child_stderr = child.stderr.take().unwrap();
-    let stderr_thread = std::thread::spawn(move || io::read_to_string(child_stderr).unwrap_or_default());
+    let stderr_thread =
+        std::thread::spawn(move || io::read_to_string(child_stderr).unwrap_or_default());
 
     // Stream stdout line-by-line through the cleaning pipeline
     let child_stdout = child.stdout.take().unwrap();
@@ -239,7 +243,8 @@ fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Opti
         let config_path = kanwise_cli::config::cli_config_path(&claude_dir);
         let mut config = kanwise_cli::config::read_json(&config_path).unwrap_or_default();
         let workspace = config
-            .as_object_mut().unwrap()
+            .as_object_mut()
+            .unwrap()
             .entry("workspace")
             .or_insert(serde_json::json!({}));
         workspace["repo"] = serde_json::json!(path.to_string_lossy().to_string());
