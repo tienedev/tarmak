@@ -36,3 +36,4 @@ argon2 = { version = "0.5", features = ["std"] }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 dirs = "6"
+portable-pty = "0.8"
