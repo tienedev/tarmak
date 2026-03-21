@@ -55,6 +55,10 @@ pub fn run_migrations(conn: &Connection) -> anyhow::Result<()> {
         v9(conn).context("applying migration v9")?;
     }
 
+    if current < 10 {
+        v10(conn).context("applying migration v10")?;
+    }
+
     Ok(())
 }
 
@@ -535,6 +539,47 @@ fn v9(conn: &Connection) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// V10 -- agent_sessions table + repo_url on boards
+// ---------------------------------------------------------------------------
+
+fn v10(conn: &Connection) -> anyhow::Result<()> {
+    let tx = conn
+        .unchecked_transaction()
+        .context("begin v10 transaction")?;
+    tx.execute_batch(
+        "
+        ALTER TABLE boards ADD COLUMN repo_url TEXT;
+
+        CREATE TABLE agent_sessions (
+            id              TEXT PRIMARY KEY NOT NULL,
+            board_id        TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+            task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            status          TEXT NOT NULL DEFAULT 'running',
+            user_id         TEXT NOT NULL REFERENCES users(id),
+            branch_name     TEXT,
+            agent_profile_id TEXT,
+            started_at      TEXT,
+            finished_at     TEXT,
+            exit_code       INTEGER,
+            log             TEXT,
+            created_at      TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_agent_sessions_board ON agent_sessions(board_id);
+        CREATE INDEX idx_agent_sessions_task ON agent_sessions(task_id);
+        CREATE INDEX idx_agent_sessions_status ON agent_sessions(status);
+        CREATE UNIQUE INDEX idx_agent_sessions_running_per_task
+            ON agent_sessions(task_id) WHERE status = 'running';
+
+        INSERT INTO schema_version (version) VALUES (10);
+        ",
+    )
+    .context("v10 migration")?;
+    tx.commit().context("commit v10")?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -551,7 +596,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 9);
+        assert_eq!(ver, 10);
 
         // Spot-check a few tables exist by running innocuous queries.
         conn.execute_batch("SELECT 1 FROM boards LIMIT 0").unwrap();
@@ -599,6 +644,11 @@ mod tests {
         // v9 task locking
         conn.execute_batch("SELECT locked_by, locked_at FROM tasks LIMIT 0")
             .unwrap();
+        // v10 agent_sessions + repo_url
+        conn.execute("SELECT id, board_id, task_id, status FROM agent_sessions LIMIT 0", [])
+            .unwrap();
+        conn.execute("SELECT repo_url FROM boards LIMIT 0", [])
+            .unwrap();
     }
 
     #[test]
@@ -611,7 +661,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 9);
+        assert_eq!(ver, 10);
     }
 
     #[test]
@@ -622,7 +672,7 @@ mod tests {
         let ver: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(ver, 9);
+        assert_eq!(ver, 10);
 
         // Verify new column exists
         conn.execute_batch("SELECT password_hash FROM users LIMIT 0")
