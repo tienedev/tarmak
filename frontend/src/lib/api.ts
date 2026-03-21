@@ -326,6 +326,16 @@ export const api = {
     request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
   getStreamTicket: () =>
     request<{ ticket: string }>('/notifications/stream-ticket', { method: 'POST' }),
+
+  // Agent Sessions
+  listAgentSessions: (boardId: string, taskId?: string) => {
+    const params = taskId ? `?task_id=${taskId}` : ''
+    return request<AgentSession[]>(`/boards/${boardId}/agent-sessions${params}`)
+  },
+  getAgentSession: (boardId: string, sessionId: string) =>
+    request<AgentSession>(`/boards/${boardId}/agent-sessions/${sessionId}`),
+  cancelAgentSession: (boardId: string, sessionId: string) =>
+    request<AgentSession>(`/boards/${boardId}/agent-sessions/${sessionId}/cancel`, { method: 'POST' }),
 }
 
 // Types
@@ -333,6 +343,7 @@ export interface Board {
   id: string
   name: string
   description: string | null
+  repo_url?: string | null
   created_at: string
   updated_at: string
 }
@@ -486,5 +497,20 @@ export interface Attachment {
   size_bytes: number
   storage_key: string
   uploaded_by?: string
+  created_at: string
+}
+
+export interface AgentSession {
+  id: string
+  board_id: string
+  task_id: string
+  status: 'running' | 'success' | 'failed' | 'cancelled'
+  user_id: string
+  branch_name: string | null
+  agent_profile_id: string | null
+  started_at: string | null
+  finished_at: string | null
+  exit_code: number | null
+  log: string | null
   created_at: string
 }
