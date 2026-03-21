@@ -185,6 +185,7 @@ async fn run(
     let board_id = body.board_id.clone();
     let task_id = body.task_id.clone();
     let branch_clone = branch.clone();
+    let sid_for_create = session_id.clone();
     tokio::spawn(async move {
         let client = reqwest::Client::new();
         let _ = client
@@ -193,6 +194,7 @@ async fn run(
             ))
             .bearer_auth(&server_token)
             .json(&serde_json::json!({
+                "id": sid_for_create,
                 "task_id": task_id,
                 "branch_name": branch_clone,
             }))

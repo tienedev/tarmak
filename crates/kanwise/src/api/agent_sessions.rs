@@ -10,6 +10,7 @@ use crate::db::Db;
 
 #[derive(Deserialize)]
 pub struct CreateAgentSession {
+    pub id: Option<String>,
     pub task_id: String,
     pub branch_name: Option<String>,
 }
@@ -34,7 +35,7 @@ pub async fn create(
 ) -> Result<Json<AgentSession>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     let session = db
-        .create_agent_session(&board_id, &body.task_id, &user.id, body.branch_name.as_deref())
+        .create_agent_session(body.id.as_deref(), &board_id, &body.task_id, &user.id, body.branch_name.as_deref())
         .await
         .map_err(|e| {
             if e.to_string().contains("UNIQUE constraint failed") {

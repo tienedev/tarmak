@@ -3197,17 +3197,19 @@ fn map_agent_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentSessi
 impl Db {
     pub async fn create_agent_session(
         &self,
+        id: Option<&str>,
         board_id: &str,
         task_id: &str,
         user_id: &str,
         branch_name: Option<&str>,
     ) -> anyhow::Result<AgentSession> {
+        let id = id.map(|s| s.to_string());
         let board_id = board_id.to_string();
         let task_id = task_id.to_string();
         let user_id = user_id.to_string();
         let branch_name = branch_name.map(|s| s.to_string());
         self.with_conn(move |conn| {
-            let id = new_id();
+            let id = id.unwrap_or_else(new_id);
             let now = now_iso();
             conn.execute(
                 "INSERT INTO agent_sessions (id, board_id, task_id, status, user_id, branch_name, started_at, created_at)
