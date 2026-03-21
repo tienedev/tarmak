@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { useBoardStore } from '@/stores/board'
 import { useNotificationStore } from '@/stores/notifications'
 import { api, type InviteLink, type CustomField } from '@/lib/api'
+import { agentApi } from '@/lib/agent'
 import { useAuthStore } from '@/stores/auth'
 import { cn } from '@/lib/utils'
 import {
@@ -109,6 +110,8 @@ function GeneralTab({ boardId }: { boardId: string }) {
   const addNotification = useNotificationStore((s) => s.add)
   const [repoUrl, setRepoUrl] = useState(currentBoard?.repo_url ?? '')
   const [saving, setSaving] = useState(false)
+  const [agentTokenInput, setAgentTokenInput] = useState(agentApi.getToken() ?? '')
+  const [tokenSaved, setTokenSaved] = useState(false)
 
   useEffect(() => {
     setRepoUrl(currentBoard?.repo_url ?? '')
@@ -126,6 +129,18 @@ function GeneralTab({ boardId }: { boardId: string }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSaveAgentToken = () => {
+    const trimmed = agentTokenInput.trim()
+    if (trimmed) {
+      agentApi.setToken(trimmed)
+    } else {
+      localStorage.removeItem('agent-token')
+    }
+    setTokenSaved(true)
+    addNotification('Agent token saved')
+    setTimeout(() => setTokenSaved(false), 2000)
   }
 
   return (
@@ -152,6 +167,28 @@ function GeneralTab({ boardId }: { boardId: string }) {
           />
           <Button size="sm" onClick={handleSaveRepoUrl} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium">Agent Token</label>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Paste the token displayed when you start <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">kanwise agent</code>. Stored locally in your browser.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            value={agentTokenInput}
+            onChange={(e) => setAgentTokenInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAgentToken() }}
+            placeholder="Paste agent token..."
+            className="flex-1 text-sm font-mono"
+          />
+          <Button size="sm" onClick={handleSaveAgentToken}>
+            {tokenSaved ? 'Saved' : 'Save'}
           </Button>
         </div>
       </div>
