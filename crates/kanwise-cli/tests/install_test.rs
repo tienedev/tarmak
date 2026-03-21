@@ -298,9 +298,10 @@ fn detect_and_write_config_writes_cli_json() {
 
     let config_path = kanwise_cli::config::cli_config_path(dir.path());
     let config = kanwise_cli::config::read_json(&config_path).unwrap();
-    assert!(config.get("components").is_some());
-    assert_eq!(config["components"]["kanwise-cli"]["mode"], "local");
-    assert_eq!(config["components"]["kanwise-cli"]["repo"], "/proj");
-    assert_eq!(config["components"]["kanwise"]["mode"], "local");
-    assert_eq!(config["components"]["kanwise"]["repo"], "/proj");
+    // New schema: workspace.repo at top level, components as top-level keys
+    assert_eq!(config["workspace"]["repo"], "/proj");
+    assert_eq!(config["kanwise-cli"]["mode"], "local");
+    assert_eq!(config["kanwise"]["mode"], "local");
+    // No nested "components" key in new schema
+    assert!(config.get("components").is_none());
 }

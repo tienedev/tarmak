@@ -34,9 +34,9 @@ enum Commands {
         /// Force local mode for kanwise
         #[arg(long)]
         local: bool,
-        /// Override repo path: --set-repo <component> <path>
-        #[arg(long, num_args = 2, value_names = ["COMPONENT", "PATH"])]
-        set_repo: Option<Vec<String>>,
+        /// Override workspace repo path: --set-repo <path>
+        #[arg(long, num_args = 1, value_name = "PATH")]
+        set_repo: Option<String>,
     },
 }
 
@@ -221,42 +221,30 @@ fn cmd_exec(args: &[String]) {
     std::process::exit(status.code().unwrap_or(1));
 }
 
-fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Option<Vec<String>>) {
+fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Option<String>) {
     let claude_dir = kanwise_cli::config::claude_dir();
 
     // Handle --set-repo
-    if let Some(args) = set_repo {
-        let name = &args[0];
-        let path = std::path::Path::new(&args[1]);
+    if let Some(repo_path) = set_repo {
+        let path = std::path::Path::new(&repo_path);
         if !path.exists() {
             eprintln!("⚠ path does not exist: {}", path.display());
             std::process::exit(1);
         }
-        let cargo_toml = if name == "kanwise-cli" || name == "kanwise" {
-            path.join("Cargo.toml")
-        } else {
-            eprintln!("⚠ unknown component: {name} (expected kanwise-cli or kanwise)");
-            std::process::exit(1);
-        };
-        if !cargo_toml.exists() {
+        if !path.join("Cargo.toml").exists() {
             eprintln!("⚠ no Cargo.toml found at {}", path.display());
             std::process::exit(1);
         }
-        // Update kanwise-cli.json
+        // Update workspace.repo in kanwise-cli.json
         let config_path = kanwise_cli::config::cli_config_path(&claude_dir);
         let mut config = kanwise_cli::config::read_json(&config_path).unwrap_or_default();
-        let components = config
+        let workspace = config
             .as_object_mut().unwrap()
-            .entry("components")
+            .entry("workspace")
             .or_insert(serde_json::json!({}));
-        let comp = components
-            .as_object_mut().unwrap()
-            .entry(name.to_string())
-            .or_insert(serde_json::json!({}));
-        comp["repo"] = serde_json::json!(path.to_string_lossy().to_string());
-        comp["mode"] = serde_json::json!("local");
+        workspace["repo"] = serde_json::json!(path.to_string_lossy().to_string());
         kanwise_cli::config::write_json(&config_path, &config).unwrap();
-        println!("✓ {name} repo set to {}", path.display());
+        println!("✓ workspace repo set to {}", path.display());
         return;
     }
 
@@ -274,8 +262,7 @@ fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Opti
         let comp_name = component.unwrap_or("kanwise");
         let config_path = kanwise_cli::config::cli_config_path(&claude_dir);
         if let Ok(mut config) = kanwise_cli::config::read_json(&config_path)
-            && let Some(components) = config.get_mut("components").and_then(|c| c.as_object_mut())
-            && let Some(comp) = components.get_mut(comp_name)
+            && let Some(comp) = config.get_mut(comp_name)
         {
             comp["mode"] = serde_json::json!(mode);
             let _ = kanwise_cli::config::write_json(&config_path, &config);

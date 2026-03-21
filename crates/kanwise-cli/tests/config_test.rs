@@ -82,9 +82,8 @@ fn cli_config_roundtrip() {
     let dir = TempDir::new().unwrap();
     let path = cli_config_path(dir.path());
     let data = serde_json::json!({
-        "components": {
-            "kanwise-cli": {"mode": "local", "repo": "/some/path"}
-        }
+        "workspace": {"repo": "/some/path"},
+        "kanwise-cli": {"mode": "local"}
     });
     write_json(&path, &data).unwrap();
     let result = read_json(&path).unwrap();

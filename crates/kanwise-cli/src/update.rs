@@ -132,6 +132,18 @@ pub fn update_docker(compose_file: &Path, service: &str) -> Result<UpdateResult>
 }
 
 /// Read kanwise-cli.json and run updates for the specified component(s).
+///
+/// New config schema (monorepo model):
+/// ```json
+/// {
+///   "workspace": {"repo": "/path/to/kanwise"},
+///   "kanwise-cli": {"mode": "local"},
+///   "kanwise": {"mode": "local"}
+/// }
+/// ```
+///
+/// All local components share a single workspace repo. One git pull, then
+/// cargo install per requested crate.
 pub fn run_update(
     claude_dir: &Path,
     component: Option<&str>,
@@ -140,47 +152,110 @@ pub fn run_update(
     let config_path = crate::config::cli_config_path(claude_dir);
     let config = crate::config::read_json(&config_path)?;
 
-    let components = config.get("components")
-        .and_then(|c| c.as_object());
-
-    if components.is_none() {
-        bail!("kanwise-cli.json not found or empty — run `kanwise-cli install` first");
-    }
-    let components = components.unwrap();
+    let workspace_repo = config
+        .get("workspace")
+        .and_then(|w| w.get("repo"))
+        .and_then(|r| r.as_str());
 
     // Determine which components to update (kanwise first, kanwise-cli last)
     let targets: Vec<&str> = match component {
         Some(name) => vec![name],
         None => {
             let mut t = vec![];
-            if components.contains_key("kanwise") { t.push("kanwise"); }
-            if components.contains_key("kanwise-cli") { t.push("kanwise-cli"); }
+            if config.get("kanwise").is_some() { t.push("kanwise"); }
+            if config.get("kanwise-cli").is_some() { t.push("kanwise-cli"); }
+            if t.is_empty() {
+                bail!("kanwise-cli.json not found or empty — run `kanwise-cli install` first");
+            }
             t
         }
     };
 
+    // Check if any local components are targeted — if so, we need the workspace repo
+    let has_local_targets = targets.iter().any(|name| {
+        let mode = force_mode.unwrap_or_else(|| {
+            config.get(*name)
+                .and_then(|c| c.get("mode"))
+                .and_then(|m| m.as_str())
+                .unwrap_or("local")
+        });
+        mode == "local"
+    });
+
+    // Single git pull for the shared workspace repo (if needed)
+    let pull_result: Option<Result<(String, String), String>> = if has_local_targets {
+        match workspace_repo {
+            Some(repo) => {
+                let repo_path = Path::new(repo);
+                match check_dirty(repo_path) {
+                    Err(e) => Some(Err(e.to_string())),
+                    Ok(true) => Some(Err(format!(
+                        "repo has uncommitted changes at {} — commit or stash first",
+                        repo_path.display()
+                    ))),
+                    Ok(false) => {
+                        match current_commit(repo_path) {
+                            Err(e) => Some(Err(e.to_string())),
+                            Ok(old) => {
+                                if let Err(e) = git_pull(repo_path) {
+                                    Some(Err(e.to_string()))
+                                } else {
+                                    match current_commit(repo_path) {
+                                        Err(e) => Some(Err(e.to_string())),
+                                        Ok(new) => Some(Ok((old, new))),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            None => Some(Err(
+                "workspace.repo not configured — use `kanwise-cli update --set-repo /path`".into()
+            )),
+        }
+    } else {
+        None
+    };
+
     let mut results = vec![];
     for name in targets {
-        let comp = match components.get(name) {
-            Some(c) => c,
-            None => {
-                results.push((name.to_string(), UpdateResult::Skipped {
-                    reason: format!("{name} not configured in kanwise-cli.json"),
-                }));
-                continue;
-            }
-        };
+        let comp = config.get(name);
+        if comp.is_none() {
+            results.push((name.to_string(), UpdateResult::Skipped {
+                reason: format!("{name} not configured in kanwise-cli.json"),
+            }));
+            continue;
+        }
+        let comp = comp.unwrap();
 
         let mode = force_mode
             .unwrap_or_else(|| comp.get("mode").and_then(|m| m.as_str()).unwrap_or("local"));
 
         let result = match mode {
             "local" => {
-                let repo = comp.get("repo").and_then(|r| r.as_str());
-                match repo {
-                    Some(repo) => update_local(repo.as_ref(), name),
+                match &pull_result {
+                    Some(Ok((old, new))) => {
+                        if old == new {
+                            Ok(UpdateResult::AlreadyUpToDate { current_ref: old.clone() })
+                        } else {
+                            let repo_path = Path::new(workspace_repo.unwrap());
+                            match cargo_install(repo_path, name) {
+                                Ok(()) => Ok(UpdateResult::Updated {
+                                    old_ref: old.clone(),
+                                    new_ref: new.clone(),
+                                }),
+                                Err(e) => Ok(UpdateResult::Skipped {
+                                    reason: format!("cargo install failed: {e}"),
+                                }),
+                            }
+                        }
+                    }
+                    Some(Err(reason)) => Ok(UpdateResult::Skipped {
+                        reason: reason.clone(),
+                    }),
                     None => Ok(UpdateResult::Skipped {
-                        reason: format!("{name} repo path not configured — use `kanwise-cli update --set-repo {name} /path`"),
+                        reason: "no workspace repo configured".into(),
                     }),
                 }
             }

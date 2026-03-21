@@ -266,24 +266,34 @@ pub fn detect_and_write_config(
 }
 
 /// Write kanwise-cli.json with detected component configurations.
+///
+/// New schema (monorepo model):
+/// ```json
+/// {
+///   "workspace": {"repo": "/path/to/workspace"},
+///   "kanwise-cli": {"mode": "local"},
+///   "kanwise": {"mode": "local|docker", ...docker fields if applicable...}
+/// }
+/// ```
 fn write_cli_config(claude_dir: &Path, workspace_root: &Path, kanwise_mode: &crate::detect::ComponentMode) -> Result<()> {
     let config_path = config::cli_config_path(claude_dir);
-    let mut components = json!({
-        "kanwise-cli": {
-            "mode": "local",
+    let mut config = json!({
+        "workspace": {
             "repo": workspace_root.to_string_lossy()
+        },
+        "kanwise-cli": {
+            "mode": "local"
         }
     });
 
     match kanwise_mode {
-        crate::detect::ComponentMode::Local { repo } => {
-            components["kanwise"] = json!({
-                "mode": "local",
-                "repo": repo.to_string_lossy().to_string()
+        crate::detect::ComponentMode::Local { repo: _ } => {
+            config["kanwise"] = json!({
+                "mode": "local"
             });
         }
-        crate::detect::ComponentMode::Docker { image, compose_file, service } => {
-            components["kanwise"] = json!({
+        crate::detect::ComponentMode::Docker { image, compose_file, service, .. } => {
+            config["kanwise"] = json!({
                 "mode": "docker",
                 "image": image,
                 "compose_file": compose_file.to_string_lossy().to_string(),
@@ -291,13 +301,12 @@ fn write_cli_config(claude_dir: &Path, workspace_root: &Path, kanwise_mode: &cra
             });
         }
         crate::detect::ComponentMode::BinaryOnly { path: _ } => {
-            components["kanwise"] = json!({
+            config["kanwise"] = json!({
                 "mode": "local"
             });
         }
         crate::detect::ComponentMode::NotFound => {}
     }
 
-    let config = json!({ "components": components });
     config::write_json(&config_path, &config)
 }

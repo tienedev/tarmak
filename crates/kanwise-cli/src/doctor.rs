@@ -103,25 +103,36 @@ fn check_components(ctx: &DoctorContext) -> Result<CheckResult> {
     let config_path = config::cli_config_path(&ctx.claude_dir);
     let config = config::read_json(&config_path)?;
 
-    let Some(components) = config.get("components").and_then(|c| c.as_object()) else {
+    let workspace_repo = config
+        .get("workspace")
+        .and_then(|w| w.get("repo"))
+        .and_then(|r| r.as_str());
+
+    // Check for at least one component key (kanwise-cli or kanwise)
+    let component_names = ["kanwise-cli", "kanwise"];
+    let has_any = component_names.iter().any(|name| config.get(*name).is_some());
+
+    if !has_any {
         return Ok(CheckResult::Warning("kanwise-cli.json not found — run `kanwise-cli install`".into()));
-    };
+    }
 
     let mut parts = vec![];
-    for (name, comp) in components {
-        let mode = comp.get("mode").and_then(|m| m.as_str()).unwrap_or("unknown");
-        let detail = match mode {
-            "local" => {
-                let repo = comp.get("repo").and_then(|r| r.as_str()).unwrap_or("?");
-                format!("{name}: local ({repo})")
-            }
-            "docker" => {
-                let image = comp.get("image").and_then(|i| i.as_str()).unwrap_or("?");
-                format!("{name}: docker ({image})")
-            }
-            _ => format!("{name}: {mode}"),
-        };
-        parts.push(detail);
+    if let Some(repo) = workspace_repo {
+        parts.push(format!("workspace: {repo}"));
+    }
+    for name in &component_names {
+        if let Some(comp) = config.get(*name) {
+            let mode = comp.get("mode").and_then(|m| m.as_str()).unwrap_or("unknown");
+            let detail = match mode {
+                "local" => format!("{name}: local"),
+                "docker" => {
+                    let image = comp.get("image").and_then(|i| i.as_str()).unwrap_or("?");
+                    format!("{name}: docker ({image})")
+                }
+                _ => format!("{name}: {mode}"),
+            };
+            parts.push(detail);
+        }
     }
 
     Ok(CheckResult::Ok(parts.join(", ")))

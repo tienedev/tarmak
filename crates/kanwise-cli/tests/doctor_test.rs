@@ -97,10 +97,9 @@ fn doctor_shows_component_info_from_cli_json() {
     let dir = TempDir::new().unwrap();
     // Write kanwise-cli.json directly (no install() call — avoids RealSystem side effects)
     let config = serde_json::json!({
-        "components": {
-            "kanwise-cli": {"mode": "local", "repo": "/some/path/kanwise-cli"},
-            "kanwise": {"mode": "docker", "image": "ghcr.io/tienedev/kanwise:latest"}
-        }
+        "workspace": {"repo": "/some/path"},
+        "kanwise-cli": {"mode": "local"},
+        "kanwise": {"mode": "docker", "image": "ghcr.io/tienedev/kanwise:latest"}
     });
     kanwise_cli::config::write_json(&kanwise_cli::config::cli_config_path(dir.path()), &config).unwrap();
 
@@ -112,6 +111,7 @@ fn doctor_shows_component_info_from_cli_json() {
         CheckResult::Ok(msg) => {
             assert!(msg.contains("kanwise-cli: local"), "should show kanwise-cli mode");
             assert!(msg.contains("kanwise: docker"), "should show kanwise mode");
+            assert!(msg.contains("workspace: /some/path"), "should show workspace repo");
         }
         other => panic!("expected Ok, got {other:?}"),
     }
