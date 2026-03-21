@@ -51,6 +51,7 @@ impl Db {
                 id,
                 name,
                 description,
+                repo_url: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             })
@@ -66,14 +67,15 @@ impl Db {
     pub async fn list_boards(&self) -> anyhow::Result<Vec<Board>> {
         self.with_conn(move |conn| {
             let mut stmt =
-                conn.prepare("SELECT id, name, description, created_at, updated_at FROM boards ORDER BY created_at")?;
+                conn.prepare("SELECT id, name, description, repo_url, created_at, updated_at FROM boards ORDER BY created_at")?;
             let rows = stmt.query_map([], |row| {
                 Ok(Board {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: parse_dt(&row.get::<_, String>(3)?)?,
-                    updated_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    repo_url: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    updated_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             let mut boards = Vec::new();
@@ -136,15 +138,16 @@ impl Db {
 
 fn get_board_inner(conn: &Connection, id: &str) -> anyhow::Result<Option<Board>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, description, created_at, updated_at FROM boards WHERE id = ?1",
+        "SELECT id, name, description, repo_url, created_at, updated_at FROM boards WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(params![id], |row| {
         Ok(Board {
             id: row.get(0)?,
             name: row.get(1)?,
             description: row.get(2)?,
-            created_at: parse_dt(&row.get::<_, String>(3)?)?,
-            updated_at: parse_dt(&row.get::<_, String>(4)?)?,
+            repo_url: row.get(3)?,
+            created_at: parse_dt(&row.get::<_, String>(4)?)?,
+            updated_at: parse_dt(&row.get::<_, String>(5)?)?,
         })
     })?;
     match rows.next() {
@@ -778,6 +781,7 @@ impl Db {
                 id: new_board_id,
                 name: new_name,
                 description: None,
+                repo_url: None,
                 created_at: now_dt,
                 updated_at: now_dt,
             })
@@ -1799,7 +1803,7 @@ impl Db {
         let user_id = user_id.to_string();
         self.with_conn(move |conn| {
             let mut stmt = conn.prepare(
-                "SELECT b.id, b.name, b.description, b.created_at, b.updated_at
+                "SELECT b.id, b.name, b.description, b.repo_url, b.created_at, b.updated_at
                  FROM boards b
                  JOIN board_members bm ON bm.board_id = b.id
                  WHERE bm.user_id = ?1
@@ -1810,8 +1814,9 @@ impl Db {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
-                    created_at: parse_dt(&row.get::<_, String>(3)?)?,
-                    updated_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    repo_url: row.get(3)?,
+                    created_at: parse_dt(&row.get::<_, String>(4)?)?,
+                    updated_at: parse_dt(&row.get::<_, String>(5)?)?,
                 })
             })?;
             let mut out = Vec::new();

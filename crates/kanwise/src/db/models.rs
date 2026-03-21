@@ -141,6 +141,46 @@ impl std::fmt::Display for Role {
 }
 
 // ---------------------------------------------------------------------------
+// AgentSessionStatus
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentSessionStatus {
+    Running,
+    Success,
+    Failed,
+    Cancelled,
+}
+
+impl AgentSessionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Running => "running",
+            Self::Success => "success",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn from_str_db(s: &str) -> Option<Self> {
+        match s {
+            "running" => Some(Self::Running),
+            "success" => Some(Self::Success),
+            "failed" => Some(Self::Failed),
+            "cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for AgentSessionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Domain structs
 // ---------------------------------------------------------------------------
 
@@ -149,6 +189,7 @@ pub struct Board {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub repo_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -325,5 +366,21 @@ pub struct Notification {
     pub title: String,
     pub body: Option<String>,
     pub read: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentSession {
+    pub id: String,
+    pub board_id: String,
+    pub task_id: String,
+    pub status: AgentSessionStatus,
+    pub user_id: String,
+    pub branch_name: Option<String>,
+    pub agent_profile_id: Option<String>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub exit_code: Option<i32>,
+    pub log: Option<String>,
     pub created_at: DateTime<Utc>,
 }
