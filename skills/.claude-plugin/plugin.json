@@ -1,0 +1,12 @@
+{
+  "name": "kanwise-skills",
+  "description": "Full superpowers fork with kanwise board integration — TDD, debugging, planning, collaboration, and kanban tracking",
+  "version": "1.0.0",
+  "author": {
+    "name": "tienedev"
+  },
+  "homepage": "https://github.com/tienedev/kanwise",
+  "repository": "https://github.com/tienedev/kanwise",
+  "license": "MIT",
+  "keywords": ["kanwise-cli", "kanwise", "kanban", "superpowers", "skills", "tdd", "debugging", "collaboration"]
+}

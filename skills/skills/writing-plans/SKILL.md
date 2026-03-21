@@ -1,0 +1,179 @@
+---
+name: writing-plans
+description: Use when you have a spec or requirements for a multi-step task, before touching code. Includes automatic kanwise board sync.
+---
+
+# Writing Plans
+
+## Overview
+
+Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+
+Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+
+**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+
+**Context:** This should be run in a dedicated worktree (created by brainstorming skill).
+
+**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+- (User preferences for plan location override this default)
+
+## Scope Check
+
+If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+
+## File Structure
+
+Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
+
+- Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
+- You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
+- Files that change together should live together. Split by responsibility, not by technical layer.
+- In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
+
+This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
+
+## Bite-Sized Task Granularity
+
+**Each step is one action (2-5 minutes):**
+- "Write the failing test" - step
+- "Run it to make sure it fails" - step
+- "Implement the minimal code to make the test pass" - step
+- "Run the tests and make sure they pass" - step
+- "Commit" - step
+
+## Plan Document Header
+
+**Every plan MUST start with this header:**
+
+```markdown
+# [Feature Name] Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** [One sentence describing what this builds]
+
+**Architecture:** [2-3 sentences about approach]
+
+**Tech Stack:** [Key technologies/libraries]
+
+---
+```
+
+## Task Structure
+
+````markdown
+### Task N: [Component Name]
+
+**Files:**
+- Create: `exact/path/to/file.py`
+- Modify: `exact/path/to/existing.py:123-145`
+- Test: `tests/exact/path/to/test.py`
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+def test_specific_behavior():
+    result = function(input)
+    assert result == expected
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest tests/path/test.py::test_name -v`
+Expected: FAIL with "function not defined"
+
+- [ ] **Step 3: Write minimal implementation**
+
+```python
+def function(input):
+    return expected
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pytest tests/path/test.py::test_name -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/path/test.py src/path/file.py
+git commit -m "feat: add specific feature"
+```
+````
+
+## Remember
+- Exact file paths always
+- Complete code in plan (not "add validation")
+- Exact commands with expected output
+- Reference relevant skills with @ syntax
+- DRY, YAGNI, TDD, frequent commits
+
+## Plan Review Loop
+
+After writing the complete plan:
+
+1. Dispatch a single plan-document-reviewer subagent (see plan-document-reviewer-prompt.md) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
+   - Provide: path to the plan document, path to spec document
+2. If ❌ Issues Found: fix the issues, re-dispatch reviewer for the whole plan
+3. If ✅ Approved: proceed to execution handoff
+
+**Review loop guidance:**
+- Same agent that wrote the plan fixes it (preserves context)
+- If loop exceeds 3 iterations, surface to human for guidance
+- Reviewers are advisory — explain disagreements if you believe feedback is incorrect
+
+## Kanwise Board Sync
+
+**After the plan review loop passes and before the execution handoff**, sync plan tasks to the kanwise board for team visibility. This step is always optional — if kanwise MCP is not connected, skip with a warning.
+
+### Board Resolution
+
+Resolve the kanwise board once per session:
+
+1. Get the current repo name: run `git remote get-url origin`, extract the repo basename (strip path and `.git` suffix). Fallback to current directory name if no remote.
+2. Call `board_query` with `board_id: "list"` to list all boards
+3. Find a board whose name matches the repo name (case-insensitive)
+4. **If found** → use that `board_id`. If multiple boards match, use the most recently updated one.
+5. **If not found** → create the board and its default columns:
+   - `board_mutate` action `create_board` with `data: { "name": "<repo-name>" }` → returns `board_id`
+   - `board_mutate` action `create_column` with `board_id: <board_id>`, `data: { "name": "Backlog" }`
+   - `board_mutate` action `create_column` with `board_id: <board_id>`, `data: { "name": "In Progress" }`
+   - `board_mutate` action `create_column` with `board_id: <board_id>`, `data: { "name": "Done" }`
+   (Columns get auto-incrementing positions in creation order — create them in this sequence.)
+6. **Cache column IDs:** Call `board_query` with `board_id: <board_id>`, `scope: "columns"` to get the `column_id` (UUID) for each column. Cache the mapping `{ backlog: <id>, in_progress: <id>, done: <id> }` for the session.
+
+### Sync Tasks to Board
+
+For each `### Task N: ...` heading in the plan:
+
+1. `board_mutate` action `create_task` with `board_id: <board_id>`, `data: { "column_id": <backlog_id>, "title": "<task title from heading>", "description": "<files list + step count>" }`
+2. Store the returned kanwise `task_id` alongside the plan task number: `Task 1 → <kanwise_task_id>`, `Task 2 → <kanwise_task_id>`, etc.
+3. This mapping will be passed to subagent-driven-development to move tasks between columns.
+
+After syncing all tasks, print: `✓ N tasks synced to kanwise board "<board-name>"`
+
+### If Kanwise Not Connected
+
+Print `⚠ kanwise not connected — board sync skipped` and proceed to the execution handoff. **Never block the workflow.**
+
+## Execution Handoff
+
+After saving the plan, offer execution choice:
+
+**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
+
+**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+
+**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+
+**Which approach?"**
+
+**If Subagent-Driven chosen:**
+- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
+- Fresh subagent per task + two-stage review
+
+**If Inline Execution chosen:**
+- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
+- Batch execution with checkpoints for review
