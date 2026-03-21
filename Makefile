@@ -1,5 +1,8 @@
 .PHONY: dev front back agent build clean install kill
 
+-include .env
+export
+
 CARGO := $(HOME)/.cargo/bin/cargo
 
 # Kill any running dev processes
