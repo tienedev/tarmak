@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useBoardStore } from '@/stores/board'
 import { useAuthStore } from '@/stores/auth'
@@ -18,6 +19,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -25,10 +33,30 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const boards = useBoardStore((s) => s.boards)
+  const createBoard = useBoardStore((s) => s.createBoard)
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newBoardName, setNewBoardName] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  const handleCreateBoard = async () => {
+    if (!newBoardName.trim() || creating) return
+    setCreating(true)
+    try {
+      const board = await createBoard(newBoardName.trim())
+      setCreateOpen(false)
+      setNewBoardName('')
+      setSidebarOpen(false)
+      window.location.hash = `#/boards/${board.id}`
+    } catch {
+      // error handled by store
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const sidebarContent = (
     <>
@@ -78,10 +106,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             variant="outline"
             size="sm"
             className="w-full justify-start gap-2"
-            onClick={() => {
-              window.location.hash = '#/'
-              setSidebarOpen(false)
-            }}
+            onClick={() => setCreateOpen(true)}
           >
             <Plus className="size-3.5" />
             New Board
@@ -149,6 +174,29 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {children}
       </main>
+
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) setCreateOpen(false) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Board</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newBoardName}
+            onChange={(e) => setNewBoardName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBoard() }}
+            placeholder="Board name"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleCreateBoard} disabled={!newBoardName.trim() || creating}>
+              {creating ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
