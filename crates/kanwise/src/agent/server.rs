@@ -82,7 +82,7 @@ async fn check_agent_token(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(StatusCode::UNAUTHORIZED)?;
-    if token != state.agent_token {
+    if token != state.agent_token && token != state.server_token {
         return Err(StatusCode::UNAUTHORIZED);
     }
     Ok(())
@@ -316,7 +316,7 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, StatusCode> {
     let token = params.get("token").ok_or(StatusCode::UNAUTHORIZED)?;
-    if token != &state.agent_token {
+    if token != &state.agent_token && token != &state.server_token {
         return Err(StatusCode::UNAUTHORIZED);
     }
     Ok(ws.on_upgrade(move |socket| handle_ws(state, session_id, socket)))
