@@ -276,14 +276,14 @@ fn uninstall_mcp_not_found() {
 
 // --- detect_and_write_config ---
 
-/// Mock system that detects a sibling kanwise repo.
-struct MockSiblingSystem {
-    cli_repo: PathBuf,
+/// Mock system that detects the kanwise crate in the monorepo workspace.
+struct MockWorkspaceSystem {
+    workspace_root: PathBuf,
 }
-impl SystemContext for MockSiblingSystem {
+impl SystemContext for MockWorkspaceSystem {
     fn docker_running(&self, _name: &str) -> Option<String> { None }
     fn path_exists(&self, path: &Path) -> bool {
-        path == self.cli_repo.parent().unwrap().join("kanwise").join("Cargo.toml")
+        path == self.workspace_root.join("crates/kanwise/Cargo.toml")
     }
     fn which(&self, _name: &str) -> Option<PathBuf> { None }
     fn find_compose_file(&self, _near: &Path) -> Option<PathBuf> { None }
@@ -292,15 +292,15 @@ impl SystemContext for MockSiblingSystem {
 #[test]
 fn detect_and_write_config_writes_cli_json() {
     let dir = setup();
-    let cli_repo = PathBuf::from("/proj/kanwise-cli");
-    let mock = MockSiblingSystem { cli_repo: cli_repo.clone() };
-    kanwise_cli::install::detect_and_write_config(dir.path(), &cli_repo, &mock).unwrap();
+    let workspace_root = PathBuf::from("/proj");
+    let mock = MockWorkspaceSystem { workspace_root: workspace_root.clone() };
+    kanwise_cli::install::detect_and_write_config(dir.path(), &workspace_root, &mock).unwrap();
 
     let config_path = kanwise_cli::config::cli_config_path(dir.path());
     let config = kanwise_cli::config::read_json(&config_path).unwrap();
     assert!(config.get("components").is_some());
     assert_eq!(config["components"]["kanwise-cli"]["mode"], "local");
-    assert_eq!(config["components"]["kanwise-cli"]["repo"], "/proj/kanwise-cli");
+    assert_eq!(config["components"]["kanwise-cli"]["repo"], "/proj");
     assert_eq!(config["components"]["kanwise"]["mode"], "local");
-    assert_eq!(config["components"]["kanwise"]["repo"], "/proj/kanwise");
+    assert_eq!(config["components"]["kanwise"]["repo"], "/proj");
 }

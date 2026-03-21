@@ -258,20 +258,20 @@ fn find_command_hook(arr: &[Value], command: &str) -> Option<usize> {
 /// so that install() stays side-effect-free for hooks/MCP tests.
 pub fn detect_and_write_config(
     claude_dir: &Path,
-    cli_repo: &Path,
+    workspace_root: &Path,
     system: &dyn crate::detect::SystemContext,
 ) -> Result<()> {
-    let kanwise_mode = crate::detect::detect_kanwise(system, cli_repo);
-    write_cli_config(claude_dir, cli_repo, &kanwise_mode)
+    let kanwise_mode = crate::detect::detect_kanwise(system, workspace_root);
+    write_cli_config(claude_dir, workspace_root, &kanwise_mode)
 }
 
 /// Write kanwise-cli.json with detected component configurations.
-fn write_cli_config(claude_dir: &Path, cli_repo: &Path, kanwise_mode: &crate::detect::ComponentMode) -> Result<()> {
+fn write_cli_config(claude_dir: &Path, workspace_root: &Path, kanwise_mode: &crate::detect::ComponentMode) -> Result<()> {
     let config_path = config::cli_config_path(claude_dir);
     let mut components = json!({
         "kanwise-cli": {
             "mode": "local",
-            "repo": cli_repo.to_string_lossy()
+            "repo": workspace_root.to_string_lossy()
         }
     });
 

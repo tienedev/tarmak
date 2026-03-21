@@ -99,8 +99,8 @@ fn cmd_install() {
             );
 
             // Detect component modes and write kanwise-cli.json
-            let cli_repo = kanwise_cli::detect::detect_cli_repo();
-            if let Err(e) = kanwise_cli::install::detect_and_write_config(&claude_dir, &cli_repo, &kanwise_cli::detect::RealSystem) {
+            let workspace_root = kanwise_cli::detect::detect_workspace_root();
+            if let Err(e) = kanwise_cli::install::detect_and_write_config(&claude_dir, &workspace_root, &kanwise_cli::detect::RealSystem) {
                 eprintln!("⚠ could not write kanwise-cli.json: {e}");
             }
         }

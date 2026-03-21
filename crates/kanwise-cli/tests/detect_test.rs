@@ -21,9 +21,9 @@ fn docker_takes_priority() {
         docker_image: Some("ghcr.io/tienedev/kanwise:latest".into()),
         existing_paths: vec![],
         which_result: None,
-        compose_file: Some(PathBuf::from("/proj/kanwise/docker-compose.yml")),
+        compose_file: Some(PathBuf::from("/proj/docker-compose.yml")),
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
+    let result = detect_kanwise(&ctx, Path::new("/proj"));
     match result {
         ComponentMode::Docker { image, .. } => {
             assert_eq!(image, "ghcr.io/tienedev/kanwise:latest");
@@ -33,15 +33,15 @@ fn docker_takes_priority() {
 }
 
 #[test]
-fn sibling_repo_detected() {
+fn local_crate_detected() {
     let ctx = MockSystem {
         docker_image: None,
-        existing_paths: vec![PathBuf::from("/proj/kanwise/Cargo.toml")],
+        existing_paths: vec![PathBuf::from("/proj/crates/kanwise/Cargo.toml")],
         which_result: None,
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
-    assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj/kanwise") });
+    let result = detect_kanwise(&ctx, Path::new("/proj"));
+    assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj") });
 }
 
 #[test]
@@ -52,20 +52,20 @@ fn binary_only_fallback() {
         which_result: Some(PathBuf::from("/usr/local/bin/kanwise")),
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
+    let result = detect_kanwise(&ctx, Path::new("/proj"));
     assert_eq!(result, ComponentMode::BinaryOnly { path: PathBuf::from("/usr/local/bin/kanwise") });
 }
 
 #[test]
-fn docker_without_compose_falls_through_to_sibling() {
+fn docker_without_compose_falls_through_to_local() {
     let ctx = MockSystem {
         docker_image: Some("ghcr.io/tienedev/kanwise:latest".into()),
-        existing_paths: vec![PathBuf::from("/proj/kanwise/Cargo.toml")],
+        existing_paths: vec![PathBuf::from("/proj/crates/kanwise/Cargo.toml")],
         which_result: None,
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
-    assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj/kanwise") });
+    let result = detect_kanwise(&ctx, Path::new("/proj"));
+    assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj") });
 }
 
 #[test]
@@ -76,6 +76,6 @@ fn not_found_when_nothing_matches() {
         which_result: None,
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
+    let result = detect_kanwise(&ctx, Path::new("/proj"));
     assert_eq!(result, ComponentMode::NotFound);
 }

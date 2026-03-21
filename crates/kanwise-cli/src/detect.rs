@@ -47,8 +47,10 @@ impl SystemContext for RealSystem {
     }
 }
 
-/// Detect the CLI repo path from compile-time CARGO_MANIFEST_DIR.
-pub fn detect_cli_repo() -> PathBuf {
+/// Detect the workspace root from compile-time CARGO_MANIFEST_DIR.
+/// In the monorepo, CARGO_MANIFEST_DIR is `crates/kanwise-cli/`, so 2 parents up
+/// gives the workspace root.
+pub fn detect_workspace_root() -> PathBuf {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     PathBuf::from(manifest_dir)
         .parent()
@@ -58,16 +60,14 @@ pub fn detect_cli_repo() -> PathBuf {
 }
 
 /// Detect kanwise install mode using the cascade:
-/// 1. Docker container running (with compose file)? → docker mode
-/// 2. Sibling repo? → local mode
+/// 1. Docker container running (with compose file at workspace root)? → docker mode
+/// 2. Local crate in workspace? → local mode
 /// 3. Binary in PATH? → binary-only mode
 /// 4. Not found
-pub fn detect_kanwise(ctx: &dyn SystemContext, cli_repo: &Path) -> ComponentMode {
+pub fn detect_kanwise(ctx: &dyn SystemContext, workspace_root: &Path) -> ComponentMode {
     // 1. Docker (only if compose file exists — needed for updates)
     if let Some(image) = ctx.docker_running("kanwise") {
-        let compose = cli_repo
-            .parent()
-            .and_then(|parent| ctx.find_compose_file(&parent.join("kanwise")));
+        let compose = ctx.find_compose_file(workspace_root);
         if let Some(compose_file) = compose {
             return ComponentMode::Docker {
                 image,
@@ -75,15 +75,12 @@ pub fn detect_kanwise(ctx: &dyn SystemContext, cli_repo: &Path) -> ComponentMode
                 service: "kanwise".into(),
             };
         }
-        // Docker running but no compose file — fall through to sibling/binary checks
+        // Docker running but no compose file — fall through to local/binary checks
     }
 
-    // 2. Sibling repo
-    if let Some(parent) = cli_repo.parent() {
-        let sibling = parent.join("kanwise");
-        if ctx.path_exists(&sibling.join("Cargo.toml")) {
-            return ComponentMode::Local { repo: sibling };
-        }
+    // 2. Local crate in workspace
+    if ctx.path_exists(&workspace_root.join("crates/kanwise/Cargo.toml")) {
+        return ComponentMode::Local { repo: workspace_root.to_path_buf() };
     }
 
     // 3. Binary in PATH
