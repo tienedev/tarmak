@@ -645,8 +645,11 @@ mod tests {
         conn.execute_batch("SELECT locked_by, locked_at FROM tasks LIMIT 0")
             .unwrap();
         // v10 agent_sessions + repo_url
-        conn.execute("SELECT id, board_id, task_id, status FROM agent_sessions LIMIT 0", [])
-            .unwrap();
+        conn.execute(
+            "SELECT id, board_id, task_id, status FROM agent_sessions LIMIT 0",
+            [],
+        )
+        .unwrap();
         conn.execute("SELECT repo_url FROM boards LIMIT 0", [])
             .unwrap();
     }

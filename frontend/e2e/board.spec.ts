@@ -13,18 +13,15 @@ test.describe('Board management', () => {
   test('can create a board from sidebar', async ({ page }) => {
     await registerAndLogin(page, 'board-create')
 
-    // Click sidebar "New Board" button which navigates to #/ where dialog can be opened
+    // Click sidebar "New Board" button to open creation dialog
     await page.getByRole('button', { name: 'New Board' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
 
-    // Use the sidebar's "New Board" to create a board via API instead
-    const token = await page.evaluate(() => localStorage.getItem('token'))
-    const res = await page.request.post('/api/v1/boards', {
-      data: { name: 'My First Board' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const board: { id: string } = await res.json()
+    // Fill and submit the dialog
+    await page.getByRole('dialog').getByRole('textbox').fill('My First Board')
+    await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
 
-    await page.goto(`/#/boards/${board.id}`)
+    // Should navigate to the new board and show its name
     await expect(main(page).getByRole('heading', { name: 'My First Board' })).toBeVisible()
   })
 

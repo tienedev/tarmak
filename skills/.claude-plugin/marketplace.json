@@ -1,0 +1,15 @@
+{
+  "name": "tienedev-kanwise-skills",
+  "description": "Kanwise skills overlay for Superpowers",
+  "owner": {
+    "name": "tienedev"
+  },
+  "plugins": [
+    {
+      "name": "kanwise-skills",
+      "description": "Full superpowers fork with kanwise board integration — TDD, debugging, planning, collaboration, and kanban tracking",
+      "version": "1.0.0",
+      "source": "./"
+    }
+  ]
+}

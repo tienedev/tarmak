@@ -13,10 +13,10 @@ pub fn detect_repos(repo_urls: &[String], cache: &mut RepoCache) -> Result<()> {
         if let Some(remote_url) = read_remote_url(git_dir) {
             let normalized = normalize_url(&remote_url);
             for target_url in repo_urls {
-                if normalize_url(target_url) == normalized {
-                    if let Some(workdir) = git_dir.parent() {
-                        cache.set(target_url.clone(), workdir.display().to_string());
-                    }
+                if normalize_url(target_url) == normalized
+                    && let Some(workdir) = git_dir.parent()
+                {
+                    cache.set(target_url.clone(), workdir.display().to_string());
                 }
             }
         }
@@ -30,15 +30,14 @@ fn find_git_dirs() -> Result<Vec<PathBuf>> {
     if let Ok(output) = Command::new("mdfind")
         .arg("kMDItemFSName == '.git' && kMDItemContentType == 'public.folder'")
         .output()
+        && output.status.success()
     {
-        if output.status.success() {
-            let paths: Vec<PathBuf> = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .map(PathBuf::from)
-                .collect();
-            if !paths.is_empty() {
-                return Ok(paths);
-            }
+        let paths: Vec<PathBuf> = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(PathBuf::from)
+            .collect();
+        if !paths.is_empty() {
+            return Ok(paths);
         }
     }
 
@@ -75,9 +74,7 @@ fn scan_for_git_dirs(dir: &Path, max_depth: usize, results: &mut Vec<PathBuf>) {
             if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
                 let name = entry.file_name();
                 let name_str = name.to_string_lossy();
-                if !name_str.starts_with('.')
-                    && name_str != "node_modules"
-                    && name_str != "target"
+                if !name_str.starts_with('.') && name_str != "node_modules" && name_str != "target"
                 {
                     scan_for_git_dirs(&entry.path(), max_depth - 1, results);
                 }

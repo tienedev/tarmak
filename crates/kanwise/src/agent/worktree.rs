@@ -4,11 +4,7 @@ use std::process::Command;
 
 /// Create a git worktree for an agent session.
 /// Returns the path to the worktree directory.
-pub fn create_worktree(
-    repo_dir: &Path,
-    session_id: &str,
-    branch_name: &str,
-) -> Result<PathBuf> {
+pub fn create_worktree(repo_dir: &Path, session_id: &str, branch_name: &str) -> Result<PathBuf> {
     let worktree_dir = repo_dir.join(".worktrees").join(session_id);
 
     // Ensure .worktrees is in .gitignore

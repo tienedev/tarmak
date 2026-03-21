@@ -1,4 +1,4 @@
-.PHONY: dev front back agent build clean install kill
+.PHONY: dev front back agent build clean install kill cli
 
 -include .env
 export
@@ -50,6 +50,10 @@ build:
 # Install frontend dependencies
 install:
 	cd frontend && corepack pnpm install
+
+# Build kanwise-cli
+cli:
+	$(CARGO) build -p kanwise-cli
 
 # Clean build artifacts
 clean:

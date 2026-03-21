@@ -74,4 +74,6 @@ jobs:
         run: cargo build --workspace
 
       - name: Verify binaries
-        run: ./target/debug/kanwise --help
+        run: |
+          ./target/debug/kanwise --help
+          ./target/debug/kanwise-cli --help

@@ -36,7 +36,10 @@ impl PtySession {
         cmd.arg("--dangerously-skip-permissions");
         cmd.cwd(workdir);
 
-        let child = pair.slave.spawn_command(cmd).context("failed to spawn claude")?;
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .context("failed to spawn claude")?;
         drop(pair.slave); // Close slave side
 
         let (output_tx, _) = broadcast::channel::<Vec<u8>>(1024);

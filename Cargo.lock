@@ -1145,6 +1145,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kanwise-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "regex",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "kbf"
 version = "0.1.0"
 dependencies = [
