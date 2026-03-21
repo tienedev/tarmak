@@ -5,7 +5,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,6 +25,8 @@ pub struct AgentState {
     pub agent_token: String,
     pub repo_cache: Arc<RwLock<RepoCache>>,
     pub sessions: Arc<RwLock<HashMap<String, Arc<SessionHandle>>>>,
+    /// Cache of validated Kanwise tokens (avoids hitting /auth/me on every request)
+    pub validated_tokens: Arc<RwLock<HashSet<String>>>,
 }
 
 pub struct SessionHandle {
@@ -82,10 +84,37 @@ async fn check_agent_token(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(StatusCode::UNAUTHORIZED)?;
-    if token != state.agent_token && token != state.server_token {
-        return Err(StatusCode::UNAUTHORIZED);
+
+    // Fast path: known tokens
+    if token == state.agent_token || token == state.server_token {
+        return Ok(());
     }
-    Ok(())
+
+    // Check cache of previously validated tokens
+    {
+        let cache = state.validated_tokens.read().await;
+        if cache.contains(token) {
+            return Ok(());
+        }
+    }
+
+    // Validate against Kanwise server
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/api/v1/auth/me", state.server_url))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    if resp.status().is_success() {
+        // Cache the validated token
+        let mut cache = state.validated_tokens.write().await;
+        cache.insert(token.to_string());
+        Ok(())
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
 }
 
 // NOTE: /health is intentionally unauthenticated to support agent detection
@@ -316,7 +345,34 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, StatusCode> {
     let token = params.get("token").ok_or(StatusCode::UNAUTHORIZED)?;
-    if token != &state.agent_token && token != &state.server_token {
+
+    // Fast path: known tokens
+    let mut authorized = token == &state.agent_token || token == &state.server_token;
+
+    if !authorized {
+        // Check cache
+        let cache = state.validated_tokens.read().await;
+        authorized = cache.contains(token.as_str());
+    }
+
+    if !authorized {
+        // Validate against Kanwise server
+        let client = reqwest::Client::new();
+        if let Ok(resp) = client
+            .get(format!("{}/api/v1/auth/me", state.server_url))
+            .bearer_auth(token)
+            .send()
+            .await
+        {
+            if resp.status().is_success() {
+                let mut cache = state.validated_tokens.write().await;
+                cache.insert(token.clone());
+                authorized = true;
+            }
+        }
+    }
+
+    if !authorized {
         return Err(StatusCode::UNAUTHORIZED);
     }
     Ok(ws.on_upgrade(move |socket| handle_ws(state, session_id, socket)))
@@ -406,6 +462,7 @@ pub async fn run_agent_server(
         agent_token: agent_token.clone(),
         repo_cache: Arc::new(RwLock::new(repo_cache)),
         sessions: Arc::new(RwLock::new(HashMap::new())),
+        validated_tokens: Arc::new(RwLock::new(HashSet::new())),
     };
 
     // CORS
