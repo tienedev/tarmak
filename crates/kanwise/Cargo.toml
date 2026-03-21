@@ -42,3 +42,4 @@ tokio-util = "0.7"
 kbf = { path = "../kbf" }
 dirs.workspace = true
 portable-pty.workspace = true
+reqwest.workspace = true
