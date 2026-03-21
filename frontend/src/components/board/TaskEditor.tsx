@@ -28,6 +28,10 @@ import {
 } from 'lucide-react'
 import { LabelPicker } from '@/components/board/LabelPicker'
 import { SubtaskList } from '@/components/board/SubtaskList'
+import { RunButton } from '@/components/board/RunButton'
+import { SessionsPanel } from '@/components/board/SessionsPanel'
+import { useAgentStatus } from '@/hooks/useAgentStatus'
+import type { AgentSession } from '@/lib/api'
 
 const priorityOptions = [
   { value: 'none', label: 'None' },
@@ -48,9 +52,10 @@ const priorityColors: Record<string, string> = {
 interface TaskEditorProps {
   task: Task
   onClose: () => void
+  onOpenTerminal?: (session: AgentSession) => void
 }
 
-export function TaskEditor({ task, onClose }: TaskEditorProps) {
+export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
   const { currentBoard, columns, fields, members, updateTask, deleteTask } = useBoardStore()
   const user = useAuthStore((s) => s.user)
   const addNotification = useNotificationStore((s) => s.add)
@@ -68,6 +73,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editingCommentHtml, setEditingCommentHtml] = useState('')
   const [saving, setSaving] = useState(false)
+  const agentStatus = useAgentStatus()
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -435,6 +441,14 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
 
       <SubtaskList taskId={task.id} />
 
+      {currentBoard && (
+        <SessionsPanel
+          boardId={currentBoard.id}
+          taskId={task.id}
+          onViewTerminal={(session) => onOpenTerminal?.(session)}
+        />
+      )}
+
       <Separator className="mb-4" />
 
       {/* Comments — collapsible */}
@@ -564,6 +578,13 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
           {saving ? 'Saving...' : 'Auto-saved'}
         </div>
         <div className="flex items-center gap-2">
+          {currentBoard && (
+            <RunButton
+              task={task}
+              boardId={currentBoard.id}
+              agentStatus={agentStatus}
+            />
+          )}
           <Button variant="ghost" size="sm" onClick={handleDuplicate} className="gap-1.5 text-muted-foreground">
             <Copy className="size-3.5" />
             Duplicate
