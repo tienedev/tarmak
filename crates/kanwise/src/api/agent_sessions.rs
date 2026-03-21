@@ -1,12 +1,12 @@
-use axum::extract::{Path, Query, State};
 use axum::Json;
+use axum::extract::{Path, Query, State};
 use serde::Deserialize;
 
 use crate::api::error::ApiError;
 use crate::api::middleware::AuthUser;
 use crate::api::permissions;
-use crate::db::models::{AgentSession, AgentSessionStatus, Role};
 use crate::db::Db;
+use crate::db::models::{AgentSession, AgentSessionStatus, Role};
 
 #[derive(Deserialize)]
 pub struct CreateAgentSession {
@@ -35,7 +35,13 @@ pub async fn create(
 ) -> Result<Json<AgentSession>, ApiError> {
     permissions::require_role(&db, &board_id, &user.id, Role::Member).await?;
     let session = db
-        .create_agent_session(body.id.as_deref(), &board_id, &body.task_id, &user.id, body.branch_name.as_deref())
+        .create_agent_session(
+            body.id.as_deref(),
+            &board_id,
+            &body.task_id,
+            &user.id,
+            body.branch_name.as_deref(),
+        )
         .await
         .map_err(|e| {
             if e.to_string().contains("UNIQUE constraint failed") {

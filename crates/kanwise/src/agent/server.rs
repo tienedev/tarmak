@@ -134,18 +134,16 @@ async fn run(
     headers: axum::http::HeaderMap,
     Json(body): Json<RunRequest>,
 ) -> Result<Json<RunResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_agent_token(&state, &headers)
-        .await
-        .map_err(|s| {
-            (
-                s,
-                Json(ErrorResponse {
-                    error: "unauthorized".to_string(),
-                    message: "Invalid agent token".to_string(),
-                    hint: "Check the token displayed when starting kanwise agent".to_string(),
-                }),
-            )
-        })?;
+    check_agent_token(&state, &headers).await.map_err(|s| {
+        (
+            s,
+            Json(ErrorResponse {
+                error: "unauthorized".to_string(),
+                message: "Invalid agent token".to_string(),
+                hint: "Check the token displayed when starting kanwise agent".to_string(),
+            }),
+        )
+    })?;
 
     // Resolve repo_url → workdir
     let cache = state.repo_cache.read().await;
@@ -363,12 +361,11 @@ async fn ws_handler(
             .bearer_auth(token)
             .send()
             .await
+            && resp.status().is_success()
         {
-            if resp.status().is_success() {
-                let mut cache = state.validated_tokens.write().await;
-                cache.insert(token.clone());
-                authorized = true;
-            }
+            let mut cache = state.validated_tokens.write().await;
+            cache.insert(token.clone());
+            authorized = true;
         }
     }
 
@@ -393,8 +390,16 @@ async fn handle_ws(state: AgentState, session_id: String, mut socket: WebSocket)
 
     // Send any accumulated output first
     let accumulated = {
-        let log = handle.pty.output_log.lock().unwrap_or_else(|e| e.into_inner());
-        if log.is_empty() { None } else { Some(log.clone()) }
+        let log = handle
+            .pty
+            .output_log
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if log.is_empty() {
+            None
+        } else {
+            Some(log.clone())
+        }
     };
     if let Some(data) = accumulated {
         let _ = socket.send(Message::Binary(data.into())).await;
@@ -440,15 +445,18 @@ pub async fn run_agent_server(
         .bearer_auth(&server_token)
         .send()
         .await
+        && let Ok(boards) = resp.json::<Vec<serde_json::Value>>().await
     {
-        if let Ok(boards) = resp.json::<Vec<serde_json::Value>>().await {
-            let repo_urls: Vec<String> = boards
-                .iter()
-                .filter_map(|b| b.get("repo_url").and_then(|v| v.as_str()).map(|s| s.to_string()))
-                .collect();
-            if !repo_urls.is_empty() {
-                let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
-            }
+        let repo_urls: Vec<String> = boards
+            .iter()
+            .filter_map(|b| {
+                b.get("repo_url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+            .collect();
+        if !repo_urls.is_empty() {
+            let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
         }
     }
 

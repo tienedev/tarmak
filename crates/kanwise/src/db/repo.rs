@@ -3328,7 +3328,8 @@ impl Db {
 
     pub async fn cancel_agent_session(&self, id: &str) -> anyhow::Result<Option<AgentSession>> {
         let id = id.to_string();
-        self.update_agent_session(&id, Some(AgentSessionStatus::Cancelled), None, None).await
+        self.update_agent_session(&id, Some(AgentSessionStatus::Cancelled), None, None)
+            .await
     }
 
     pub async fn get_running_sessions_for_board(

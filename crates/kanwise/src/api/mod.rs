@@ -101,10 +101,7 @@ pub fn router(db: Db, rate_limiter: rate_limit::RateLimiter, notif_tx: NotifTx) 
         .route("/cancel", post(agent_sessions::cancel));
 
     let board_agent_sessions = Router::new()
-        .route(
-            "/",
-            get(agent_sessions::list).post(agent_sessions::create),
-        )
+        .route("/", get(agent_sessions::list).post(agent_sessions::create))
         .nest("/{sid}", agent_session_item);
 
     let per_board = Router::new()
