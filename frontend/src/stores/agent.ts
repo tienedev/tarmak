@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { api, AgentSession } from '@/lib/api'
+import { api } from '@/lib/api'
+import type { AgentSession } from '@/lib/api'
 
 interface AgentStore {
   sessions: AgentSession[]
