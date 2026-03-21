@@ -405,7 +405,7 @@ impl KanbanMcpServer {
 
                 let board = self
                     .db
-                    .update_board(board_id, name, description)
+                    .update_board(board_id, name, description, None)
                     .await?
                     .ok_or_else(|| anyhow::anyhow!("board not found: {board_id}"))?;
                 Ok(format!("updated board {}", board.id))

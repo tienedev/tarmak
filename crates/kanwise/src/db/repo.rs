@@ -92,10 +92,12 @@ impl Db {
         id: &str,
         name: Option<&str>,
         description: Option<Option<&str>>,
+        repo_url: Option<Option<&str>>,
     ) -> anyhow::Result<Option<Board>> {
         let id = id.to_string();
         let name = name.map(String::from);
         let description = description.map(|d| d.map(String::from));
+        let repo_url = repo_url.map(|r| r.map(String::from));
         self.with_conn(move |conn| {
             let mut sets = Vec::new();
             let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -107,6 +109,17 @@ impl Db {
             if let Some(d) = description {
                 sets.push("description = ?");
                 values.push(Box::new(d));
+            }
+            if let Some(r) = repo_url {
+                match r {
+                    Some(url) => {
+                        sets.push("repo_url = ?");
+                        values.push(Box::new(url));
+                    }
+                    None => {
+                        sets.push("repo_url = NULL");
+                    }
+                }
             }
 
             if !sets.is_empty() {
@@ -3383,7 +3396,7 @@ mod tests {
 
         // Update
         let updated = db
-            .update_board(&board.id, Some("Renamed"), None)
+            .update_board(&board.id, Some("Renamed"), None, None)
             .await
             .unwrap()
             .expect("board exists");
