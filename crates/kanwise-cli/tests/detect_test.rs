@@ -1,4 +1,4 @@
-use cortx::detect::{detect_kanwise, ComponentMode, SystemContext};
+use kanwise_cli::detect::{detect_kanwise, ComponentMode, SystemContext};
 use std::path::{Path, PathBuf};
 
 struct MockSystem {
@@ -23,7 +23,7 @@ fn docker_takes_priority() {
         which_result: None,
         compose_file: Some(PathBuf::from("/proj/kanwise/docker-compose.yml")),
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/cortx"));
+    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
     match result {
         ComponentMode::Docker { image, .. } => {
             assert_eq!(image, "ghcr.io/tienedev/kanwise:latest");
@@ -40,7 +40,7 @@ fn sibling_repo_detected() {
         which_result: None,
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/cortx"));
+    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
     assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj/kanwise") });
 }
 
@@ -52,7 +52,7 @@ fn binary_only_fallback() {
         which_result: Some(PathBuf::from("/usr/local/bin/kanwise")),
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/cortx"));
+    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
     assert_eq!(result, ComponentMode::BinaryOnly { path: PathBuf::from("/usr/local/bin/kanwise") });
 }
 
@@ -64,7 +64,7 @@ fn docker_without_compose_falls_through_to_sibling() {
         which_result: None,
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/cortx"));
+    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
     assert_eq!(result, ComponentMode::Local { repo: PathBuf::from("/proj/kanwise") });
 }
 
@@ -76,6 +76,6 @@ fn not_found_when_nothing_matches() {
         which_result: None,
         compose_file: None,
     };
-    let result = detect_kanwise(&ctx, Path::new("/proj/cortx"));
+    let result = detect_kanwise(&ctx, Path::new("/proj/kanwise-cli"));
     assert_eq!(result, ComponentMode::NotFound);
 }

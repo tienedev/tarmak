@@ -45,7 +45,7 @@ pub fn write_json(path: &Path, value: &Value) -> Result<()> {
     Ok(())
 }
 
-/// Returns the path to cortx's own config file within the Claude dir.
-pub fn cortx_config_path(claude_dir: &Path) -> PathBuf {
-    claude_dir.join("cortx.json")
+/// Returns the path to the CLI's own config file within the Claude dir.
+pub fn cli_config_path(claude_dir: &Path) -> PathBuf {
+    claude_dir.join("kanwise-cli.json")
 }

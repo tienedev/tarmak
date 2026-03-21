@@ -47,8 +47,8 @@ impl SystemContext for RealSystem {
     }
 }
 
-/// Detect the cortx repo path from compile-time CARGO_MANIFEST_DIR.
-pub fn detect_cortx_repo() -> PathBuf {
+/// Detect the CLI repo path from compile-time CARGO_MANIFEST_DIR.
+pub fn detect_cli_repo() -> PathBuf {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     PathBuf::from(manifest_dir)
         .parent()
@@ -62,10 +62,10 @@ pub fn detect_cortx_repo() -> PathBuf {
 /// 2. Sibling repo? → local mode
 /// 3. Binary in PATH? → binary-only mode
 /// 4. Not found
-pub fn detect_kanwise(ctx: &dyn SystemContext, cortx_repo: &Path) -> ComponentMode {
+pub fn detect_kanwise(ctx: &dyn SystemContext, cli_repo: &Path) -> ComponentMode {
     // 1. Docker (only if compose file exists — needed for updates)
     if let Some(image) = ctx.docker_running("kanwise") {
-        let compose = cortx_repo
+        let compose = cli_repo
             .parent()
             .and_then(|parent| ctx.find_compose_file(&parent.join("kanwise")));
         if let Some(compose_file) = compose {
@@ -79,7 +79,7 @@ pub fn detect_kanwise(ctx: &dyn SystemContext, cortx_repo: &Path) -> ComponentMo
     }
 
     // 2. Sibling repo
-    if let Some(parent) = cortx_repo.parent() {
+    if let Some(parent) = cli_repo.parent() {
         let sibling = parent.join("kanwise");
         if ctx.path_exists(&sibling.join("Cargo.toml")) {
             return ComponentMode::Local { repo: sibling };

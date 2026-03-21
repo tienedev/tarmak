@@ -1,12 +1,12 @@
-use cortx::doctor::{run_doctor, CheckResult, DoctorContext};
+use kanwise_cli::doctor::{run_doctor, CheckResult, DoctorContext};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn make_context(dir: &TempDir) -> DoctorContext {
     DoctorContext {
         claude_dir: dir.path().to_path_buf(),
-        cortx_version: "0.1.0".into(),
-        cortx_path: PathBuf::from("/usr/local/bin/cortx"),
+        cli_version: "0.1.0".into(),
+        cli_path: PathBuf::from("/usr/local/bin/kanwise-cli"),
         kanwise_path: None,
     }
 }
@@ -17,7 +17,7 @@ fn binary_check_always_ok() {
     let ctx = make_context(&dir);
     let results = run_doctor(&ctx).unwrap();
     let (name, status) = &results[0];
-    assert_eq!(name, "cortx");
+    assert_eq!(name, "kanwise-cli");
     assert!(matches!(status, CheckResult::Ok(_)));
 }
 
@@ -34,7 +34,7 @@ fn hook_check_warns_when_missing() {
 #[test]
 fn hook_check_ok_when_installed() {
     let dir = TempDir::new().unwrap();
-    cortx::install::install(dir.path(), None).unwrap();
+    kanwise_cli::install::install(dir.path(), None).unwrap();
     let ctx = make_context(&dir);
     let results = run_doctor(&ctx).unwrap();
     let (_, status) = &results[1];
@@ -55,11 +55,11 @@ fn mcp_check_warns_when_kanwise_not_in_path() {
 fn mcp_check_ok_when_configured_and_found() {
     let dir = TempDir::new().unwrap();
     let kanwise = PathBuf::from("/usr/local/bin/kanwise");
-    cortx::install::install(dir.path(), Some(kanwise.as_path())).unwrap();
+    kanwise_cli::install::install(dir.path(), Some(kanwise.as_path())).unwrap();
     let ctx = DoctorContext {
         claude_dir: dir.path().to_path_buf(),
-        cortx_version: "0.1.0".into(),
-        cortx_path: PathBuf::from("/usr/local/bin/cortx"),
+        cli_version: "0.1.0".into(),
+        cli_path: PathBuf::from("/usr/local/bin/kanwise-cli"),
         kanwise_path: Some(kanwise),
     };
     let results = run_doctor(&ctx).unwrap();
@@ -85,7 +85,7 @@ fn plugin_check_ok_when_present() {
             "kanwise-skills@tienedev/kanwise-skills": true
         }
     });
-    cortx::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
     let ctx = make_context(&dir);
     let results = run_doctor(&ctx).unwrap();
     let (_, status) = &results[3];
@@ -93,16 +93,16 @@ fn plugin_check_ok_when_present() {
 }
 
 #[test]
-fn doctor_shows_component_info_from_cortx_json() {
+fn doctor_shows_component_info_from_cli_json() {
     let dir = TempDir::new().unwrap();
-    // Write cortx.json directly (no install() call — avoids RealSystem side effects)
+    // Write kanwise-cli.json directly (no install() call — avoids RealSystem side effects)
     let config = serde_json::json!({
         "components": {
-            "cortx": {"mode": "local", "repo": "/some/path/cortx"},
+            "kanwise-cli": {"mode": "local", "repo": "/some/path/kanwise-cli"},
             "kanwise": {"mode": "docker", "image": "ghcr.io/tienedev/kanwise:latest"}
         }
     });
-    cortx::config::write_json(&cortx::config::cortx_config_path(dir.path()), &config).unwrap();
+    kanwise_cli::config::write_json(&kanwise_cli::config::cli_config_path(dir.path()), &config).unwrap();
 
     let ctx = make_context(&dir);
     let results = run_doctor(&ctx).unwrap();
@@ -110,7 +110,7 @@ fn doctor_shows_component_info_from_cortx_json() {
     assert!(comp_check.is_some(), "should have Components check");
     match &comp_check.unwrap().1 {
         CheckResult::Ok(msg) => {
-            assert!(msg.contains("cortx: local"), "should show cortx mode");
+            assert!(msg.contains("kanwise-cli: local"), "should show kanwise-cli mode");
             assert!(msg.contains("kanwise: docker"), "should show kanwise mode");
         }
         other => panic!("expected Ok, got {other:?}"),
@@ -118,7 +118,7 @@ fn doctor_shows_component_info_from_cortx_json() {
 }
 
 #[test]
-fn doctor_warns_when_cortx_json_missing() {
+fn doctor_warns_when_cli_json_missing() {
     let dir = TempDir::new().unwrap();
     let ctx = make_context(&dir);
     let results = run_doctor(&ctx).unwrap();

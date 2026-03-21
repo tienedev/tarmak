@@ -1,5 +1,5 @@
-use cortx::install::{install, uninstall, HookRemoveStatus, HookStatus, McpRemoveStatus, McpStatus};
-use cortx::detect::SystemContext;
+use kanwise_cli::install::{install, uninstall, HookRemoveStatus, HookStatus, McpRemoveStatus, McpStatus};
+use kanwise_cli::detect::SystemContext;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn setup() -> TempDir {
 
 fn read(dir: &TempDir, name: &str) -> serde_json::Value {
     let path = dir.path().join(name);
-    cortx::config::read_json(&path).unwrap()
+    kanwise_cli::config::read_json(&path).unwrap()
 }
 
 // --- Hook installation ---
@@ -25,7 +25,7 @@ fn fresh_install_creates_hook() {
     assert!(hooks.is_array());
     let arr = hooks.as_array().unwrap();
     assert_eq!(arr.len(), 1);
-    assert_eq!(arr[0]["hooks"][0]["command"], "cortx hook");
+    assert_eq!(arr[0]["hooks"][0]["command"], "kanwise-cli hook");
     assert_eq!(arr[0]["matcher"], "Bash");
 }
 
@@ -52,7 +52,7 @@ fn migrates_token_cleaner_hook() {
             }]
         }
     });
-    cortx::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
 
     let report = install(dir.path(), None).unwrap();
     assert!(matches!(report.hook, HookStatus::Migrated));
@@ -60,7 +60,7 @@ fn migrates_token_cleaner_hook() {
     let updated = read(&dir, "settings.json");
     let arr = updated["hooks"]["PreToolUse"].as_array().unwrap();
     assert_eq!(arr.len(), 1);
-    assert_eq!(arr[0]["hooks"][0]["command"], "cortx hook");
+    assert_eq!(arr[0]["hooks"][0]["command"], "kanwise-cli hook");
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn preserves_other_hooks() {
         },
         "unrelated_key": "keep me"
     });
-    cortx::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
 
     install(dir.path(), None).unwrap();
 
@@ -117,21 +117,21 @@ fn mcp_idempotent_when_kanwise_present() {
 }
 
 #[test]
-fn mcp_removes_stale_cortx_serve_entry() {
+fn mcp_removes_stale_cli_serve_entry() {
     let dir = setup();
     let mcp = serde_json::json!({
         "mcpServers": {
-            "cortx": {"command": "cortx", "args": ["serve"]},
+            "cortx": {"command": "cortx", "args": ["serve"]}, // legacy
             "other": {"command": "other-tool"}
         }
     });
-    cortx::config::write_json(&dir.path().join(".mcp.json"), &mcp).unwrap();
+    kanwise_cli::config::write_json(&dir.path().join(".mcp.json"), &mcp).unwrap();
 
     let kanwise = dir.path().join("kanwise");
     install(dir.path(), Some(kanwise.as_path())).unwrap();
 
     let updated = read(&dir, ".mcp.json");
-    assert!(updated["mcpServers"]["cortx"].is_null(), "stale cortx entry removed");
+    assert!(updated["mcpServers"]["cortx"].is_null(), "stale cortx entry removed"); // legacy
     assert_eq!(updated["mcpServers"]["other"]["command"], "other-tool", "other entries preserved");
     assert_eq!(updated["mcpServers"]["kanwise"]["command"], kanwise.to_string_lossy().to_string(), "kanwise added with absolute path");
 }
@@ -139,7 +139,7 @@ fn mcp_removes_stale_cortx_serve_entry() {
 // --- Hook uninstall ---
 
 #[test]
-fn uninstall_removes_cortx_hook() {
+fn uninstall_removes_cli_hook() {
     let dir = setup();
     install(dir.path(), None).unwrap();
     let report = uninstall(dir.path()).unwrap();
@@ -161,7 +161,7 @@ fn uninstall_removes_legacy_token_cleaner_hook() {
             }]
         }
     });
-    cortx::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
 
     let report = uninstall(dir.path()).unwrap();
     assert!(matches!(report.hook, HookRemoveStatus::Removed));
@@ -174,11 +174,11 @@ fn uninstall_preserves_other_hooks() {
         "hooks": {
             "PreToolUse": [
                 {"matcher": "Write", "hooks": [{"type": "command", "command": "other"}]},
-                {"matcher": "Bash", "hooks": [{"type": "command", "command": "cortx hook"}]}
+                {"matcher": "Bash", "hooks": [{"type": "command", "command": "kanwise-cli hook"}]}
             ]
         }
     });
-    cortx::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
 
     uninstall(dir.path()).unwrap();
 
@@ -221,29 +221,29 @@ fn uninstall_mcp_not_found() {
 
 /// Mock system that detects a sibling kanwise repo.
 struct MockSiblingSystem {
-    cortx_repo: PathBuf,
+    cli_repo: PathBuf,
 }
 impl SystemContext for MockSiblingSystem {
     fn docker_running(&self, _name: &str) -> Option<String> { None }
     fn path_exists(&self, path: &Path) -> bool {
-        path == self.cortx_repo.parent().unwrap().join("kanwise").join("Cargo.toml")
+        path == self.cli_repo.parent().unwrap().join("kanwise").join("Cargo.toml")
     }
     fn which(&self, _name: &str) -> Option<PathBuf> { None }
     fn find_compose_file(&self, _near: &Path) -> Option<PathBuf> { None }
 }
 
 #[test]
-fn detect_and_write_config_writes_cortx_json() {
+fn detect_and_write_config_writes_cli_json() {
     let dir = setup();
-    let cortx_repo = PathBuf::from("/proj/cortx");
-    let mock = MockSiblingSystem { cortx_repo: cortx_repo.clone() };
-    cortx::install::detect_and_write_config(dir.path(), &cortx_repo, &mock).unwrap();
+    let cli_repo = PathBuf::from("/proj/kanwise-cli");
+    let mock = MockSiblingSystem { cli_repo: cli_repo.clone() };
+    kanwise_cli::install::detect_and_write_config(dir.path(), &cli_repo, &mock).unwrap();
 
-    let config_path = cortx::config::cortx_config_path(dir.path());
-    let config = cortx::config::read_json(&config_path).unwrap();
+    let config_path = kanwise_cli::config::cli_config_path(dir.path());
+    let config = kanwise_cli::config::read_json(&config_path).unwrap();
     assert!(config.get("components").is_some());
-    assert_eq!(config["components"]["cortx"]["mode"], "local");
-    assert_eq!(config["components"]["cortx"]["repo"], "/proj/cortx");
+    assert_eq!(config["components"]["kanwise-cli"]["mode"], "local");
+    assert_eq!(config["components"]["kanwise-cli"]["repo"], "/proj/kanwise-cli");
     assert_eq!(config["components"]["kanwise"]["mode"], "local");
     assert_eq!(config["components"]["kanwise"]["repo"], "/proj/kanwise");
 }

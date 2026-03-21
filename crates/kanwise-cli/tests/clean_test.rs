@@ -1,4 +1,4 @@
-use cortx::clean::clean;
+use kanwise_cli::clean::clean;
 
 #[test]
 fn strip_ansi_colors() {

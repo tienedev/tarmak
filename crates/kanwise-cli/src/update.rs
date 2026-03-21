@@ -131,30 +131,30 @@ pub fn update_docker(compose_file: &Path, service: &str) -> Result<UpdateResult>
     }
 }
 
-/// Read cortx.json and run updates for the specified component(s).
+/// Read kanwise-cli.json and run updates for the specified component(s).
 pub fn run_update(
     claude_dir: &Path,
     component: Option<&str>,
     force_mode: Option<&str>,
 ) -> Result<Vec<(String, UpdateResult)>> {
-    let config_path = crate::config::cortx_config_path(claude_dir);
+    let config_path = crate::config::cli_config_path(claude_dir);
     let config = crate::config::read_json(&config_path)?;
 
     let components = config.get("components")
         .and_then(|c| c.as_object());
 
     if components.is_none() {
-        bail!("cortx.json not found or empty — run `cortx install` first");
+        bail!("kanwise-cli.json not found or empty — run `kanwise-cli install` first");
     }
     let components = components.unwrap();
 
-    // Determine which components to update (kanwise first, cortx last)
+    // Determine which components to update (kanwise first, kanwise-cli last)
     let targets: Vec<&str> = match component {
         Some(name) => vec![name],
         None => {
             let mut t = vec![];
             if components.contains_key("kanwise") { t.push("kanwise"); }
-            if components.contains_key("cortx") { t.push("cortx"); }
+            if components.contains_key("kanwise-cli") { t.push("kanwise-cli"); }
             t
         }
     };
@@ -165,7 +165,7 @@ pub fn run_update(
             Some(c) => c,
             None => {
                 results.push((name.to_string(), UpdateResult::Skipped {
-                    reason: format!("{name} not configured in cortx.json"),
+                    reason: format!("{name} not configured in kanwise-cli.json"),
                 }));
                 continue;
             }
@@ -180,7 +180,7 @@ pub fn run_update(
                 match repo {
                     Some(repo) => update_local(repo.as_ref(), name),
                     None => Ok(UpdateResult::Skipped {
-                        reason: format!("{name} repo path not configured — use `cortx update --set-repo {name} /path`"),
+                        reason: format!("{name} repo path not configured — use `kanwise-cli update --set-repo {name} /path`"),
                     }),
                 }
             }

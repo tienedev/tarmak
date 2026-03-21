@@ -3,7 +3,7 @@ use std::io::{self, BufRead, Read, Write};
 use std::process::{Command, Stdio};
 
 #[derive(Parser)]
-#[command(name = "cortx", version, about = "Configure Claude Code dev environment")]
+#[command(name = "kanwise-cli", version, about = "Configure Claude Code dev environment")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -13,7 +13,7 @@ struct Cli {
 enum Commands {
     /// Configure Claude Code (hooks + MCP + plugin instructions)
     Install,
-    /// Remove cortx configuration from Claude Code
+    /// Remove kanwise-cli configuration from Claude Code
     Uninstall,
     /// Check configuration status
     Doctor,
@@ -24,9 +24,9 @@ enum Commands {
         #[arg(trailing_var_arg = true, required = true)]
         command: Vec<String>,
     },
-    /// Update cortx and/or kanwise to latest version
+    /// Update kanwise-cli and/or kanwise to latest version
     Update {
-        /// Component to update (cortx or kanwise). Updates all if omitted.
+        /// Component to update (kanwise-cli or kanwise). Updates all if omitted.
         component: Option<String>,
         /// Force docker mode for kanwise
         #[arg(long)]
@@ -55,30 +55,30 @@ fn main() {
 }
 
 fn cmd_install() {
-    let claude_dir = cortx::config::claude_dir();
-    let kanwise_path = cortx::detect_binary("kanwise");
+    let claude_dir = kanwise_cli::config::claude_dir();
+    let kanwise_path = kanwise_cli::detect_binary("kanwise");
 
-    match cortx::install::install(&claude_dir, kanwise_path.as_deref()) {
+    match kanwise_cli::install::install(&claude_dir, kanwise_path.as_deref()) {
         Ok(report) => {
             match report.hook {
-                cortx::install::HookStatus::Installed => {
-                    println!("✓ Hook installed (PreToolUse → cortx hook)")
+                kanwise_cli::install::HookStatus::Installed => {
+                    println!("✓ Hook installed (PreToolUse → kanwise-cli hook)")
                 }
-                cortx::install::HookStatus::AlreadyPresent => {
+                kanwise_cli::install::HookStatus::AlreadyPresent => {
                     println!("✓ Hook already configured")
                 }
-                cortx::install::HookStatus::Migrated => {
-                    println!("✓ Hook migrated (token-cleaner → cortx hook)")
+                kanwise_cli::install::HookStatus::Migrated => {
+                    println!("✓ Hook migrated (token-cleaner → kanwise-cli hook)")
                 }
             }
             match report.mcp {
-                cortx::install::McpStatus::Configured => {
+                kanwise_cli::install::McpStatus::Configured => {
                     println!("✓ MCP server configured (kanwise)")
                 }
-                cortx::install::McpStatus::AlreadyPresent => {
+                kanwise_cli::install::McpStatus::AlreadyPresent => {
                     println!("✓ MCP server already configured (kanwise)")
                 }
-                cortx::install::McpStatus::KanwiseNotFound => {
+                kanwise_cli::install::McpStatus::KanwiseNotFound => {
                     println!("⚠ kanwise not found in PATH — MCP not configured");
                     println!(
                         "  Install via Docker: ghcr.io/tienedev/kanwise:latest"
@@ -98,34 +98,34 @@ fn cmd_install() {
                 "  /plugin install kanwise-skills@tienedev-kanwise-skills"
             );
 
-            // Detect component modes and write cortx.json
-            let cortx_repo = cortx::detect::detect_cortx_repo();
-            if let Err(e) = cortx::install::detect_and_write_config(&claude_dir, &cortx_repo, &cortx::detect::RealSystem) {
-                eprintln!("⚠ could not write cortx.json: {e}");
+            // Detect component modes and write kanwise-cli.json
+            let cli_repo = kanwise_cli::detect::detect_cli_repo();
+            if let Err(e) = kanwise_cli::install::detect_and_write_config(&claude_dir, &cli_repo, &kanwise_cli::detect::RealSystem) {
+                eprintln!("⚠ could not write kanwise-cli.json: {e}");
             }
         }
         Err(e) => {
-            eprintln!("cortx install: {e}");
+            eprintln!("kanwise-cli install: {e}");
             std::process::exit(1);
         }
     }
 }
 
 fn cmd_uninstall() {
-    let claude_dir = cortx::config::claude_dir();
-    match cortx::install::uninstall(&claude_dir) {
+    let claude_dir = kanwise_cli::config::claude_dir();
+    match kanwise_cli::install::uninstall(&claude_dir) {
         Ok(report) => {
             match report.hook {
-                cortx::install::HookRemoveStatus::Removed => println!("✓ Hook removed"),
-                cortx::install::HookRemoveStatus::NotFound => {
+                kanwise_cli::install::HookRemoveStatus::Removed => println!("✓ Hook removed"),
+                kanwise_cli::install::HookRemoveStatus::NotFound => {
                     println!("ℹ Hook was not installed")
                 }
             }
             match report.mcp {
-                cortx::install::McpRemoveStatus::Removed => {
+                kanwise_cli::install::McpRemoveStatus::Removed => {
                     println!("✓ MCP server removed (kanwise)")
                 }
-                cortx::install::McpRemoveStatus::NotFound => {
+                kanwise_cli::install::McpRemoveStatus::NotFound => {
                     println!("ℹ MCP server was not configured")
                 }
             }
@@ -133,35 +133,35 @@ fn cmd_uninstall() {
             println!("  /plugin uninstall kanwise-skills@tienedev-kanwise-skills");
         }
         Err(e) => {
-            eprintln!("cortx uninstall: {e}");
+            eprintln!("kanwise-cli uninstall: {e}");
             std::process::exit(1);
         }
     }
 }
 
 fn cmd_doctor() {
-    let claude_dir = cortx::config::claude_dir();
-    let kanwise_path = cortx::detect_binary("kanwise");
-    let cortx_path = std::env::current_exe().unwrap_or_default();
+    let claude_dir = kanwise_cli::config::claude_dir();
+    let kanwise_path = kanwise_cli::detect_binary("kanwise");
+    let cli_path = std::env::current_exe().unwrap_or_default();
 
-    let ctx = cortx::doctor::DoctorContext {
+    let ctx = kanwise_cli::doctor::DoctorContext {
         claude_dir,
-        cortx_version: env!("CARGO_PKG_VERSION").into(),
-        cortx_path,
+        cli_version: env!("CARGO_PKG_VERSION").into(),
+        cli_path,
         kanwise_path,
     };
 
-    match cortx::doctor::run_doctor(&ctx) {
+    match kanwise_cli::doctor::run_doctor(&ctx) {
         Ok(results) => {
             for (name, status) in results {
                 match status {
-                    cortx::doctor::CheckResult::Ok(msg) => println!("✓ {name}: {msg}"),
-                    cortx::doctor::CheckResult::Warning(msg) => println!("⚠ {name}: {msg}"),
+                    kanwise_cli::doctor::CheckResult::Ok(msg) => println!("✓ {name}: {msg}"),
+                    kanwise_cli::doctor::CheckResult::Warning(msg) => println!("⚠ {name}: {msg}"),
                 }
             }
         }
         Err(e) => {
-            eprintln!("cortx doctor: {e}");
+            eprintln!("kanwise-cli doctor: {e}");
             std::process::exit(1);
         }
     }
@@ -171,7 +171,7 @@ fn cmd_hook() {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input).ok();
 
-    if let Some(output) = cortx::hook::rewrite_hook(&input) {
+    if let Some(output) = kanwise_cli::hook::rewrite_hook(&input) {
         io::stdout().write_all(output.as_bytes()).ok();
     }
 }
@@ -187,7 +187,7 @@ fn cmd_exec(args: &[String]) {
     {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("cortx: failed to execute: {e}");
+            eprintln!("kanwise-cli: failed to execute: {e}");
             std::process::exit(127);
         }
     };
@@ -204,7 +204,7 @@ fn cmd_exec(args: &[String]) {
     let mut prev_blank = false;
 
     for line in reader.lines().map_while(Result::ok) {
-        if let Some(cleaned) = cortx::clean::clean_line(&line, &mut prev_blank) {
+        if let Some(cleaned) = kanwise_cli::clean::clean_line(&line, &mut prev_blank) {
             let _ = writeln!(out, "{cleaned}");
         }
     }
@@ -212,7 +212,7 @@ fn cmd_exec(args: &[String]) {
     // Append cleaned stderr
     let stderr = stderr_thread.join().unwrap_or_default();
     for line in stderr.lines() {
-        if let Some(cleaned) = cortx::clean::clean_line(line, &mut prev_blank) {
+        if let Some(cleaned) = kanwise_cli::clean::clean_line(line, &mut prev_blank) {
             let _ = writeln!(out, "{cleaned}");
         }
     }
@@ -222,7 +222,7 @@ fn cmd_exec(args: &[String]) {
 }
 
 fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Option<Vec<String>>) {
-    let claude_dir = cortx::config::claude_dir();
+    let claude_dir = kanwise_cli::config::claude_dir();
 
     // Handle --set-repo
     if let Some(args) = set_repo {
@@ -232,19 +232,19 @@ fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Opti
             eprintln!("⚠ path does not exist: {}", path.display());
             std::process::exit(1);
         }
-        let cargo_toml = if name == "cortx" || name == "kanwise" {
+        let cargo_toml = if name == "kanwise-cli" || name == "kanwise" {
             path.join("Cargo.toml")
         } else {
-            eprintln!("⚠ unknown component: {name} (expected cortx or kanwise)");
+            eprintln!("⚠ unknown component: {name} (expected kanwise-cli or kanwise)");
             std::process::exit(1);
         };
         if !cargo_toml.exists() {
             eprintln!("⚠ no Cargo.toml found at {}", path.display());
             std::process::exit(1);
         }
-        // Update cortx.json
-        let config_path = cortx::config::cortx_config_path(&claude_dir);
-        let mut config = cortx::config::read_json(&config_path).unwrap_or_default();
+        // Update kanwise-cli.json
+        let config_path = kanwise_cli::config::cli_config_path(&claude_dir);
+        let mut config = kanwise_cli::config::read_json(&config_path).unwrap_or_default();
         let components = config
             .as_object_mut().unwrap()
             .entry("components")
@@ -255,7 +255,7 @@ fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Opti
             .or_insert(serde_json::json!({}));
         comp["repo"] = serde_json::json!(path.to_string_lossy().to_string());
         comp["mode"] = serde_json::json!("local");
-        cortx::config::write_json(&config_path, &config).unwrap();
+        kanwise_cli::config::write_json(&config_path, &config).unwrap();
         println!("✓ {name} repo set to {}", path.display());
         return;
     }
@@ -272,34 +272,34 @@ fn cmd_update(component: Option<&str>, docker: bool, local: bool, set_repo: Opti
     // Persist mode override if --docker or --local
     if let Some(mode) = force_mode {
         let comp_name = component.unwrap_or("kanwise");
-        let config_path = cortx::config::cortx_config_path(&claude_dir);
-        if let Ok(mut config) = cortx::config::read_json(&config_path)
+        let config_path = kanwise_cli::config::cli_config_path(&claude_dir);
+        if let Ok(mut config) = kanwise_cli::config::read_json(&config_path)
             && let Some(components) = config.get_mut("components").and_then(|c| c.as_object_mut())
             && let Some(comp) = components.get_mut(comp_name)
         {
             comp["mode"] = serde_json::json!(mode);
-            let _ = cortx::config::write_json(&config_path, &config);
+            let _ = kanwise_cli::config::write_json(&config_path, &config);
         }
     }
 
-    match cortx::update::run_update(&claude_dir, component, force_mode) {
+    match kanwise_cli::update::run_update(&claude_dir, component, force_mode) {
         Ok(results) => {
             for (name, result) in results {
                 match result {
-                    cortx::update::UpdateResult::Updated { old_ref, new_ref } => {
+                    kanwise_cli::update::UpdateResult::Updated { old_ref, new_ref } => {
                         println!("✓ {name} updated ({old_ref} → {new_ref})");
                     }
-                    cortx::update::UpdateResult::AlreadyUpToDate { current_ref } => {
+                    kanwise_cli::update::UpdateResult::AlreadyUpToDate { current_ref } => {
                         println!("✓ {name} already up to date ({current_ref})");
                     }
-                    cortx::update::UpdateResult::Skipped { reason } => {
+                    kanwise_cli::update::UpdateResult::Skipped { reason } => {
                         println!("⚠ {name}: {reason}");
                     }
                 }
             }
         }
         Err(e) => {
-            eprintln!("cortx update: {e}");
+            eprintln!("kanwise-cli update: {e}");
             std::process::exit(1);
         }
     }

@@ -1,4 +1,4 @@
-use cortx::config::{cortx_config_path, read_json, write_json};
+use kanwise_cli::config::{cli_config_path, read_json, write_json};
 use tempfile::TempDir;
 
 #[test]
@@ -71,19 +71,19 @@ fn write_roundtrip_preserves_data() {
 }
 
 #[test]
-fn cortx_config_path_joins_correctly() {
+fn cli_config_path_joins_correctly() {
     let dir = TempDir::new().unwrap();
-    let path = cortx_config_path(dir.path());
-    assert_eq!(path, dir.path().join("cortx.json"));
+    let path = cli_config_path(dir.path());
+    assert_eq!(path, dir.path().join("kanwise-cli.json"));
 }
 
 #[test]
-fn cortx_config_roundtrip() {
+fn cli_config_roundtrip() {
     let dir = TempDir::new().unwrap();
-    let path = cortx_config_path(dir.path());
+    let path = cli_config_path(dir.path());
     let data = serde_json::json!({
         "components": {
-            "cortx": {"mode": "local", "repo": "/some/path"}
+            "kanwise-cli": {"mode": "local", "repo": "/some/path"}
         }
     });
     write_json(&path, &data).unwrap();
@@ -92,9 +92,9 @@ fn cortx_config_roundtrip() {
 }
 
 #[test]
-fn cortx_config_missing_returns_empty() {
+fn cli_config_missing_returns_empty() {
     let dir = TempDir::new().unwrap();
-    let path = cortx_config_path(dir.path());
+    let path = cli_config_path(dir.path());
     let result = read_json(&path).unwrap();
     assert_eq!(result, serde_json::json!({}));
 }

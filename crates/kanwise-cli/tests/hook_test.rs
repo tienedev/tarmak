@@ -1,4 +1,4 @@
-use cortx::hook::rewrite_hook;
+use kanwise_cli::hook::rewrite_hook;
 
 #[test]
 fn rewrites_bash_command() {
@@ -10,7 +10,7 @@ fn rewrites_bash_command() {
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(
         parsed["hookSpecificOutput"]["updatedInput"]["command"],
-        "cortx exec -- 'cargo test'"
+        "kanwise-cli exec -- 'cargo test'"
     );
 }
 
@@ -24,7 +24,7 @@ fn shell_metacharacters_preserved() {
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(
         parsed["hookSpecificOutput"]["updatedInput"]["command"],
-        "cortx exec -- 'cd /tmp && cargo test'"
+        "kanwise-cli exec -- 'cd /tmp && cargo test'"
     );
 }
 
@@ -38,7 +38,7 @@ fn single_quotes_in_command_escaped() {
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(
         parsed["hookSpecificOutput"]["updatedInput"]["command"],
-        "cortx exec -- 'echo '\\''hello world'\\'''"
+        "kanwise-cli exec -- 'echo '\\''hello world'\\'''"
     );
 }
 
@@ -46,7 +46,7 @@ fn single_quotes_in_command_escaped() {
 fn anti_recursion_passthrough() {
     let input = serde_json::json!({
         "tool_name": "Bash",
-        "tool_input": { "command": "cortx exec -- cargo test" }
+        "tool_input": { "command": "kanwise-cli exec -- cargo test" }
     });
     let result = rewrite_hook(&input.to_string());
     assert!(result.is_none(), "should pass through already-wrapped commands");

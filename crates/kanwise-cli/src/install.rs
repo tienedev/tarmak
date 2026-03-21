@@ -61,8 +61,8 @@ fn install_hook(claude_dir: &Path) -> Result<HookStatus> {
         .or_insert(json!([]));
     let arr = pre_tool_use.as_array_mut().unwrap();
 
-    // Check for existing cortx hook
-    if has_command_hook(arr, "cortx hook") {
+    // Check for existing kanwise-cli hook
+    if has_command_hook(arr, "kanwise-cli hook") {
         return Ok(HookStatus::AlreadyPresent);
     }
 
@@ -75,7 +75,7 @@ fn install_hook(claude_dir: &Path) -> Result<HookStatus> {
             .filter(|h| {
                 h.get("command").and_then(|c| c.as_str()) == Some("token-cleaner hook")
             })
-            .for_each(|h| h["command"] = json!("cortx hook"));
+            .for_each(|h| h["command"] = json!("kanwise-cli hook"));
         config::write_json(&settings_path, &settings)?;
         return Ok(HookStatus::Migrated);
     }
@@ -83,7 +83,7 @@ fn install_hook(claude_dir: &Path) -> Result<HookStatus> {
     // Append new entry
     arr.push(json!({
         "matcher": "Bash",
-        "hooks": [{"type": "command", "command": "cortx hook"}]
+        "hooks": [{"type": "command", "command": "kanwise-cli hook"}]
     }));
     config::write_json(&settings_path, &settings)?;
     Ok(HookStatus::Installed)
@@ -104,14 +104,14 @@ fn install_mcp(claude_dir: &Path, kanwise_path: Option<&Path>) -> Result<McpStat
         .or_insert(json!({}));
     let servers_obj = servers.as_object_mut().unwrap();
 
-    // Remove stale cortx serve entry
-    if let Some(cortx_entry) = servers_obj.get("cortx")
-        && cortx_entry
+    // Remove stale cortx serve entry // legacy
+    if let Some(cli_entry) = servers_obj.get("cortx") // legacy
+        && cli_entry
             .get("args")
             .and_then(|a| a.as_array())
             .is_some_and(|args| args.iter().any(|a| a.as_str() == Some("serve")))
     {
-        servers_obj.remove("cortx");
+        servers_obj.remove("cortx"); // legacy
     }
 
     // Check for existing kanwise entry
@@ -190,7 +190,7 @@ fn uninstall_mcp(claude_dir: &Path) -> Result<McpRemoveStatus> {
     Ok(McpRemoveStatus::Removed)
 }
 
-/// Check if a PreToolUse entry contains cortx hook OR token-cleaner hook.
+/// Check if a PreToolUse entry contains kanwise-cli hook OR token-cleaner hook.
 fn has_any_managed_hook(entry: &Value) -> bool {
     entry
         .get("hooks")
@@ -198,7 +198,7 @@ fn has_any_managed_hook(entry: &Value) -> bool {
         .is_some_and(|hooks| {
             hooks.iter().any(|h| {
                 let cmd = h.get("command").and_then(|c| c.as_str()).unwrap_or("");
-                cmd == "cortx hook" || cmd == "token-cleaner hook"
+                cmd == "kanwise-cli hook" || cmd == "token-cleaner hook"
             })
         })
 }
@@ -222,24 +222,24 @@ fn find_command_hook(arr: &[Value], command: &str) -> Option<usize> {
     })
 }
 
-/// Detect component modes and write cortx.json. Called separately from install()
+/// Detect component modes and write kanwise-cli.json. Called separately from install()
 /// so that install() stays side-effect-free for hooks/MCP tests.
 pub fn detect_and_write_config(
     claude_dir: &Path,
-    cortx_repo: &Path,
+    cli_repo: &Path,
     system: &dyn crate::detect::SystemContext,
 ) -> Result<()> {
-    let kanwise_mode = crate::detect::detect_kanwise(system, cortx_repo);
-    write_cortx_config(claude_dir, cortx_repo, &kanwise_mode)
+    let kanwise_mode = crate::detect::detect_kanwise(system, cli_repo);
+    write_cli_config(claude_dir, cli_repo, &kanwise_mode)
 }
 
-/// Write cortx.json with detected component configurations.
-fn write_cortx_config(claude_dir: &Path, cortx_repo: &Path, kanwise_mode: &crate::detect::ComponentMode) -> Result<()> {
-    let config_path = config::cortx_config_path(claude_dir);
+/// Write kanwise-cli.json with detected component configurations.
+fn write_cli_config(claude_dir: &Path, cli_repo: &Path, kanwise_mode: &crate::detect::ComponentMode) -> Result<()> {
+    let config_path = config::cli_config_path(claude_dir);
     let mut components = json!({
-        "cortx": {
+        "kanwise-cli": {
             "mode": "local",
-            "repo": cortx_repo.to_string_lossy()
+            "repo": cli_repo.to_string_lossy()
         }
     });
 

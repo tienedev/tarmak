@@ -14,14 +14,14 @@ pub fn rewrite_hook(input: &str) -> Option<String> {
         .get("command")?
         .as_str()?;
 
-    // Anti-recursion: check both cortx and legacy token-cleaner prefixes.
+    // Anti-recursion: check both kanwise-cli and legacy token-cleaner prefixes.
     // Trailing space ensures we don't match hypothetical other subcommands.
-    if command.starts_with("cortx exec ") || command.starts_with("token-cleaner exec ") {
+    if command.starts_with("kanwise-cli exec ") || command.starts_with("token-cleaner exec ") {
         return None;
     }
 
     // Shell-quote the command so metacharacters (&&, ||, ;, |, $(...))
-    // are passed as a single argument to `cortx exec`, not interpreted
+    // are passed as a single argument to `kanwise-cli exec`, not interpreted
     // by the outer shell.
     let quoted = format!("'{}'", command.replace('\'', "'\\''"));
 
@@ -29,7 +29,7 @@ pub fn rewrite_hook(input: &str) -> Option<String> {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "updatedInput": {
-                "command": format!("cortx exec -- {quoted}")
+                "command": format!("kanwise-cli exec -- {quoted}")
             }
         }
     });

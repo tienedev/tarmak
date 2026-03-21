@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 pub struct DoctorContext {
     pub claude_dir: PathBuf,
-    pub cortx_version: String,
-    pub cortx_path: PathBuf,
+    pub cli_version: String,
+    pub cli_path: PathBuf,
     pub kanwise_path: Option<PathBuf>,
 }
 
@@ -17,7 +17,7 @@ pub enum CheckResult {
 
 pub fn run_doctor(ctx: &DoctorContext) -> Result<Vec<(String, CheckResult)>> {
     let results = vec![
-        ("cortx".into(), check_binary(ctx)),
+        ("kanwise-cli".into(), check_binary(ctx)),
         ("Hook".into(), check_hook(ctx)?),
         ("MCP".into(), check_mcp(ctx)?),
         ("Plugin".into(), check_plugin(ctx)?),
@@ -29,8 +29,8 @@ pub fn run_doctor(ctx: &DoctorContext) -> Result<Vec<(String, CheckResult)>> {
 fn check_binary(ctx: &DoctorContext) -> CheckResult {
     CheckResult::Ok(format!(
         "v{} ({})",
-        ctx.cortx_version,
-        ctx.cortx_path.display()
+        ctx.cli_version,
+        ctx.cli_path.display()
     ))
 }
 
@@ -47,17 +47,17 @@ fn check_hook(ctx: &DoctorContext) -> Result<CheckResult> {
                     .and_then(|h| h.as_array())
                     .is_some_and(|hooks| {
                         hooks.iter().any(|h| {
-                            h.get("command").and_then(|c| c.as_str()) == Some("cortx hook")
+                            h.get("command").and_then(|c| c.as_str()) == Some("kanwise-cli hook")
                         })
                     })
             })
         });
 
     if has_hook {
-        Ok(CheckResult::Ok("PreToolUse → cortx hook".into()))
+        Ok(CheckResult::Ok("PreToolUse → kanwise-cli hook".into()))
     } else {
         Ok(CheckResult::Warning(
-            "cortx hook not found in PreToolUse".into(),
+            "kanwise-cli hook not found in PreToolUse".into(),
         ))
     }
 }
@@ -100,11 +100,11 @@ fn check_plugin(ctx: &DoctorContext) -> Result<CheckResult> {
 }
 
 fn check_components(ctx: &DoctorContext) -> Result<CheckResult> {
-    let config_path = config::cortx_config_path(&ctx.claude_dir);
+    let config_path = config::cli_config_path(&ctx.claude_dir);
     let config = config::read_json(&config_path)?;
 
     let Some(components) = config.get("components").and_then(|c| c.as_object()) else {
-        return Ok(CheckResult::Warning("cortx.json not found — run `cortx install`".into()));
+        return Ok(CheckResult::Warning("kanwise-cli.json not found — run `kanwise-cli install`".into()));
     };
 
     let mut parts = vec![];
