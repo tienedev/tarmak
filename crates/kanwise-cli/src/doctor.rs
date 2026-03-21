@@ -1,0 +1,128 @@
+use crate::config;
+use anyhow::Result;
+use std::path::PathBuf;
+
+pub struct DoctorContext {
+    pub claude_dir: PathBuf,
+    pub cortx_version: String,
+    pub cortx_path: PathBuf,
+    pub kanwise_path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+pub enum CheckResult {
+    Ok(String),
+    Warning(String),
+}
+
+pub fn run_doctor(ctx: &DoctorContext) -> Result<Vec<(String, CheckResult)>> {
+    let results = vec![
+        ("cortx".into(), check_binary(ctx)),
+        ("Hook".into(), check_hook(ctx)?),
+        ("MCP".into(), check_mcp(ctx)?),
+        ("Plugin".into(), check_plugin(ctx)?),
+        ("Components".into(), check_components(ctx)?),
+    ];
+    Ok(results)
+}
+
+fn check_binary(ctx: &DoctorContext) -> CheckResult {
+    CheckResult::Ok(format!(
+        "v{} ({})",
+        ctx.cortx_version,
+        ctx.cortx_path.display()
+    ))
+}
+
+fn check_hook(ctx: &DoctorContext) -> Result<CheckResult> {
+    let settings = config::read_json(&ctx.claude_dir.join("settings.json"))?;
+    let has_hook = settings
+        .get("hooks")
+        .and_then(|h| h.get("PreToolUse"))
+        .and_then(|p| p.as_array())
+        .is_some_and(|arr| {
+            arr.iter().any(|entry| {
+                entry
+                    .get("hooks")
+                    .and_then(|h| h.as_array())
+                    .is_some_and(|hooks| {
+                        hooks.iter().any(|h| {
+                            h.get("command").and_then(|c| c.as_str()) == Some("cortx hook")
+                        })
+                    })
+            })
+        });
+
+    if has_hook {
+        Ok(CheckResult::Ok("PreToolUse → cortx hook".into()))
+    } else {
+        Ok(CheckResult::Warning(
+            "cortx hook not found in PreToolUse".into(),
+        ))
+    }
+}
+
+fn check_mcp(ctx: &DoctorContext) -> Result<CheckResult> {
+    let mcp = config::read_json(&ctx.claude_dir.join(".mcp.json"))?;
+    let has_kanwise_config = mcp
+        .get("mcpServers")
+        .and_then(|s| s.get("kanwise"))
+        .is_some();
+
+    match (&ctx.kanwise_path, has_kanwise_config) {
+        (Some(path), true) => Ok(CheckResult::Ok(format!(
+            "kanwise (binary: {})",
+            path.display()
+        ))),
+        (Some(path), false) => Ok(CheckResult::Warning(format!(
+            "kanwise binary found at {} but not configured in .mcp.json",
+            path.display()
+        ))),
+        (None, true) => Ok(CheckResult::Warning(
+            "kanwise configured but binary not found in PATH".into(),
+        )),
+        (None, false) => Ok(CheckResult::Warning("kanwise not configured".into())),
+    }
+}
+
+fn check_plugin(ctx: &DoctorContext) -> Result<CheckResult> {
+    let settings = config::read_json(&ctx.claude_dir.join("settings.json"))?;
+    let has_plugin = settings
+        .get("enabledPlugins")
+        .and_then(|p| p.as_object())
+        .is_some_and(|obj| obj.keys().any(|k| k.starts_with("kanwise-skills@")));
+
+    if has_plugin {
+        Ok(CheckResult::Ok("kanwise-skills installed".into()))
+    } else {
+        Ok(CheckResult::Warning("kanwise-skills not detected".into()))
+    }
+}
+
+fn check_components(ctx: &DoctorContext) -> Result<CheckResult> {
+    let config_path = config::cortx_config_path(&ctx.claude_dir);
+    let config = config::read_json(&config_path)?;
+
+    let Some(components) = config.get("components").and_then(|c| c.as_object()) else {
+        return Ok(CheckResult::Warning("cortx.json not found — run `cortx install`".into()));
+    };
+
+    let mut parts = vec![];
+    for (name, comp) in components {
+        let mode = comp.get("mode").and_then(|m| m.as_str()).unwrap_or("unknown");
+        let detail = match mode {
+            "local" => {
+                let repo = comp.get("repo").and_then(|r| r.as_str()).unwrap_or("?");
+                format!("{name}: local ({repo})")
+            }
+            "docker" => {
+                let image = comp.get("image").and_then(|i| i.as_str()).unwrap_or("?");
+                format!("{name}: docker ({image})")
+            }
+            _ => format!("{name}: {mode}"),
+        };
+        parts.push(detail);
+    }
+
+    Ok(CheckResult::Ok(parts.join(", ")))
+}
