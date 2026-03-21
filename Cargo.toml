@@ -35,3 +35,4 @@ mime_guess = "2"
 argon2 = { version = "0.5", features = ["std"] }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
+dirs = "6"

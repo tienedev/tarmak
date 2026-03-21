@@ -40,3 +40,4 @@ futures = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = "0.7"
 kbf = { path = "../kbf" }
+dirs.workspace = true
