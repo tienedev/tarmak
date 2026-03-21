@@ -111,7 +111,7 @@ pub struct ExportedFieldValue {
 // ---------------------------------------------------------------------------
 
 fn db_path() -> String {
-    std::env::var("DATABASE_PATH").unwrap_or_else(|_| "kanwise.db".to_string())
+    crate::db_path()
 }
 
 pub async fn backup(output: Option<String>) -> anyhow::Result<()> {

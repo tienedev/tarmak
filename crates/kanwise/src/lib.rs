@@ -14,6 +14,17 @@ pub use notifications::NotifTx;
 
 use db::models::Priority;
 
+/// Resolve the database path: `DATABASE_PATH` env var, or `~/.kanwise/kanwise.db`.
+pub fn db_path() -> String {
+    if let Ok(p) = std::env::var("DATABASE_PATH") {
+        return p;
+    }
+    let home = std::env::var("HOME").expect("HOME not set");
+    let dir = std::path::PathBuf::from(home).join(".kanwise");
+    std::fs::create_dir_all(&dir).ok();
+    dir.join("kanwise.db").to_string_lossy().to_string()
+}
+
 #[derive(Debug, Clone)]
 pub struct TaskSummary {
     pub id: String,
