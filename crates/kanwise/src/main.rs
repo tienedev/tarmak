@@ -69,7 +69,7 @@ enum Cli {
         #[arg(long, env = "KANWISE_TOKEN")]
         token: String,
         /// Allowed CORS origins (comma-separated)
-        #[arg(long, default_value = "http://localhost:3000,http://localhost:3001")]
+        #[arg(long, default_value = "http://localhost:3000,http://localhost:4000")]
         allowed_origins: String,
     },
 }

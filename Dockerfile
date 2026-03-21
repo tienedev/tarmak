@@ -8,8 +8,8 @@ COPY frontend/ ./
 RUN pnpm build
 
 # Stage 2: Build backend
-FROM rust:1.85-alpine AS backend
-RUN apk add --no-cache musl-dev
+FROM rust:1-alpine AS backend
+RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
@@ -20,6 +20,7 @@ RUN cargo build --release
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates && mkdir -p /data
 COPY --from=backend /app/target/release/kanwise /usr/local/bin/
-EXPOSE 3001
+EXPOSE 4000
+ENV PORT=4000
 ENV DATABASE_PATH=/data/kanwise.db
 CMD ["kanwise", "serve"]

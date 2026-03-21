@@ -6,7 +6,7 @@ Kanban board for AI-assisted development. Monorepo with 3 Rust crates, a React f
 
 ```
 crates/
-  kanwise/       # Kanban board (REST + WebSocket + MCP server)
+  kanwise/       # Kanban board (REST + WebSocket + MCP server + agent)
   kanwise-cli/   # Claude Code dev-environment configurator (hooks, MCP, plugin)
   kbf/           # Kanban Bit Format codec
 frontend/        # React 19 + TypeScript + Tailwind + shadcn/ui
@@ -17,7 +17,10 @@ skills/          # Claude Code plugin (skills, agents, hooks, commands)
 
 ```bash
 make install          # Install frontend dependencies
-make dev              # Start dev servers (backend port 3001, frontend port 3000)
+make dev              # Start all dev servers (backend 4000 + agent 9876 + frontend 3000)
+make back             # Backend only
+make front            # Frontend only with HMR
+make agent            # Agent server with auto-login
 cargo test --workspace  # Run all tests
 cargo clippy --workspace -- -D warnings  # Lint
 cargo build --workspace  # Build
@@ -28,7 +31,7 @@ cargo install --path crates/kanwise-cli  # Install kanwise-cli binary
 
 | Binary | Purpose |
 |--------|---------|
-| `kanwise` | Kanban board server — web server (`serve`), MCP server (`mcp`), CLI (`doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password`) |
+| `kanwise` | Kanban board server — web server (`serve`), agent server (`agent`), MCP server (`mcp`), CLI (`doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password`) |
 | `kanwise-cli` | Configure Claude Code dev environment — hooks, MCP servers, plugin instructions |
 
 ## MCP Server (kanwise mcp)

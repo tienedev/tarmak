@@ -16,7 +16,7 @@ kill:
 dev: kill
 	@$(MAKE) back &
 	@printf "Waiting for backend..."
-	@until curl -sf http://localhost:3001/api/v1/health > /dev/null 2>&1; do printf "."; sleep 0.5; done
+	@until curl -sf http://localhost:4000/api/v1/health > /dev/null 2>&1; do printf "."; sleep 0.5; done
 	@echo " ready."
 	@$(MAKE) agent &
 	@printf "Waiting for agent..."
@@ -28,18 +28,18 @@ dev: kill
 front:
 	cd frontend && corepack pnpm run dev
 
-# Backend dev server (port 3001)
+# Backend dev server (port 4000)
 back:
 	$(CARGO) run
 
 # Agent server (port 9876) — auto-login to get a token
 agent:
-	@TOKEN=$$(curl -sf http://localhost:3001/api/v1/auth/login \
+	@TOKEN=$$(curl -sf http://localhost:4000/api/v1/auth/login \
 		-H 'Content-Type: application/json' \
 		-d '{"email":"$(KANWISE_EMAIL)","password":"$(KANWISE_PASSWORD)"}' \
 		| python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) && \
 	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set KANWISE_EMAIL and KANWISE_PASSWORD)"; exit 0; fi && \
-	$(CARGO) run -- agent --server http://localhost:3001 --token "$$TOKEN"
+	$(CARGO) run -- agent --server http://localhost:4000 --token "$$TOKEN"
 
 # Production build (frontend + backend)
 build:

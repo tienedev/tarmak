@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "4000:4000"
     volumes:
       - kanwise-data:/data
     environment:

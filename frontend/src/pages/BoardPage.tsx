@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useBoardStore } from '@/stores/board'
 import { useAuthStore } from '@/stores/auth'
@@ -14,15 +15,15 @@ import { BoardSettingsPanel } from '@/components/board/BoardSettingsPanel'
 import { useFilteredTasks } from '@/hooks/useFilters'
 import { useSync } from '@/hooks/useSync'
 import { usePresence } from '@/hooks/usePresence'
-import type { Task, AgentSession } from '@/lib/api'
-import { TerminalDrawer } from '@/components/board/TerminalDrawer'
+import type { Task } from '@/lib/api'
+import { SessionsView } from '@/components/board/SessionsView'
 import { ActivityPanel } from '@/components/board/ActivityPanel'
 import { ArchivePanel } from '@/components/board/ArchivePanel'
 import { SearchBar } from '@/components/board/SearchBar'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { useHotkeys } from '@/hooks/useHotkeys'
-import { Archive, ArrowLeft, Columns3, Copy, GanttChart, History, List, Settings2 } from 'lucide-react'
+import { Archive, ArrowLeft, Columns3, Copy, GanttChart, History, List, Settings2, Terminal } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
@@ -36,7 +37,7 @@ import { useNotificationStore } from '@/stores/notifications'
 
 function getInitialView(): ViewMode {
   const hash = window.location.hash
-  const match = hash.match(/[?&]view=(kanban|list|timeline)/)
+  const match = hash.match(/[?&]view=(kanban|list|timeline|sessions)/)
   return (match?.[1] as ViewMode) ?? 'kanban'
 }
 
@@ -45,6 +46,7 @@ interface BoardPageProps {
 }
 
 export function BoardPage({ boardId }: BoardPageProps) {
+  const { t } = useTranslation()
   const { currentBoard, columns, tasks, members, loading, fetchBoard, clearCurrentBoard } =
     useBoardStore()
   const user = useAuthStore((s) => s.user)
@@ -61,7 +63,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
   const [duplicateName, setDuplicateName] = useState('')
   const [duplicateIncludeTasks, setDuplicateIncludeTasks] = useState(true)
   const [duplicating, setDuplicating] = useState(false)
-  const [terminalSession, setTerminalSession] = useState<AgentSession | null>(null)
+
 
   // Real-time sync and presence
   const { provider, status } = useSync(boardId)
@@ -125,6 +127,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
     { key: '1', handler: () => handleViewChange('kanban') },
     { key: '2', handler: () => handleViewChange('list') },
     { key: '3', handler: () => handleViewChange('timeline') },
+    { key: '4', handler: () => handleViewChange('sessions') },
     { key: 'a', handler: () => setActivityOpen(true) },
     { key: '?', handler: () => setShortcutsOpen(true) },
   ], [])
@@ -155,7 +158,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
       setDuplicateOpen(false)
       window.location.hash = `#/boards/${board.id}`
     } catch {
-      useNotificationStore.getState().add('Failed to duplicate board')
+      useNotificationStore.getState().add(t('errors.taskDuplicateFailed'))
     } finally {
       setDuplicating(false)
     }
@@ -197,10 +200,10 @@ export function BoardPage({ boardId }: BoardPageProps) {
   if (!currentBoard) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Board not found</p>
+        <p className="text-sm text-muted-foreground">{t('board.notFound')}</p>
         <Button variant="outline" size="sm" onClick={() => (window.location.hash = '#/')}>
           <ArrowLeft className="size-3.5" data-icon="inline-start" />
-          Back to boards
+          {t('board.backToBoards')}
         </Button>
       </div>
     )
@@ -213,7 +216,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
         <Button
           variant="ghost"
           size="icon-xs"
-          aria-label="Back to boards"
+          aria-label={t('board.backToBoards')}
           onClick={() => (window.location.hash = '#/')}
         >
           <ArrowLeft className="size-3.5" />
@@ -226,7 +229,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
         <Tabs
           value={view}
           onValueChange={(v) => {
-            if (v === 'kanban' || v === 'list' || v === 'timeline') {
+            if (v === 'kanban' || v === 'list' || v === 'timeline' || v === 'sessions') {
               handleViewChange(v)
             }
           }}
@@ -234,15 +237,19 @@ export function BoardPage({ boardId }: BoardPageProps) {
           <TabsList variant="line">
             <TabsTrigger value="kanban">
               <Columns3 className="size-3.5" />
-              Board
+              {t('board.viewBoard')}
             </TabsTrigger>
             <TabsTrigger value="list">
               <List className="size-3.5" />
-              List
+              {t('board.viewList')}
             </TabsTrigger>
             <TabsTrigger value="timeline">
               <GanttChart className="size-3.5" />
-              Timeline
+              {t('board.viewTimeline')}
+            </TabsTrigger>
+            <TabsTrigger value="sessions">
+              <Terminal className="size-3.5" />
+              {t('board.sessions')}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -258,7 +265,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
           onClick={() => setActivityOpen(true)}
         >
           <History className="size-3.5" />
-          Activity
+          {t('board.activity')}
         </Button>
 
         <Button
@@ -268,14 +275,14 @@ export function BoardPage({ boardId }: BoardPageProps) {
           onClick={() => setArchiveOpen(true)}
         >
           <Archive className="size-3.5" />
-          Archives
+          {t('board.archives')}
         </Button>
 
         <Button
           variant="ghost"
           size="xs"
           className="gap-1.5 text-xs text-muted-foreground"
-          aria-label="Duplicate board"
+          aria-label={t('board.duplicateBoard')}
           onClick={() => {
             setDuplicateName(`Copy of ${currentBoard.name}`)
             setDuplicateIncludeTasks(true)
@@ -289,7 +296,7 @@ export function BoardPage({ boardId }: BoardPageProps) {
           variant="ghost"
           size="xs"
           className="gap-1.5 text-xs text-muted-foreground"
-          aria-label="Board settings"
+          aria-label={t('board.boardSettings')}
           onClick={() => setSettingsOpen(true)}
         >
           <Settings2 className="size-3.5" />
@@ -301,8 +308,10 @@ export function BoardPage({ boardId }: BoardPageProps) {
         </div>
       </header>
 
-      {/* Sub-nav: filters only */}
-      <BoardSubNav view={view} onViewChange={handleViewChange} />
+      {/* Sub-nav: filters (hidden on sessions view) */}
+      {view !== 'sessions' && (
+        <BoardSubNav view={view} onViewChange={handleViewChange} />
+      )}
 
       {/* View content */}
       <div className="flex-1 overflow-hidden">
@@ -326,6 +335,9 @@ export function BoardPage({ boardId }: BoardPageProps) {
             onTaskClick={handleTaskClick}
           />
         )}
+        {view === 'sessions' && (
+          <SessionsView boardId={boardId} />
+        )}
       </div>
 
       {/* Task detail dialog */}
@@ -333,7 +345,6 @@ export function BoardPage({ boardId }: BoardPageProps) {
         task={selectedTask}
         open={detailOpen}
         onClose={handleDetailClose}
-        onOpenTerminal={setTerminalSession}
       />
 
       {/* Board settings panel */}
@@ -354,11 +365,11 @@ export function BoardPage({ boardId }: BoardPageProps) {
       <Dialog open={duplicateOpen} onOpenChange={(open) => { if (!open) setDuplicateOpen(false) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Duplicate board</DialogTitle>
+            <DialogTitle>{t('board.duplicateBoard')}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium">Board name</label>
+              <label className="mb-1.5 block text-sm font-medium">{t('board.boardName')}</label>
               <Input
                 value={duplicateName}
                 onChange={(e) => setDuplicateName(e.target.value)}
@@ -373,25 +384,19 @@ export function BoardPage({ boardId }: BoardPageProps) {
                 onChange={(e) => setDuplicateIncludeTasks(e.target.checked)}
                 className="rounded"
               />
-              Include tasks
+              {t('board.includeTasks')}
             </label>
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button size="sm" onClick={handleDuplicateBoard} disabled={!duplicateName.trim() || duplicating}>
-              {duplicating ? 'Duplicating...' : 'Duplicate'}
+              {duplicating ? t('common.duplicating') : t('common.duplicate')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <TerminalDrawer
-        session={terminalSession}
-        open={terminalSession !== null}
-        onClose={() => setTerminalSession(null)}
-      />
 
       <ConnectionStatus status={status} />
     </div>

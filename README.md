@@ -40,14 +40,17 @@ This produces the `kanwise` binary in `target/debug/`:
 ### Running
 
 ```bash
-# Web server (port 3001) + embedded frontend
+# Web server (port 4000) + embedded frontend
 kanwise serve
+
+# Agent server (local, connects to kanwise)
+kanwise agent --server http://localhost:4000 --token <your-token>
 
 # MCP server (stdio, no web server)
 kanwise mcp
 
 # Docker
-docker run -d -p 3001:3001 -v kanwise-data:/data ghcr.io/tienedev/kanwise:latest
+docker run -d -p 4000:4000 -v kanwise-data:/data ghcr.io/tienedev/kanwise:latest
 ```
 
 ### MCP configuration
@@ -70,7 +73,7 @@ Add to your Claude Code MCP config:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_PATH` | `kanwise.db` | SQLite database path |
-| `KANBAN_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3001` | CORS origins |
+| `KANBAN_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:4000` | CORS origins |
 | `KANBAN_ENV` | — | Set to `production` to enforce security |
 
 ## MCP Server
@@ -85,6 +88,20 @@ When running `kanwise mcp`, Kanwise exposes 4 tools over stdio:
 | `board_ask` | Natural language queries about the board |
 
 ## Features
+
+### Agent Sessions
+
+Click **Run** on any task card to launch an autopiloted Claude Code session:
+
+- Embedded terminal (xterm.js) streams live output
+- Multiple parallel sessions via git worktrees
+- Atomic task claiming prevents race conditions (`locked_by`, `locked_at`)
+- Agent auto-authenticates using your Kanwise token
+
+```bash
+# Start the agent server (included in make dev)
+kanwise agent --server http://localhost:4000 --token <your-token>
+```
 
 ### KBF: 95% fewer tokens
 
@@ -112,6 +129,10 @@ Tiptap editor with markdown support.
 
 Text, number, URL, date fields on any board.
 
+### Board Settings
+
+General settings (repo URL), agent token configuration, invite management, danger zone (delete board).
+
 ### Collaboration
 
 Real-time CRDT sync (Yjs), live presence, comments, invite links.
@@ -135,7 +156,7 @@ Argon2 passwords, session tokens, API keys.
 git clone https://github.com/tienedev/kanwise.git
 cd kanwise
 make install  # frontend dependencies
-make dev      # backend (3001) + frontend (3000) with hot reload
+make dev      # backend (4000) + frontend (3000) with hot reload
 ```
 
 ```bash
