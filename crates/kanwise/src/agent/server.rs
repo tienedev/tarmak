@@ -433,8 +433,6 @@ pub async fn run_agent_server(
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("Agent server listening on {addr}");
-    println!("\n  Agent token: {agent_token}\n");
-    println!("  Paste this token in the Kanwise frontend to connect.\n");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
