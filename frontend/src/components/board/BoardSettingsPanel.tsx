@@ -34,7 +34,7 @@ import {
   List,
 } from 'lucide-react'
 
-type SettingsTab = 'members' | 'labels' | 'fields' | 'wip' | 'danger'
+type SettingsTab = 'general' | 'members' | 'labels' | 'fields' | 'wip' | 'danger'
 
 interface BoardSettingsPanelProps {
   boardId: string
@@ -43,15 +43,16 @@ interface BoardSettingsPanelProps {
 }
 
 const tabs: { id: SettingsTab; label: string; icon: typeof Users }[] = [
+  { id: 'general', label: 'General', icon: Settings2 },
   { id: 'members', label: 'Members', icon: Users },
   { id: 'labels', label: 'Labels', icon: Tag },
-  { id: 'fields', label: 'Fields', icon: Settings2 },
+  { id: 'fields', label: 'Fields', icon: Hash },
   { id: 'wip', label: 'WIP Limits', icon: Gauge },
   { id: 'danger', label: 'Danger Zone', icon: Trash2 },
 ]
 
 export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('members')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
   return (
     <DrawerLayout
@@ -88,6 +89,7 @@ export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPane
         {/* Tab content */}
         <ScrollArea className="flex-1">
           <div className="px-6 py-4">
+            {activeTab === 'general' && <GeneralTab boardId={boardId} />}
             {activeTab === 'members' && <MembersTab boardId={boardId} />}
             {activeTab === 'labels' && <LabelsTab />}
             {activeTab === 'fields' && <FieldsTab />}
@@ -97,6 +99,63 @@ export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPane
         </ScrollArea>
       </div>
     </DrawerLayout>
+  )
+}
+
+// --- General Tab ---
+
+function GeneralTab({ boardId }: { boardId: string }) {
+  const { currentBoard, fetchBoard } = useBoardStore()
+  const addNotification = useNotificationStore((s) => s.add)
+  const [repoUrl, setRepoUrl] = useState(currentBoard?.repo_url ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setRepoUrl(currentBoard?.repo_url ?? '')
+  }, [currentBoard?.repo_url])
+
+  const handleSaveRepoUrl = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await api.updateBoard(boardId, { repo_url: repoUrl.trim() || null })
+      await fetchBoard(boardId)
+      addNotification('Repository URL updated')
+    } catch {
+      addNotification('Failed to update repository URL')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-sm font-medium">General</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Board configuration</p>
+      </div>
+
+      <Separator />
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium">Repository URL</label>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Required for running agent sessions. Use the HTTPS clone URL.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            value={repoUrl}
+            onChange={(e) => setRepoUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRepoUrl() }}
+            placeholder="https://github.com/user/repo.git"
+            className="flex-1 text-sm"
+          />
+          <Button size="sm" onClick={handleSaveRepoUrl} disabled={saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

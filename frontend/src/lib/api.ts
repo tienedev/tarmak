@@ -36,6 +36,8 @@ export const api = {
   getBoard: (id: string) => request<Board>(`/boards/${id}`),
   deleteBoard: (id: string) =>
     request<void>(`/boards/${id}`, { method: 'DELETE' }),
+  updateBoard: (id: string, data: { name?: string; description?: string | null; repo_url?: string | null }) =>
+    request<Board>(`/boards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   duplicateBoard: (boardId: string, data: { name: string; include_tasks?: boolean }) =>
     request<Board>(`/boards/${boardId}/duplicate`, {
       method: 'POST',
