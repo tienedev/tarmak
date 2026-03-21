@@ -1,7 +1,7 @@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Columns3, List, GanttChart } from 'lucide-react'
 
-export type ViewMode = 'kanban' | 'list' | 'timeline'
+export type ViewMode = 'kanban' | 'list' | 'timeline' | 'sessions'
 
 interface ViewSwitcherProps {
   value: ViewMode

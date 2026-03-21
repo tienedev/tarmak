@@ -6,6 +6,8 @@ import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { BoardPage } from '@/pages/BoardPage'
 import { InvitePage } from '@/pages/InvitePage'
+import { SettingsPage } from '@/pages/SettingsPage'
+import { DevGroundPage } from '@/pages/DevGroundPage'
 import { Loader2 } from 'lucide-react'
 
 function useHashRoute() {
@@ -34,8 +36,27 @@ function Router() {
     return <InvitePage token={inviteMatch[1]} />
   }
 
+  // Route: #/settings
+  if (hash === '#/settings') {
+    return (
+      <AppLayout>
+        <SettingsPage />
+      </AppLayout>
+    )
+  }
+
+  // Route: #/boards/:id/devground
+  const devgroundMatch = hash.match(/^#\/boards\/([^/]+)\/devground/)
+  if (devgroundMatch) {
+    return (
+      <AppLayout>
+        <DevGroundPage boardId={devgroundMatch[1]} />
+      </AppLayout>
+    )
+  }
+
   // Route: #/boards/:id
-  const boardMatch = hash.match(/^#\/boards\/([^?]+)/)
+  const boardMatch = hash.match(/^#\/boards\/([^?/]+)/)
   if (boardMatch) {
     return (
       <AppLayout>

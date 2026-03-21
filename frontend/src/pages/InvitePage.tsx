@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ interface InvitePageProps {
 }
 
 export function InvitePage({ token }: InvitePageProps) {
+  const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
@@ -31,10 +33,10 @@ export function InvitePage({ token }: InvitePageProps) {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-center">
           <p className="text-sm text-muted-foreground">
-            You need to be logged in to accept this invitation.
+            {t('invite.needLogin')}
           </p>
           <Button onClick={() => { window.location.hash = '#/login' }}>
-            Go to login
+            {t('invite.goToLogin')}
           </Button>
         </div>
       </div>
@@ -44,14 +46,14 @@ export function InvitePage({ token }: InvitePageProps) {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-6 rounded-xl border bg-card p-8 shadow-sm">
-        <h1 className="text-lg font-semibold">Board Invitation</h1>
+        <h1 className="text-lg font-semibold">{t('invite.title')}</h1>
 
         {status === 'idle' && (
           <>
             <p className="text-sm text-muted-foreground">
-              You've been invited to join a board.
+              {t('invite.description')}
             </p>
-            <Button onClick={handleAccept}>Accept invitation</Button>
+            <Button onClick={handleAccept}>{t('invite.accept')}</Button>
           </>
         )}
 
@@ -63,7 +65,7 @@ export function InvitePage({ token }: InvitePageProps) {
           <div className="flex flex-col items-center gap-2">
             <Check className="size-8 text-green-500" />
             <p className="text-sm text-muted-foreground">
-              You've joined the board! Redirecting...
+              {t('invite.accepted')}
             </p>
           </div>
         )}
@@ -73,7 +75,7 @@ export function InvitePage({ token }: InvitePageProps) {
             <X className="size-8 text-red-500" />
             <p className="text-sm text-red-500">{error}</p>
             <Button variant="outline" onClick={() => { window.location.hash = '#/' }}>
-              Go to boards
+              {t('invite.goToBoards')}
             </Button>
           </div>
         )}

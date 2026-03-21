@@ -7,7 +7,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -134,16 +134,18 @@ async fn run(
     headers: axum::http::HeaderMap,
     Json(body): Json<RunRequest>,
 ) -> Result<Json<RunResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_agent_token(&state, &headers).await.map_err(|s| {
-        (
-            s,
-            Json(ErrorResponse {
-                error: "unauthorized".to_string(),
-                message: "Invalid agent token".to_string(),
-                hint: "Check the token displayed when starting kanwise agent".to_string(),
-            }),
-        )
-    })?;
+    check_agent_token(&state, &headers)
+        .await
+        .map_err(|s| {
+            (
+                s,
+                Json(ErrorResponse {
+                    error: "unauthorized".to_string(),
+                    message: "Invalid agent token".to_string(),
+                    hint: "Check the token displayed when starting kanwise agent".to_string(),
+                }),
+            )
+        })?;
 
     // Resolve repo_url → workdir
     let cache = state.repo_cache.read().await;
@@ -178,8 +180,8 @@ async fn run(
         )
     })?;
 
-    // Spawn Claude Code
-    let pty = PtySession::spawn(&body.prompt, &wt_path).map_err(|e| {
+    // Spawn Claude Code in Terminal.app
+    let pty = PtySession::spawn(&body.prompt, &wt_path, &session_id).map_err(|e| {
         let _ = worktree::cleanup_worktree(&workdir_path, &session_id, &branch);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -267,8 +269,9 @@ async fn run(
                 .send()
                 .await;
 
-            // Cleanup worktree
+            // Cleanup worktree + temp files
             let _ = worktree::cleanup_worktree(&h.workdir, &sid_clone, &h.branch_name);
+            h.pty.cleanup();
 
             // Remove from active sessions
             let mut sessions = state_clone.sessions.write().await;
@@ -311,9 +314,36 @@ async fn cancel_session(
     Path(session_id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     check_agent_token(&state, &headers).await?;
-    let sessions = state.sessions.read().await;
-    if let Some(handle) = sessions.get(&session_id) {
+    let mut sessions = state.sessions.write().await;
+    if let Some(handle) = sessions.remove(&session_id) {
         let _ = handle.pty.kill();
+
+        // Notify Kanwise server
+        let server_url = state.server_url.clone();
+        let server_token = state.server_token.clone();
+        let board_id = handle.board_id.clone();
+        let sid = session_id.clone();
+        let workdir = handle.workdir.clone();
+        let branch = handle.branch_name.clone();
+        drop(sessions);
+
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let _ = client
+                .put(format!(
+                    "{}/api/v1/boards/{}/agent-sessions/{}",
+                    server_url, board_id, sid
+                ))
+                .bearer_auth(&server_token)
+                .json(&serde_json::json!({
+                    "status": "cancelled",
+                    "exit_code": -2,
+                }))
+                .send()
+                .await;
+            let _ = worktree::cleanup_worktree(&workdir, &sid, &branch);
+        });
+
         Ok(Json(serde_json::json!({"status": "cancelled"})))
     } else {
         Err(StatusCode::NOT_FOUND)
@@ -361,11 +391,12 @@ async fn ws_handler(
             .bearer_auth(token)
             .send()
             .await
-            && resp.status().is_success()
         {
-            let mut cache = state.validated_tokens.write().await;
-            cache.insert(token.clone());
-            authorized = true;
+            if resp.status().is_success() {
+                let mut cache = state.validated_tokens.write().await;
+                cache.insert(token.clone());
+                authorized = true;
+            }
         }
     }
 
@@ -377,56 +408,301 @@ async fn ws_handler(
 
 async fn handle_ws(state: AgentState, session_id: String, mut socket: WebSocket) {
     let sessions = state.sessions.read().await;
-    let handle = match sessions.get(&session_id) {
-        Some(h) => Arc::clone(h),
-        None => {
-            let _ = socket.send(Message::Close(None)).await;
-            return;
-        }
-    };
+    let exists = sessions.contains_key(&session_id);
     drop(sessions);
 
-    let mut rx = handle.pty.output_tx.subscribe();
-
-    // Send any accumulated output first
-    let accumulated = {
-        let log = handle
-            .pty
-            .output_log
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        if log.is_empty() {
-            None
-        } else {
-            Some(log.clone())
-        }
-    };
-    if let Some(data) = accumulated {
-        let _ = socket.send(Message::Binary(data.into())).await;
+    if !exists {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
     }
 
-    // Stream live output
-    loop {
-        tokio::select! {
-            data = rx.recv() => {
-                match data {
-                    Ok(bytes) => {
-                        if socket.send(Message::Binary(bytes.into())).await.is_err() {
-                            break;
+    // Output is displayed in Terminal.app — WebSocket just signals session status
+    let msg = format!("Session {session_id} is running in Terminal.app");
+    let _ = socket.send(Message::Text(msg.into())).await;
+
+    // Keep connection open until client disconnects
+    while let Some(Ok(msg)) = socket.recv().await {
+        if matches!(msg, Message::Close(_)) {
+            break;
+        }
+    }
+}
+
+// ---- Claude Code local config reader ----
+
+fn read_json_file(path: &StdPath) -> Option<serde_json::Value> {
+    let content = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+fn read_file_string(path: &StdPath) -> Option<String> {
+    std::fs::read_to_string(path).ok()
+}
+
+/// Collect the set of enabled plugin IDs by merging global + project settings.
+fn enabled_plugin_ids(
+    global_settings: &Option<serde_json::Value>,
+    project_settings: &Option<serde_json::Value>,
+) -> HashSet<String> {
+    let mut enabled = HashSet::new();
+    // Global enabledPlugins
+    if let Some(obj) = global_settings
+        .as_ref()
+        .and_then(|v| v.get("enabledPlugins"))
+        .and_then(|v| v.as_object())
+    {
+        for (id, val) in obj {
+            if val.as_bool() == Some(true) {
+                enabled.insert(id.clone());
+            }
+        }
+    }
+    // Project-level overrides
+    if let Some(obj) = project_settings
+        .as_ref()
+        .and_then(|v| v.get("enabledPlugins"))
+        .and_then(|v| v.as_object())
+    {
+        for (id, val) in obj {
+            if val.as_bool() == Some(true) {
+                enabled.insert(id.clone());
+            } else {
+                enabled.remove(id);
+            }
+        }
+    }
+    enabled
+}
+
+fn discover_skills(
+    plugins_file: &StdPath,
+    enabled_ids: &HashSet<String>,
+) -> Vec<serde_json::Value> {
+    let content = match std::fs::read_to_string(plugins_file) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let data: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(d) => d,
+        Err(_) => return vec![],
+    };
+
+    let mut skills = Vec::new();
+    let mut seen_dirs = HashSet::new();
+
+    if let Some(plugins) = data.get("plugins").and_then(|p| p.as_object()) {
+        for (plugin_id, installations) in plugins {
+            let enabled = enabled_ids.contains(plugin_id);
+            if let Some(installs) = installations.as_array() {
+                for install in installs {
+                    if let Some(install_path) = install.get("installPath").and_then(|p| p.as_str())
+                    {
+                        let skills_dir = PathBuf::from(install_path).join("skills");
+                        if skills_dir.is_dir() {
+                            if let Ok(entries) = std::fs::read_dir(&skills_dir) {
+                                for entry in entries.flatten() {
+                                    let dir_name =
+                                        entry.file_name().to_string_lossy().to_string();
+                                    let dedup_key = format!("{plugin_id}/{dir_name}");
+                                    if !seen_dirs.insert(dedup_key) {
+                                        continue;
+                                    }
+                                    let skill_md = entry.path().join("SKILL.md");
+                                    if skill_md.exists() {
+                                        let content =
+                                            std::fs::read_to_string(&skill_md).unwrap_or_default();
+                                        let (name, description) = parse_skill_frontmatter(&content);
+                                        skills.push(serde_json::json!({
+                                            "name": name.unwrap_or_else(|| dir_name.clone()),
+                                            "description": description.unwrap_or_default(),
+                                            "dir": dir_name,
+                                            "plugin": plugin_id,
+                                            "enabled": enabled,
+                                        }));
+                                    }
+                                }
+                            }
                         }
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                }
-            }
-            msg = socket.recv() => {
-                match msg {
-                    Some(Ok(Message::Close(_))) | None => break,
-                    _ => {}
                 }
             }
         }
     }
+    // Sort: enabled first, then alphabetically
+    skills.sort_by(|a, b| {
+        let ea = a.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+        let eb = b.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+        eb.cmp(&ea).then_with(|| {
+            let na = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let nb = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            na.cmp(nb)
+        })
+    });
+    skills
+}
+
+fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
+    if !content.starts_with("---") {
+        return (None, None);
+    }
+    let rest = &content[3..];
+    let end = match rest.find("---") {
+        Some(i) => i,
+        None => return (None, None),
+    };
+    let frontmatter = &rest[..end];
+    let mut name = None;
+    let mut description = None;
+    for line in frontmatter.lines() {
+        if let Some(val) = line.strip_prefix("name:") {
+            name = Some(val.trim().to_string());
+        } else if let Some(val) = line.strip_prefix("description:") {
+            description = Some(val.trim().to_string());
+        }
+    }
+    (name, description)
+}
+
+/// Collect MCP servers matching how Claude Code actually loads them:
+/// - ~/.claude/.mcp.json → "global"
+/// - ~/.claude.json root mcpServers → "user"
+/// - ~/.claude.json projects[workdir].mcpServers → "local"
+/// - <project>/.mcp.json → "project"
+fn collect_mcp_servers(
+    global_mcp: &Option<serde_json::Value>,
+    user_config: &Option<serde_json::Value>,
+    project_mcp: &Option<serde_json::Value>,
+    workdir: &str,
+) -> Vec<serde_json::Value> {
+    let mut servers = Vec::new();
+    let mut seen = HashSet::new();
+
+    // Helper to add servers from a mcpServers object
+    let mut add_from = |obj: &serde_json::Map<String, serde_json::Value>, scope: &str| {
+        for (name, config) in obj {
+            if seen.insert((name.clone(), scope.to_string())) {
+                servers.push(serde_json::json!({
+                    "name": name,
+                    "scope": scope,
+                    "command": config.get("command"),
+                    "args": config.get("args"),
+                }));
+            }
+        }
+    };
+
+    // Global: ~/.claude/.mcp.json
+    if let Some(gm) = global_mcp {
+        if let Some(obj) = gm.get("mcpServers").and_then(|s| s.as_object()) {
+            add_from(obj, "global");
+        }
+    }
+
+    if let Some(uc) = user_config {
+        // User-scope: root-level mcpServers in ~/.claude.json
+        if let Some(obj) = uc.get("mcpServers").and_then(|s| s.as_object()) {
+            add_from(obj, "user");
+        }
+        // Local-scope: projects[workdir].mcpServers in ~/.claude.json
+        if let Some(proj) = uc.get("projects").and_then(|p| p.get(workdir)) {
+            if let Some(obj) = proj.get("mcpServers").and_then(|s| s.as_object()) {
+                add_from(obj, "local");
+            }
+        }
+    }
+
+    // Project-scope: <project>/.mcp.json
+    if let Some(pm) = project_mcp {
+        if let Some(obj) = pm.get("mcpServers").and_then(|s| s.as_object()) {
+            add_from(obj, "project");
+        }
+    }
+
+    servers
+}
+
+
+async fn get_config(
+    State(state): State<AgentState>,
+    headers: axum::http::HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    check_agent_token(&state, &headers).await?;
+
+    let home = dirs::home_dir().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let claude_dir = home.join(".claude");
+
+    // Global config
+    let global_settings = read_json_file(&claude_dir.join("settings.json"));
+    // ~/.claude/.mcp.json holds global MCP servers
+    let global_mcp = read_json_file(&claude_dir.join(".mcp.json"));
+    // ~/.claude.json holds user-scope MCPs (root) and local-scope MCPs (per project)
+    let user_config = read_json_file(&home.join(".claude.json"));
+
+    // Installed plugins file
+    let plugins_file = claude_dir.join("plugins").join("installed_plugins.json");
+    let plugins = read_json_file(&plugins_file);
+
+    // Project-level config (from all known workdirs)
+    let cache = state.repo_cache.read().await;
+    let mut projects: Vec<serde_json::Value> = Vec::new();
+    // We'll compute skills per-project since enabledPlugins can differ
+    let mut all_skills = Vec::new();
+    let mut skills_computed = false;
+
+    for (repo_url, workdir) in &cache.mappings {
+        let workdir_path = PathBuf::from(workdir);
+        let project_claude_md = read_file_string(&workdir_path.join("CLAUDE.md"));
+        let project_mcp = read_json_file(&workdir_path.join(".mcp.json"));
+        let project_settings =
+            read_json_file(&workdir_path.join(".claude").join("settings.json"));
+        let mcp_servers = collect_mcp_servers(&global_mcp, &user_config, &project_mcp, workdir);
+
+        // Skills: merge global + project enabled plugins, then discover
+        if !skills_computed {
+            let enabled = enabled_plugin_ids(&global_settings, &project_settings);
+            all_skills = discover_skills(&plugins_file, &enabled);
+            skills_computed = true;
+        }
+
+        projects.push(serde_json::json!({
+            "repo_url": repo_url,
+            "workdir": workdir,
+            "claude_md": project_claude_md,
+            "settings": project_settings,
+            "mcp_servers": mcp_servers,
+        }));
+    }
+
+    // If no projects in cache, still compute skills from global settings
+    if !skills_computed {
+        let enabled = enabled_plugin_ids(&global_settings, &None);
+        all_skills = discover_skills(&plugins_file, &enabled);
+    }
+
+    // Stats
+    let stats = read_json_file(&claude_dir.join("stats-cache.json"));
+
+    // Hooks from global settings
+    let hooks = global_settings
+        .as_ref()
+        .and_then(|v| v.get("hooks"))
+        .cloned();
+
+    Ok(Json(serde_json::json!({
+        "global": {
+            "settings": global_settings,
+            "mcp_servers": user_config.as_ref().and_then(|v| v.get("mcpServers")).cloned(),
+        },
+        "plugins": plugins.as_ref().and_then(|v| v.get("plugins")).cloned(),
+        "skills": all_skills,
+        "hooks": hooks,
+        "projects": projects,
+        "stats": stats.map(|s| serde_json::json!({
+            "totalSessions": s.get("totalSessions"),
+            "totalMessages": s.get("totalMessages"),
+            "modelUsage": s.get("modelUsage"),
+        })),
+    })))
 }
 
 pub async fn run_agent_server(
@@ -445,18 +721,15 @@ pub async fn run_agent_server(
         .bearer_auth(&server_token)
         .send()
         .await
-        && let Ok(boards) = resp.json::<Vec<serde_json::Value>>().await
     {
-        let repo_urls: Vec<String> = boards
-            .iter()
-            .filter_map(|b| {
-                b.get("repo_url")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            })
-            .collect();
-        if !repo_urls.is_empty() {
-            let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
+        if let Ok(boards) = resp.json::<Vec<serde_json::Value>>().await {
+            let repo_urls: Vec<String> = boards
+                .iter()
+                .filter_map(|b| b.get("repo_url").and_then(|v| v.as_str()).map(|s| s.to_string()))
+                .collect();
+            if !repo_urls.is_empty() {
+                let _ = detect::detect_repos(&repo_urls, &mut repo_cache);
+            }
         }
     }
 
@@ -491,6 +764,7 @@ pub async fn run_agent_server(
         .route("/run", post(run))
         .route("/sessions", get(list_sessions))
         .route("/sessions/{id}/cancel", post(cancel_session))
+        .route("/config", get(get_config))
         .route("/config/set-workdir", post(set_workdir))
         .route("/ws/{session_id}", get(ws_handler))
         .layer(cors)

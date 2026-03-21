@@ -1,5 +1,51 @@
 import { useAuthStore } from '@/stores/auth'
 
+export interface McpServer {
+  name: string
+  scope: 'global' | 'user' | 'project' | 'local'
+  command: string | null
+  args: string[] | null
+}
+
+export interface SkillInfo {
+  name: string
+  description: string
+  dir: string
+  plugin: string
+  enabled: boolean
+}
+
+export interface HookEntry {
+  command: string
+  [key: string]: unknown
+}
+
+export type HooksConfig = Record<string, HookEntry[]>
+
+export interface ProjectConfig {
+  repo_url: string
+  workdir: string
+  claude_md: string | null
+  settings: Record<string, unknown> | null
+  mcp_servers: McpServer[]
+}
+
+export interface AgentConfig {
+  global: {
+    settings: Record<string, unknown> | null
+    mcp_servers: Record<string, unknown> | null
+  }
+  plugins: Record<string, unknown[]> | null
+  skills: SkillInfo[]
+  hooks: HooksConfig | null
+  projects: ProjectConfig[]
+  stats: {
+    totalSessions: number | null
+    totalMessages: number | null
+    modelUsage: Record<string, unknown> | null
+  } | null
+}
+
 const AGENT_DEFAULT_URL = 'http://localhost:9876'
 
 function getToken(): string | null {
@@ -56,6 +102,10 @@ export const agentApi = {
       method: 'POST',
       body: JSON.stringify({ repo_url: repoUrl, workdir }),
     })
+  },
+
+  getConfig(): Promise<AgentConfig> {
+    return this.request('/config')
   },
 
   getWsUrl(sessionId: string): string {

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Task, Column } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -63,6 +64,7 @@ function formatDay(date: Date): string {
 }
 
 export function TimelineView({ columns, tasks, onTaskClick }: TimelineViewProps) {
+  const { t } = useTranslation()
   const sortedColumns = useMemo(
     () => [...columns].sort((a, b) => a.position - b.position),
     [columns],
@@ -110,7 +112,7 @@ export function TimelineView({ columns, tasks, onTaskClick }: TimelineViewProps)
   if (tasks.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-muted-foreground/60">No tasks to display on timeline</p>
+        <p className="text-sm text-muted-foreground/60">{t('task.noTasksTimeline')}</p>
       </div>
     )
   }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useBoardStore } from '@/stores/board'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -58,17 +59,17 @@ function avatarColor(userId: string): string {
 
 // ─── Relative time / date helpers ────────────────────────────
 
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return 'just now'
+  if (seconds < 60) return t('dashboard.justNow')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return t('dashboard.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('dashboard.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days}d ago`
+  if (days === 1) return t('dashboard.yesterday')
+  if (days < 7) return t('dashboard.daysAgo', { count: days })
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
@@ -165,6 +166,7 @@ function StatCard({
 // ─── Task Row ────────────────────────────────────────────────
 
 function TaskRow({ task }: { task: DashboardTask }) {
+  const { t } = useTranslation()
   const overdue = task.due_date ? isOverdue(task.due_date) : false
   const deadline = task.due_date ? relativeDeadline(task.due_date) : null
   const priority = task.priority?.toLowerCase() ?? 'medium'
@@ -187,7 +189,7 @@ function TaskRow({ task }: { task: DashboardTask }) {
         {deadline ? (
           <div className={`text-[0.65rem] ${deadline.className}`}>{deadline.text}</div>
         ) : (
-          <div className="text-[0.65rem] text-muted-foreground/50">No date</div>
+          <div className="text-[0.65rem] text-muted-foreground/50">{t('dashboard.noDate')}</div>
         )}
         <span className={`inline-block mt-0.5 rounded-md px-1.5 py-px text-[0.6rem] font-medium ${priorityBadge[priority] ?? ''}`}>
           {priority.charAt(0).toUpperCase() + priority.slice(1)}
@@ -200,6 +202,7 @@ function TaskRow({ task }: { task: DashboardTask }) {
 // ─── Activity Row ────────────────────────────────────────────
 
 function ActivityRow({ entry }: { entry: DashboardActivity }) {
+  const { t } = useTranslation()
   return (
     <div className="flex items-start gap-3">
       <div className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold uppercase ${avatarColor(entry.user_id)}`}>
@@ -208,7 +211,7 @@ function ActivityRow({ entry }: { entry: DashboardActivity }) {
       <div className="min-w-0 flex-1">
         <p className="text-[0.8rem] leading-snug">{renderAction(entry)}</p>
         <p className="mt-0.5 text-[0.6rem] text-muted-foreground/60">
-          {entry.boardName} · {relativeTime(entry.created_at)}
+          {entry.boardName} · {relativeTime(entry.created_at, t)}
         </p>
       </div>
     </div>
@@ -218,6 +221,7 @@ function ActivityRow({ entry }: { entry: DashboardActivity }) {
 // ─── Page Component ──────────────────────────────────────────
 
 export function DashboardPage() {
+  const { t } = useTranslation()
   const boards = useBoardStore((s) => s.boards)
   const boardsLoading = useBoardStore((s) => s.loading)
   const fetchBoards = useBoardStore((s) => s.fetchBoards)
@@ -258,15 +262,15 @@ export function DashboardPage() {
     return (
       <div className="flex flex-1 flex-col overflow-auto">
         <header className="flex h-14 shrink-0 items-center justify-between glass-heavy glass-border px-6">
-          <h1 className="text-sm font-bold">Dashboard</h1>
+          <h1 className="text-sm font-bold">{t('dashboard.title')}</h1>
         </header>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <div className="flex size-12 items-center justify-center rounded-2xl glass glass-border">
             <LayoutDashboard className="size-5 text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium">Welcome to Kanwise</p>
+          <p className="text-sm font-medium">{t('dashboard.welcome')}</p>
           <p className="text-xs text-muted-foreground">
-            Create your first board from the sidebar to get started.
+            {t('dashboard.getStarted')}
           </p>
         </div>
       </div>
@@ -277,7 +281,7 @@ export function DashboardPage() {
     <div className="flex flex-1 flex-col overflow-auto">
       {/* Header */}
       <header className="flex h-14 shrink-0 items-center justify-between glass-heavy glass-border px-6">
-        <h1 className="text-sm font-bold">Dashboard</h1>
+        <h1 className="text-sm font-bold">{t('dashboard.title')}</h1>
         <span className="text-xs text-muted-foreground">
           {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </span>
@@ -289,37 +293,37 @@ export function DashboardPage() {
           <DashboardSkeleton />
         ) : error ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <p className="text-sm font-medium">Could not load dashboard</p>
-            <Button size="sm" variant="outline" onClick={load}>Retry</Button>
+            <p className="text-sm font-medium">{t('dashboard.loadFailed')}</p>
+            <Button size="sm" variant="outline" onClick={load}>{t('common.retry')}</Button>
           </div>
         ) : data ? (
           <>
             {/* Stats strip */}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard
-                label="My Tasks"
+                label={t('dashboard.myTasks')}
                 value={data.stats.myTasks}
-                subtitle={`across ${data.stats.boardCount} board${data.stats.boardCount !== 1 ? 's' : ''}`}
+                subtitle={t('dashboard.acrossBoards', { count: data.stats.boardCount })}
                 icon={ClipboardList}
               />
               <StatCard
-                label="Overdue"
+                label={t('dashboard.overdue')}
                 value={data.stats.overdue}
-                subtitle="needs attention"
+                subtitle={t('dashboard.needsAttention')}
                 icon={AlertTriangle}
                 valueClass={data.stats.overdue > 0 ? 'text-destructive' : ''}
               />
               <StatCard
-                label="Due Soon"
+                label={t('dashboard.dueSoon')}
                 value={data.stats.dueSoon}
-                subtitle="within 3 days"
+                subtitle={t('dashboard.within3Days')}
                 icon={Clock}
                 valueClass={data.stats.dueSoon > 0 ? 'text-orange-600 dark:text-orange-400' : ''}
               />
               <StatCard
-                label="Done This Week"
+                label={t('dashboard.doneThisWeek')}
                 value={data.stats.doneThisWeek}
-                subtitle="keep it up"
+                subtitle={t('dashboard.keepItUp')}
                 icon={CheckCircle2}
                 valueClass={data.stats.doneThisWeek > 0 ? 'text-green-600 dark:text-green-400' : ''}
               />
@@ -330,12 +334,12 @@ export function DashboardPage() {
               {/* Up Next */}
               <div className="glass glass-border rounded-2xl p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-xs font-bold">Up Next</h2>
-                  <span className="text-[0.65rem] text-muted-foreground">sorted by deadline</span>
+                  <h2 className="text-xs font-bold">{t('dashboard.upNext')}</h2>
+                  <span className="text-[0.65rem] text-muted-foreground">{t('dashboard.sortedByDeadline')}</span>
                 </div>
                 {data.tasks.length === 0 ? (
                   <p className="py-8 text-center text-xs text-muted-foreground/50">
-                    No tasks assigned to you
+                    {t('dashboard.noTasks')}
                   </p>
                 ) : (
                   <div className="flex flex-col gap-1">
@@ -347,12 +351,12 @@ export function DashboardPage() {
               {/* Activity Feed */}
               <div className="glass glass-border rounded-2xl p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-xs font-bold">Recent Activity</h2>
-                  <span className="text-[0.65rem] text-muted-foreground">all boards</span>
+                  <h2 className="text-xs font-bold">{t('dashboard.recentActivity')}</h2>
+                  <span className="text-[0.65rem] text-muted-foreground">{t('dashboard.allBoards')}</span>
                 </div>
                 {data.activity.length === 0 ? (
                   <p className="py-8 text-center text-xs text-muted-foreground/50">
-                    No recent activity
+                    {t('dashboard.noActivity')}
                   </p>
                 ) : (
                   <div className="flex flex-col gap-3">

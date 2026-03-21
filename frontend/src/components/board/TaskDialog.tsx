@@ -1,4 +1,4 @@
-import type { Task, AgentSession } from '@/lib/api'
+import type { Task } from '@/lib/api'
 import {
   Dialog,
   DialogContent,
@@ -13,10 +13,9 @@ interface TaskDialogProps {
   task: Task | null
   open: boolean
   onClose: () => void
-  onOpenTerminal?: (session: AgentSession) => void
 }
 
-export function TaskDialog({ task, open, onClose, onOpenTerminal }: TaskDialogProps) {
+export function TaskDialog({ task, open, onClose }: TaskDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
       <DialogContent className="flex h-[90vh] max-h-[90vh] w-full flex-col overflow-hidden sm:max-w-4xl">
@@ -25,7 +24,7 @@ export function TaskDialog({ task, open, onClose, onOpenTerminal }: TaskDialogPr
           <DialogDescription>Task details</DialogDescription>
         </DialogHeader>
         <ScrollArea className="min-h-0 flex-1">
-          {task && <TaskEditor task={task} onClose={onClose} onOpenTerminal={onOpenTerminal} />}
+          {task && <TaskEditor task={task} onClose={onClose} />}
         </ScrollArea>
       </DialogContent>
     </Dialog>

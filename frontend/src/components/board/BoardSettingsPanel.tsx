@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { DrawerLayout } from '@/components/ui/drawer-layout'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -42,23 +43,24 @@ interface BoardSettingsPanelProps {
   onClose: () => void
 }
 
-const tabs: { id: SettingsTab; label: string; icon: typeof Users }[] = [
-  { id: 'general', label: 'General', icon: Settings2 },
-  { id: 'members', label: 'Members', icon: Users },
-  { id: 'labels', label: 'Labels', icon: Tag },
-  { id: 'fields', label: 'Fields', icon: Hash },
-  { id: 'wip', label: 'WIP Limits', icon: Gauge },
-  { id: 'danger', label: 'Danger Zone', icon: Trash2 },
-]
-
 export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPanelProps) {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
+
+  const tabs: { id: SettingsTab; label: string; icon: typeof Users }[] = [
+    { id: 'general', label: t('settings.general'), icon: Settings2 },
+    { id: 'members', label: t('settings.members'), icon: Users },
+    { id: 'labels', label: t('settings.labels'), icon: Tag },
+    { id: 'fields', label: t('settings.fields'), icon: Hash },
+    { id: 'wip', label: t('settings.wip'), icon: Gauge },
+    { id: 'danger', label: t('settings.deleteBoard'), icon: Trash2 },
+  ]
 
   return (
     <DrawerLayout
       open={open}
       onClose={onClose}
-      title="Board Settings"
+      title={t('settings.title')}
       width="560px"
       rawBody
     >
@@ -105,6 +107,7 @@ export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPane
 // --- General Tab ---
 
 function GeneralTab({ boardId }: { boardId: string }) {
+  const { t } = useTranslation()
   const { currentBoard, fetchBoard } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [repoUrl, setRepoUrl] = useState(currentBoard?.repo_url ?? '')
@@ -119,9 +122,9 @@ function GeneralTab({ boardId }: { boardId: string }) {
     try {
       await api.updateBoard(boardId, { repo_url: repoUrl.trim() || null })
       await fetchBoard(boardId)
-      addNotification('Repository URL updated')
+      addNotification(t('settings.repoUrlUpdated'))
     } catch {
-      addNotification('Failed to update repository URL')
+      addNotification(t('settings.repoUrlFailed'))
     } finally {
       setSaving(false)
     }
@@ -130,27 +133,27 @@ function GeneralTab({ boardId }: { boardId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-medium">General</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Board configuration</p>
+        <h3 className="text-sm font-medium">{t('settings.general')}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('settings.generalDesc')}</p>
       </div>
 
       <Separator />
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium">Repository URL</label>
+        <label className="mb-1.5 block text-sm font-medium">{t('settings.repoUrl')}</label>
         <p className="mb-2 text-xs text-muted-foreground">
-          Required for running agent sessions. Use the HTTPS clone URL.
+          {t('settings.repoUrlHint')}
         </p>
         <div className="flex gap-2">
           <Input
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRepoUrl() }}
-            placeholder="https://github.com/user/repo.git"
+            placeholder={t('settings.repoUrlPlaceholder')}
             className="flex-1 text-sm"
           />
           <Button size="sm" onClick={handleSaveRepoUrl} disabled={saving}>
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       </div>
@@ -162,6 +165,7 @@ function GeneralTab({ boardId }: { boardId: string }) {
 // --- Members Tab ---
 
 function MembersTab({ boardId }: { boardId: string }) {
+  const { t } = useTranslation()
   const { members } = useBoardStore()
   const user = useAuthStore((s) => s.user)
   const addNotification = useNotificationStore((s) => s.add)
@@ -173,7 +177,7 @@ function MembersTab({ boardId }: { boardId: string }) {
 
   useEffect(() => {
     api.listInvites(boardId).then(setInvites).catch(() => {
-      addNotification('Failed to load invite links')
+      addNotification(t('settings.inviteLoadFailed'))
     })
   }, [boardId])
 
@@ -187,7 +191,7 @@ function MembersTab({ boardId }: { boardId: string }) {
       const updated = await api.listInvites(boardId)
       setInvites(updated)
     } catch {
-      addNotification('Failed to generate invite link')
+      addNotification(t('settings.inviteGenFailed'))
     } finally {
       setLoading(false)
     }
@@ -205,7 +209,7 @@ function MembersTab({ boardId }: { boardId: string }) {
       setInvites((prev) => prev.filter((i) => i.id !== id))
       if (generatedLink) setGeneratedLink('')
     } catch {
-      addNotification('Failed to revoke invite')
+      addNotification(t('settings.inviteRevokeFailed'))
     }
   }
 
@@ -217,8 +221,8 @@ function MembersTab({ boardId }: { boardId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-medium">Members & Roles</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Manage who has access to this board</p>
+        <h3 className="text-sm font-medium">{t('settings.members')}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('settings.membersDesc')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -247,20 +251,20 @@ function MembersTab({ boardId }: { boardId: string }) {
       <Separator />
 
       <div>
-        <h4 className="mb-2 text-xs font-medium text-muted-foreground">Invite new member</h4>
+        <h4 className="mb-2 text-xs font-medium text-muted-foreground">{t('settings.inviteMember')}</h4>
         <div className="flex gap-2">
           <Select value={role} onValueChange={(v) => setRole(v ?? 'member')}>
             <SelectTrigger size="sm" className="flex-1">
-              {role === 'member' ? 'Member' : 'Viewer'}
+              {role === 'member' ? t('settings.roleMember') : t('settings.roleViewer')}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="viewer">Viewer</SelectItem>
+              <SelectItem value="member">{t('settings.roleMember')}</SelectItem>
+              <SelectItem value="viewer">{t('settings.roleViewer')}</SelectItem>
             </SelectContent>
           </Select>
           <Button size="sm" onClick={handleGenerate} disabled={loading}>
             <Link2 className="size-3.5" data-icon="inline-start" />
-            Generate link
+            {t('settings.generateLink')}
           </Button>
         </div>
 
@@ -274,14 +278,14 @@ function MembersTab({ boardId }: { boardId: string }) {
                 {copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
               </Button>
             </div>
-            <p className="text-[0.65rem] text-muted-foreground">Link expires in 7 days</p>
+            <p className="text-[0.65rem] text-muted-foreground">{t('settings.linkExpiry')}</p>
           </div>
         )}
       </div>
 
       {invites.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h4 className="text-xs font-medium text-muted-foreground">Active invite links</h4>
+          <h4 className="text-xs font-medium text-muted-foreground">{t('settings.activeInvites')}</h4>
           {invites.map((inv) => (
             <div key={inv.id} className="flex items-center gap-2 text-xs">
               <code className="truncate text-muted-foreground">
@@ -314,6 +318,7 @@ const PALETTE = [
 ]
 
 function LabelsTab() {
+  const { t } = useTranslation()
   const { currentBoard, labels, createLabel, updateLabel, deleteLabel } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [newName, setNewName] = useState('')
@@ -329,9 +334,9 @@ function LabelsTab() {
     try {
       await createLabel(currentBoard.id, newName.trim(), newColor)
       setNewName('')
-      addNotification('Label created')
+      addNotification(t('settings.labelCreated'))
     } catch {
-      addNotification('Failed to create label')
+      addNotification(t('settings.labelCreateFailed'))
     }
   }
 
@@ -340,24 +345,23 @@ function LabelsTab() {
       await updateLabel(currentBoard.id, id, { name: editName, color: editColor })
       setEditingId(null)
     } catch {
-      addNotification('Failed to update label')
+      addNotification(t('settings.labelUpdateFailed'))
     }
   }
 
   const handleDelete = async (id: string) => {
     try {
       await deleteLabel(currentBoard.id, id)
-      addNotification('Label deleted')
     } catch {
-      addNotification('Failed to delete label')
+      addNotification(t('settings.labelDeleteFailed'))
     }
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-medium">Labels</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Organize tasks with color-coded labels</p>
+        <h3 className="text-sm font-medium">{t('settings.labels')}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('settings.labelsDesc')}</p>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -384,8 +388,8 @@ function LabelsTab() {
                   ))}
                 </div>
                 <div className="flex gap-1">
-                  <Button size="sm" className="h-6 flex-1 text-xs" onClick={() => handleUpdate(label.id)}>Save</Button>
-                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setEditingId(null)}>Cancel</Button>
+                  <Button size="sm" className="h-6 flex-1 text-xs" onClick={() => handleUpdate(label.id)}>{t('common.save')}</Button>
+                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setEditingId(null)}>{t('common.cancel')}</Button>
                 </div>
               </div>
             ) : (
@@ -412,20 +416,20 @@ function LabelsTab() {
         ))}
 
         {labels.length === 0 && (
-          <p className="py-4 text-center text-xs text-muted-foreground/60">No labels yet</p>
+          <p className="py-4 text-center text-xs text-muted-foreground/60">{t('settings.noLabels')}</p>
         )}
       </div>
 
       <Separator />
 
       <div>
-        <h4 className="mb-2 text-xs font-medium text-muted-foreground">Add label</h4>
+        <h4 className="mb-2 text-xs font-medium text-muted-foreground">{t('settings.addLabel')}</h4>
         <div className="flex gap-1">
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
-            placeholder="New label..."
+            placeholder={t('settings.newLabelPlaceholder')}
             className="h-7 flex-1 text-sm"
           />
           <Button size="sm" className="h-7" onClick={handleCreate} disabled={!newName.trim()}>
@@ -458,15 +462,15 @@ const fieldTypeIcons: Record<string, typeof Type> = {
   enum: List,
 }
 
-const fieldTypeLabels: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  url: 'URL',
-  date: 'Date',
-  enum: 'Enum',
-}
-
 function FieldsTab() {
+  const { t } = useTranslation()
+  const fieldTypeLabels: Record<string, string> = {
+    text: t('settings.fieldText'),
+    number: t('settings.fieldNumber'),
+    url: t('settings.fieldUrl'),
+    date: t('settings.fieldDate'),
+    enum: 'Enum',
+  }
   const { currentBoard, fields, fetchBoard } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [newName, setNewName] = useState('')
@@ -483,10 +487,10 @@ function FieldsTab() {
       })
       setNewName('')
       setNewType('text')
-      addNotification(`Field "${newName.trim()}" created`)
+      addNotification(t('activity.fieldCreated'))
       await fetchBoard(currentBoard.id)
     } catch {
-      addNotification('Failed to create field')
+      addNotification(t('settings.fieldCreateFailed'))
     } finally {
       setCreating(false)
     }
@@ -495,8 +499,8 @@ function FieldsTab() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-medium">Custom Fields</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Fields appear on all tasks in this board</p>
+        <h3 className="text-sm font-medium">{t('settings.fields')}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('settings.fieldsDesc')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -517,14 +521,14 @@ function FieldsTab() {
             )
           })
         ) : (
-          <p className="py-4 text-center text-xs text-muted-foreground/60">No custom fields yet</p>
+          <p className="py-4 text-center text-xs text-muted-foreground/60">{t('settings.noFields')}</p>
         )}
       </div>
 
       <Separator />
 
       <div>
-        <h4 className="mb-2 text-xs font-medium text-muted-foreground">Add field</h4>
+        <h4 className="mb-2 text-xs font-medium text-muted-foreground">{t('settings.addField')}</h4>
         <div className="flex items-center gap-2">
           <Input
             value={newName}
@@ -535,18 +539,18 @@ function FieldsTab() {
                 handleCreate()
               }
             }}
-            placeholder="Field name..."
+            placeholder={t('settings.fieldPlaceholder')}
             className="flex-1 text-sm"
           />
           <Select value={newType} onValueChange={(v) => setNewType(v ?? 'text')}>
             <SelectTrigger size="sm" className="w-24">
-              {fieldTypeLabels[newType] ?? 'Text'}
+              {fieldTypeLabels[newType] ?? t('settings.fieldText')}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="text">Text</SelectItem>
-              <SelectItem value="number">Number</SelectItem>
-              <SelectItem value="url">URL</SelectItem>
-              <SelectItem value="date">Date</SelectItem>
+              <SelectItem value="text">{t('settings.fieldText')}</SelectItem>
+              <SelectItem value="number">{t('settings.fieldNumber')}</SelectItem>
+              <SelectItem value="url">{t('settings.fieldUrl')}</SelectItem>
+              <SelectItem value="date">{t('settings.fieldDate')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -557,7 +561,7 @@ function FieldsTab() {
           disabled={!newName.trim() || creating}
         >
           <Plus className="size-3.5" data-icon="inline-start" />
-          Add Field
+          {t('settings.addField')}
         </Button>
       </div>
     </div>
@@ -567,6 +571,7 @@ function FieldsTab() {
 // --- WIP Limits Tab ---
 
 function WipTab({ boardId }: { boardId: string }) {
+  const { t } = useTranslation()
   const { columns, fetchBoard } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [values, setValues] = useState<Record<string, string>>({})
@@ -587,18 +592,18 @@ function WipTab({ boardId }: { boardId: string }) {
     try {
       await api.updateColumn(boardId, columnId, { wip_limit: val })
       await fetchBoard(boardId)
-      addNotification('WIP limit updated')
+      addNotification(t('settings.wipUpdated'))
     } catch {
-      addNotification('Failed to update WIP limit')
+      addNotification(t('settings.wipFailed'))
     }
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-medium">WIP Limits</h3>
+        <h3 className="text-sm font-medium">{t('settings.wip')}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Limit the number of tasks in each column to improve flow
+          {t('settings.wipDesc')}
         </p>
       </div>
 
@@ -630,7 +635,7 @@ function WipTab({ boardId }: { boardId: string }) {
       </div>
 
       {activeColumns.length === 0 && (
-        <p className="py-4 text-center text-xs text-muted-foreground/60">No columns yet</p>
+        <p className="py-4 text-center text-xs text-muted-foreground/60">{t('settings.noColumns')}</p>
       )}
     </div>
   )
@@ -639,6 +644,7 @@ function WipTab({ boardId }: { boardId: string }) {
 // --- Danger Zone Tab ---
 
 function DangerTab({ boardId, onClose }: { boardId: string; onClose: () => void }) {
+  const { t } = useTranslation()
   const { currentBoard, deleteBoard } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [confirmText, setConfirmText] = useState('')
@@ -655,7 +661,7 @@ function DangerTab({ boardId, onClose }: { boardId: string; onClose: () => void 
       onClose()
       window.location.hash = '#/'
     } catch {
-      addNotification('Failed to delete board')
+      addNotification(t('settings.deleteBoardFailed'))
       setDeleting(false)
     }
   }
@@ -663,9 +669,9 @@ function DangerTab({ boardId, onClose }: { boardId: string; onClose: () => void 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-medium text-red-500">Delete Board</h3>
+        <h3 className="text-sm font-medium text-red-500">{t('settings.deleteBoard')}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          This will permanently delete the board, all its columns, tasks, and attachments. This action cannot be undone.
+          {t('settings.deleteBoardDesc')}
         </p>
       </div>
 
@@ -673,7 +679,7 @@ function DangerTab({ boardId, onClose }: { boardId: string; onClose: () => void 
 
       <div>
         <p className="text-sm text-muted-foreground">
-          Type <span className="font-semibold text-foreground">{boardName}</span> to confirm:
+          {t('settings.deleteBoardConfirm', { name: boardName })}
         </p>
         <Input
           value={confirmText}
@@ -691,7 +697,7 @@ function DangerTab({ boardId, onClose }: { boardId: string; onClose: () => void 
         onClick={handleDelete}
       >
         <Trash2 className="size-3.5" data-icon="inline-start" />
-        {deleting ? 'Deleting...' : 'Delete this board'}
+        {deleting ? t('common.deleting') : t('settings.deleteBoardButton')}
       </Button>
     </div>
   )

@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Task, Column } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
-const priorityConfig: Record<string, { label: string; color: string; bg: string; order: number }> = {
-  urgent: { label: 'Urgent', color: 'bg-red-500', bg: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400', order: 0 },
-  high:   { label: 'High',   color: 'bg-orange-500', bg: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', order: 1 },
-  medium: { label: 'Medium', color: 'bg-yellow-500', bg: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', order: 2 },
-  low:    { label: 'Low',    color: 'bg-zinc-400', bg: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400', order: 3 },
-  none:   { label: 'None',   color: 'bg-zinc-300', bg: 'bg-zinc-50 text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-500', order: 4 },
+const priorityConfig: Record<string, { labelKey: string; color: string; bg: string; order: number }> = {
+  urgent: { labelKey: 'task.priorityUrgent', color: 'bg-red-500', bg: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400', order: 0 },
+  high:   { labelKey: 'task.priorityHigh',   color: 'bg-orange-500', bg: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', order: 1 },
+  medium: { labelKey: 'task.priorityMedium', color: 'bg-yellow-500', bg: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', order: 2 },
+  low:    { labelKey: 'task.priorityLow',    color: 'bg-zinc-400', bg: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400', order: 3 },
+  none:   { labelKey: 'task.priorityNone',   color: 'bg-zinc-300', bg: 'bg-zinc-50 text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-500', order: 4 },
 }
 
 type SortKey = 'title' | 'status' | 'priority' | 'assignee'
@@ -22,6 +23,7 @@ interface ListViewProps {
 }
 
 export function ListView({ columns, tasks, onTaskClick }: ListViewProps) {
+  const { t } = useTranslation()
   const [sortKey, setSortKey] = useState<SortKey>('status')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -85,7 +87,7 @@ export function ListView({ columns, tasks, onTaskClick }: ListViewProps) {
   if (tasks.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-muted-foreground/60">No tasks yet</p>
+        <p className="text-sm text-muted-foreground/60">{t('task.noTasksList')}</p>
       </div>
     )
   }
@@ -97,11 +99,11 @@ export function ListView({ columns, tasks, onTaskClick }: ListViewProps) {
           <thead>
             <tr className="border-b border-border">
               {([
-                ['title', 'Title'],
-                ['status', 'Status'],
-                ['priority', 'Priority'],
-                ['assignee', 'Assignee'],
-              ] as const).map(([key, label]) => (
+                ['title', t('task.title')],
+                ['status', t('task.status')],
+                ['priority', t('task.priority')],
+                ['assignee', t('task.assignee')],
+              ] as [SortKey, string][]).map(([key, label]) => (
                 <th
                   key={key}
                   className={cn(
@@ -163,7 +165,7 @@ export function ListView({ columns, tasks, onTaskClick }: ListViewProps) {
                       )}
                     >
                       <span className={cn('inline-block size-1.5 rounded-full', priority.color)} />
-                      {priority.label}
+                      {t(priority.labelKey)}
                     </span>
                   </td>
 

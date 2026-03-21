@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +10,7 @@ interface AddColumnFormProps {
 }
 
 export function AddColumnForm({ boardId }: AddColumnFormProps) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -53,7 +55,7 @@ export function AddColumnForm({ boardId }: AddColumnFormProps) {
         className="flex h-10 w-72 shrink-0 items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-foreground/10 text-xs font-medium text-muted-foreground transition-all hover:border-foreground/20 hover:bg-foreground/[3%] hover:text-foreground"
       >
         <Plus className="size-3.5" />
-        Add column
+        {t('board.addColumn')}
       </button>
     )
   }
@@ -78,7 +80,7 @@ export function AddColumnForm({ boardId }: AddColumnFormProps) {
           }}
           className="h-6 text-xs text-muted-foreground"
         >
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button
           size="xs"
@@ -87,7 +89,7 @@ export function AddColumnForm({ boardId }: AddColumnFormProps) {
           className="h-6 text-xs"
         >
           {submitting && <Loader2 className="size-3 animate-spin" />}
-          {submitting ? 'Adding…' : 'Add'}
+          {submitting ? t('common.adding') : t('common.add')}
         </Button>
       </div>
     </div>
