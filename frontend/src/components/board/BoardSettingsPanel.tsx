@@ -34,7 +34,7 @@ import {
   List,
 } from 'lucide-react'
 
-type SettingsTab = 'members' | 'labels' | 'fields' | 'wip'
+type SettingsTab = 'members' | 'labels' | 'fields' | 'wip' | 'danger'
 
 interface BoardSettingsPanelProps {
   boardId: string
@@ -47,6 +47,7 @@ const tabs: { id: SettingsTab; label: string; icon: typeof Users }[] = [
   { id: 'labels', label: 'Labels', icon: Tag },
   { id: 'fields', label: 'Fields', icon: Settings2 },
   { id: 'wip', label: 'WIP Limits', icon: Gauge },
+  { id: 'danger', label: 'Danger Zone', icon: Trash2 },
 ]
 
 export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPanelProps) {
@@ -91,6 +92,7 @@ export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPane
             {activeTab === 'labels' && <LabelsTab />}
             {activeTab === 'fields' && <FieldsTab />}
             {activeTab === 'wip' && <WipTab boardId={boardId} />}
+            {activeTab === 'danger' && <DangerTab boardId={boardId} onClose={onClose} />}
           </div>
         </ScrollArea>
       </div>
@@ -571,6 +573,67 @@ function WipTab({ boardId }: { boardId: string }) {
       {activeColumns.length === 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground/60">No columns yet</p>
       )}
+    </div>
+  )
+}
+
+// --- Danger Zone Tab ---
+
+function DangerTab({ boardId, onClose }: { boardId: string; onClose: () => void }) {
+  const { currentBoard, deleteBoard } = useBoardStore()
+  const addNotification = useNotificationStore((s) => s.add)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const boardName = currentBoard?.name ?? ''
+  const confirmed = confirmText === boardName
+
+  const handleDelete = async () => {
+    if (!confirmed || deleting) return
+    setDeleting(true)
+    try {
+      await deleteBoard(boardId)
+      onClose()
+      window.location.hash = '#/'
+    } catch {
+      addNotification('Failed to delete board')
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-sm font-medium text-red-500">Delete Board</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          This will permanently delete the board, all its columns, tasks, and attachments. This action cannot be undone.
+        </p>
+      </div>
+
+      <Separator />
+
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Type <span className="font-semibold text-foreground">{boardName}</span> to confirm:
+        </p>
+        <Input
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleDelete() }}
+          placeholder={boardName}
+          className="mt-2"
+          autoComplete="off"
+        />
+      </div>
+
+      <Button
+        variant="destructive"
+        disabled={!confirmed || deleting}
+        onClick={handleDelete}
+      >
+        <Trash2 className="size-3.5" data-icon="inline-start" />
+        {deleting ? 'Deleting...' : 'Delete this board'}
+      </Button>
     </div>
   )
 }

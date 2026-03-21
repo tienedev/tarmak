@@ -24,7 +24,7 @@ export function TaskDialog({ task, open, onClose, onOpenTerminal }: TaskDialogPr
           <DialogTitle>{task?.title ?? 'Task'}</DialogTitle>
           <DialogDescription>Task details</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           {task && <TaskEditor task={task} onClose={onClose} onOpenTerminal={onOpenTerminal} />}
         </ScrollArea>
       </DialogContent>
