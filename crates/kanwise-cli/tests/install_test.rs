@@ -85,6 +85,63 @@ fn preserves_other_hooks() {
     assert_eq!(arr.len(), 2, "should append, not replace");
 }
 
+#[test]
+fn install_migrates_cortx_hook_to_kanwise_cli() {
+    let dir = setup();
+    let settings = serde_json::json!({
+        "hooks": {
+            "PreToolUse": [{
+                "matcher": "Bash",
+                "hooks": [{"type": "command", "command": "cortx hook"}]
+            }]
+        }
+    });
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+
+    let report = install(dir.path(), None).unwrap();
+    assert!(matches!(report.hook, HookStatus::Migrated));
+
+    let updated = read(&dir, "settings.json");
+    let arr = updated["hooks"]["PreToolUse"].as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["hooks"][0]["command"], "kanwise-cli hook");
+}
+
+#[test]
+fn uninstall_removes_legacy_cortx_hook() {
+    let dir = setup();
+    let settings = serde_json::json!({
+        "hooks": {
+            "PreToolUse": [{
+                "matcher": "Bash",
+                "hooks": [{"type": "command", "command": "cortx hook"}]
+            }]
+        }
+    });
+    kanwise_cli::config::write_json(&dir.path().join("settings.json"), &settings).unwrap();
+
+    let report = uninstall(dir.path()).unwrap();
+    assert!(matches!(report.hook, HookRemoveStatus::Removed));
+}
+
+#[test]
+fn install_migrates_cortx_config_file() {
+    let dir = setup();
+    let config = serde_json::json!({
+        "components": {
+            "kanwise-cli": {"mode": "local", "repo": "/proj/kanwise-cli"}
+        }
+    });
+    kanwise_cli::config::write_json(&dir.path().join("cortx.json"), &config).unwrap();
+
+    install(dir.path(), None).unwrap();
+
+    // cortx.json should be renamed to kanwise-cli.json
+    assert!(!dir.path().join("cortx.json").exists());
+    let migrated = kanwise_cli::config::read_json(&dir.path().join("kanwise-cli.json")).unwrap();
+    assert_eq!(migrated["components"]["kanwise-cli"]["mode"], "local");
+}
+
 // --- MCP installation ---
 
 #[test]

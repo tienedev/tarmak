@@ -40,6 +40,13 @@ pub struct UninstallReport {
 // --- Install ---
 
 pub fn install(claude_dir: &Path, kanwise_path: Option<&Path>) -> Result<InstallReport> {
+    // Migrate legacy cortx.json -> kanwise-cli.json if needed
+    let legacy_config = claude_dir.join("cortx.json");
+    let new_config = config::cli_config_path(claude_dir);
+    if legacy_config.exists() && !new_config.exists() {
+        std::fs::rename(&legacy_config, &new_config)?;
+    }
+
     let hook = install_hook(claude_dir)?;
     let mcp = install_mcp(claude_dir, kanwise_path)?;
     Ok(InstallReport { hook, mcp })
@@ -80,6 +87,20 @@ fn install_hook(claude_dir: &Path) -> Result<HookStatus> {
         return Ok(HookStatus::Migrated);
     }
 
+    // Check for legacy cortx hook -> migrate
+    if let Some(idx) = find_command_hook(arr, "cortx hook") {
+        arr[idx]["hooks"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .filter(|h| {
+                h.get("command").and_then(|c| c.as_str()) == Some("cortx hook")
+            })
+            .for_each(|h| h["command"] = json!("kanwise-cli hook"));
+        config::write_json(&settings_path, &settings)?;
+        return Ok(HookStatus::Migrated);
+    }
+
     // Append new entry
     arr.push(json!({
         "matcher": "Bash",
@@ -112,6 +133,16 @@ fn install_mcp(claude_dir: &Path, kanwise_path: Option<&Path>) -> Result<McpStat
             .is_some_and(|args| args.iter().any(|a| a.as_str() == Some("serve")))
     {
         servers_obj.remove("cortx"); // legacy
+    }
+
+    // Remove stale kanwise-cli serve entry // legacy
+    if let Some(cli_entry) = servers_obj.get("kanwise-cli") // legacy
+        && cli_entry
+            .get("args")
+            .and_then(|a| a.as_array())
+            .is_some_and(|args| args.iter().any(|a| a.as_str() == Some("serve")))
+    {
+        servers_obj.remove("kanwise-cli"); // legacy
     }
 
     // Check for existing kanwise entry
@@ -190,7 +221,8 @@ fn uninstall_mcp(claude_dir: &Path) -> Result<McpRemoveStatus> {
     Ok(McpRemoveStatus::Removed)
 }
 
-/// Check if a PreToolUse entry contains kanwise-cli hook OR token-cleaner hook.
+/// Check if a PreToolUse entry contains any managed hook name
+/// (kanwise-cli hook, cortx hook, or token-cleaner hook).
 fn has_any_managed_hook(entry: &Value) -> bool {
     entry
         .get("hooks")
@@ -198,7 +230,7 @@ fn has_any_managed_hook(entry: &Value) -> bool {
         .is_some_and(|hooks| {
             hooks.iter().any(|h| {
                 let cmd = h.get("command").and_then(|c| c.as_str()).unwrap_or("");
-                cmd == "kanwise-cli hook" || cmd == "token-cleaner hook"
+                cmd == "kanwise-cli hook" || cmd == "cortx hook" || cmd == "token-cleaner hook"
             })
         })
 }
