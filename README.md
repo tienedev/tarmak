@@ -83,7 +83,6 @@ Add to your Claude Code MCP config:
 ```
 crates/
   kanwise/       # Kanban board server (REST + WebSocket + MCP + agent)
-  kanwise-cli/   # Claude Code dev-environment configurator
   kbf/           # Kanban Bit Format codec
 frontend/        # React 19 + TypeScript + Tailwind + shadcn/ui
 skills/          # Claude Code plugin (skills, agents, hooks)
@@ -97,7 +96,6 @@ make back      # Backend only
 make front     # Frontend only with HMR
 make agent     # Agent server with auto-login (requires .env)
 make build     # Production build (frontend + backend)
-make cli       # Build kanwise-cli
 make clean     # Clean build artifacts
 ```
 
@@ -106,7 +104,6 @@ make clean     # Clean build artifacts
 | Binary | Purpose |
 |--------|---------|
 | `kanwise` | Server: `serve`, `agent`, `mcp`, `doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password` |
-| `kanwise-cli` | Configure Claude Code dev environment: hooks, MCP, plugin |
 
 ## MCP Server
 

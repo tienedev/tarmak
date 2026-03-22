@@ -1,4 +1,4 @@
-.PHONY: help dev front back agent build clean install kill cli
+.PHONY: help dev front back agent build clean install kill
 
 ## help: Show available commands
 help:
@@ -54,10 +54,6 @@ build:
 ## install: Install frontend dependencies
 install:
 	cd frontend && corepack pnpm install
-
-## cli: Build kanwise-cli binary
-cli:
-	$(CARGO) build -p kanwise-cli
 
 ## clean: Clean all build artifacts
 clean:
