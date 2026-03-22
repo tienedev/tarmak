@@ -8,5 +8,5 @@
   "homepage": "https://github.com/tienedev/kanwise",
   "repository": "https://github.com/tienedev/kanwise",
   "license": "MIT",
-  "keywords": ["kanwise-cli", "kanwise", "kanban", "superpowers", "skills", "tdd", "debugging", "collaboration"]
+  "keywords": ["kanwise", "kanban", "superpowers", "skills", "tdd", "debugging", "collaboration"]
 }

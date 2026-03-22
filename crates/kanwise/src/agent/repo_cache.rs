@@ -43,4 +43,8 @@ impl RepoCache {
     pub fn set(&mut self, repo_url: String, workdir: String) {
         self.mappings.insert(repo_url, workdir);
     }
+
+    pub fn retain(&mut self, mut f: impl FnMut(&String, &String) -> bool) {
+        self.mappings.retain(|k, v| f(k, v));
+    }
 }
