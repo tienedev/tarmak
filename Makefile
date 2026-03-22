@@ -11,8 +11,8 @@ CARGO := $(HOME)/.cargo/bin/cargo
 
 ## kill: Kill running dev processes
 kill:
-	@pkill -f "target/debug/kanwise" 2>/dev/null || true
-	@pkill -f "target/release/kanwise" 2>/dev/null || true
+	@pkill -f "target/debug/tarmak" 2>/dev/null || true
+	@pkill -f "target/release/tarmak" 2>/dev/null || true
 	@pkill -f "node.*vite" 2>/dev/null || true
 	@sleep 1
 
@@ -34,22 +34,22 @@ front:
 
 ## back: Backend dev server (port 4000)
 back:
-	$(CARGO) run --bin kanwise
+	$(CARGO) run --bin tarmak
 
 ## agent: Agent server (port 9876, auto-login)
 agent:
 	@TOKEN=$$(curl -sf http://localhost:4000/api/v1/auth/login \
 		-H 'Content-Type: application/json' \
-		-d '{"email":"$(KANWISE_EMAIL)","password":"$(KANWISE_PASSWORD)"}' \
+		-d '{"email":"$(TARMAK_EMAIL)","password":"$(TARMAK_PASSWORD)"}' \
 		| python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) && \
-	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set KANWISE_EMAIL and KANWISE_PASSWORD)"; exit 0; fi && \
-	$(CARGO) run --bin kanwise -- agent --server http://localhost:4000 --token "$$TOKEN"
+	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set TARMAK_EMAIL and TARMAK_PASSWORD)"; exit 0; fi && \
+	$(CARGO) run --bin tarmak -- agent --server http://localhost:4000 --token "$$TOKEN"
 
 ## build: Production build (frontend + backend)
 build:
 	cd frontend && corepack pnpm run build
 	$(CARGO) build --release
-	@echo "Binary at target/release/kanwise"
+	@echo "Binary at target/release/tarmak"
 
 ## install: Install frontend dependencies
 install:

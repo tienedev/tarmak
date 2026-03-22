@@ -1,17 +1,17 @@
 services:
-  kanwise:
+  tarmak:
     build: .
     restart: unless-stopped
     ports:
       - "${PORT:-4000}:${PORT:-4000}"
     volumes:
-      - kanwise-data:/data
+      - tarmak-data:/data
     environment:
       - PORT=${PORT:-4000}
-      - DATABASE_PATH=/data/kanwise.db
+      - DATABASE_PATH=/data/tarmak.db
       - RUST_LOG=info
       # IMPORTANT: Set this to your domain to avoid CORS errors.
-      # - KANBAN_ALLOWED_ORIGINS=https://kanwise.dev
+      # - TARMAK_ALLOWED_ORIGINS=https://tarmak.dev
 
 volumes:
-  kanwise-data:
+  tarmak-data:
