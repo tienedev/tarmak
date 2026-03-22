@@ -34,7 +34,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build backend
-        run: cargo build --release -p kanwise
+        run: cargo build --release -p tarmak
 
       # Playwright
       - uses: actions/cache@v4
@@ -45,8 +45,8 @@ jobs:
         run: cd frontend && npx playwright install --with-deps chromium
 
       # Run
-      - name: Start kanwise
-        run: DATABASE_PATH=/tmp/kanwise-e2e.db RATE_LIMIT_MAX=10000 ./target/release/kanwise &
+      - name: Start tarmak
+        run: DATABASE_PATH=/tmp/tarmak-e2e.db RATE_LIMIT_MAX=10000 ./target/release/tarmak &
       - name: Wait for health
         run: timeout 30 bash -c 'until curl -sf http://localhost:4000/api/v1/health; do sleep 1; done'
       - name: Run E2E tests

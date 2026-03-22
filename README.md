@@ -1,15 +1,15 @@
-# Kanwise
+# Tarmak
 
 The developer's kanban board — built for humans and AI agents.
 
-[![Backend](https://github.com/tienedev/kanwise/actions/workflows/backend.yml/badge.svg)](https://github.com/tienedev/kanwise/actions/workflows/backend.yml)
-[![Frontend](https://github.com/tienedev/kanwise/actions/workflows/frontend.yml/badge.svg)](https://github.com/tienedev/kanwise/actions/workflows/frontend.yml)
+[![Backend](https://github.com/tienedev/tarmak/actions/workflows/backend.yml/badge.svg)](https://github.com/tienedev/tarmak/actions/workflows/backend.yml)
+[![Frontend](https://github.com/tienedev/tarmak/actions/workflows/frontend.yml/badge.svg)](https://github.com/tienedev/tarmak/actions/workflows/frontend.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/ghcr.io-kanwise-blue)](https://ghcr.io/tienedev/kanwise)
+[![Docker](https://img.shields.io/badge/ghcr.io-tarmak-blue)](https://ghcr.io/tienedev/tarmak)
 
 <!-- Screenshot coming soon — board view with an agent session running in the terminal drawer -->
 
-AI-assisted development is powerful but locked behind the terminal. Kanwise gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code. Click "Run" on a task, watch the agent work in a live terminal, get production-quality code.
+AI-assisted development is powerful but locked behind the terminal. Tarmak gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code. Click "Run" on a task, watch the agent work in a live terminal, get production-quality code.
 
 ## Features
 
@@ -35,7 +35,7 @@ AI-assisted development is powerful but locked behind the terminal. Kanwise give
 
 - **Single binary** — Rust, serves frontend, API, WebSocket, and MCP
 - **SQLite** — zero external dependencies, file-based persistence
-- **Docker** — multi-stage build, published to ghcr.io/tienedev/kanwise
+- **Docker** — multi-stage build, published to ghcr.io/tienedev/tarmak
 - **Self-hosted** — your data stays on your infrastructure
 - **CLI** — backup/restore, export/import, user management
 
@@ -44,10 +44,10 @@ AI-assisted development is powerful but locked behind the terminal. Kanwise give
 ### Docker
 
 ```bash
-docker run -d --name kanwise \
+docker run -d --name tarmak \
   -p 4000:4000 \
-  -v kanwise-data:/data \
-  ghcr.io/tienedev/kanwise:latest
+  -v tarmak-data:/data \
+  ghcr.io/tienedev/tarmak:latest
 ```
 
 Or with docker compose:
@@ -61,8 +61,8 @@ Open [http://localhost:4000](http://localhost:4000), create an account, and you'
 ### From source
 
 ```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
+git clone https://github.com/tienedev/tarmak.git
+cd tarmak
 cp .env.example .env
 make install  # install frontend dependencies
 make dev      # starts backend (4000) + agent (9876) + frontend (3000)
@@ -77,8 +77,8 @@ Add to your Claude Code MCP config:
 ```json
 {
   "mcpServers": {
-    "kanwise": {
-      "command": "kanwise",
+    "tarmak": {
+      "command": "tarmak",
       "args": ["mcp"]
     }
   }
@@ -96,7 +96,7 @@ Add to your Claude Code MCP config:
 
 ```
 crates/
-  kanwise/       Kanban server — REST, WebSocket, MCP, agent, CLI
+  tarmak/        Kanban server — REST, WebSocket, MCP, agent, CLI
   kbf/           Kanban Bit Format codec
 frontend/        React 19 + TypeScript + Tailwind + shadcn/ui
 skills/          Claude Code plugin — skills, agents, hooks
@@ -143,7 +143,7 @@ make dev
 
 ### Testing
 
-- **Integration tests** — `crates/kanwise/tests/`, uses `Db::in_memory()` for database tests
+- **Integration tests** — `crates/tarmak/tests/`, uses `Db::in_memory()` for database tests
 - **Frontend unit tests** — Vitest (`cd frontend && pnpm test`)
 - **E2E** — Playwright (`cd frontend && npx playwright test`), requires backend running
 

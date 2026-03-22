@@ -706,7 +706,7 @@ impl KanbanMcpServer {
                     .ok_or_else(|| anyhow::anyhow!("attachment not found: {attachment_id}"))?;
                 self.db.delete_attachment(attachment_id).await?;
                 let uploads_dir = std::path::PathBuf::from(
-                    std::env::var("KANBAN_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()),
+                    std::env::var("TARMAK_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()),
                 );
                 let _ = tokio::fs::remove_file(uploads_dir.join(&att.storage_key)).await;
                 Ok(format!("deleted attachment {attachment_id}"))

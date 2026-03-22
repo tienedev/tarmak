@@ -54,7 +54,7 @@ pub async fn run_http_server() -> anyhow::Result<()> {
 
     let db_path = crate::db_path();
 
-    tracing::info!(db_path = %db_path, "Starting kanwise");
+    tracing::info!(db_path = %db_path, "Starting tarmak");
 
     let db = db::Db::new(&db_path).await?;
     let sync_state = Arc::new(SyncState::new(db.clone()));
@@ -64,8 +64,8 @@ pub async fn run_http_server() -> anyhow::Result<()> {
         .with_state(Arc::clone(&sync_state));
 
     // CORS: allow the Vite dev server (3000) and the backend itself (4000)
-    // Override with KANBAN_ALLOWED_ORIGINS for production.
-    let allowed_origins = std::env::var("KANBAN_ALLOWED_ORIGINS")
+    // Override with TARMAK_ALLOWED_ORIGINS for production.
+    let allowed_origins = std::env::var("TARMAK_ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000,http://localhost:4000".to_string());
 
     let origins: Vec<HeaderValue> = allowed_origins

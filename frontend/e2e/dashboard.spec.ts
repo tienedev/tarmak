@@ -4,7 +4,7 @@ import { registerAndLogin, createBoard, main, sidebarBoard } from './helpers'
 test.describe('Dashboard', () => {
   test('shows welcome message for new user', async ({ page }) => {
     await registerAndLogin(page, 'dash-welcome')
-    await expect(main(page).getByText('Welcome to Kanwise')).toBeVisible()
+    await expect(main(page).getByText('Welcome to Tarmak')).toBeVisible()
   })
 
   test('lists boards as cards when boards exist', async ({ page }) => {

@@ -122,7 +122,7 @@ pub async fn backup(output: Option<String>) -> anyhow::Result<()> {
 
     let out_path = output.unwrap_or_else(|| {
         let now = chrono::Local::now();
-        format!("kanwise-backup-{}.db", now.format("%Y%m%d-%H%M%S"))
+        format!("tarmak-backup-{}.db", now.format("%Y%m%d-%H%M%S"))
     });
 
     let db = Db::new(&db_path).await?;

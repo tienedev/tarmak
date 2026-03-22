@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code. Includes automatic kanwise board sync.
+description: Use when you have a spec or requirements for a multi-step task, before touching code. Includes automatic tarmak board sync.
 ---
 
 # Writing Plans
@@ -124,13 +124,13 @@ After writing the complete plan:
 - If loop exceeds 3 iterations, surface to human for guidance
 - Reviewers are advisory — explain disagreements if you believe feedback is incorrect
 
-## Kanwise Board Sync
+## Tarmak Board Sync
 
-**After the plan review loop passes and before the execution handoff**, sync plan tasks to the kanwise board for team visibility. This step is always optional — if kanwise MCP is not connected, skip with a warning.
+**After the plan review loop passes and before the execution handoff**, sync plan tasks to the tarmak board for team visibility. This step is always optional — if tarmak MCP is not connected, skip with a warning.
 
 ### Board Resolution
 
-Resolve the kanwise board once per session:
+Resolve the tarmak board once per session:
 
 1. Get the current repo name: run `git remote get-url origin`, extract the repo basename (strip path and `.git` suffix). Fallback to current directory name if no remote.
 2. Call `board_query` with `board_id: "list"` to list all boards
@@ -149,14 +149,14 @@ Resolve the kanwise board once per session:
 For each `### Task N: ...` heading in the plan:
 
 1. `board_mutate` action `create_task` with `board_id: <board_id>`, `data: { "column_id": <backlog_id>, "title": "<task title from heading>", "description": "<files list + step count>" }`
-2. Store the returned kanwise `task_id` alongside the plan task number: `Task 1 → <kanwise_task_id>`, `Task 2 → <kanwise_task_id>`, etc.
+2. Store the returned tarmak `task_id` alongside the plan task number: `Task 1 → <tarmak_task_id>`, `Task 2 → <tarmak_task_id>`, etc.
 3. This mapping will be passed to subagent-driven-development to move tasks between columns.
 
-After syncing all tasks, print: `✓ N tasks synced to kanwise board "<board-name>"`
+After syncing all tasks, print: `✓ N tasks synced to tarmak board "<board-name>"`
 
-### If Kanwise Not Connected
+### If Tarmak Not Connected
 
-Print `⚠ kanwise not connected — board sync skipped` and proceed to the execution handoff. **Never block the workflow.**
+Print `⚠ tarmak not connected — board sync skipped` and proceed to the execution handoff. **Never block the workflow.**
 
 ## Execution Handoff
 

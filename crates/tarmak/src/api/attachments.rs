@@ -14,11 +14,11 @@ use crate::db::Db;
 use crate::db::models::{Attachment, Role};
 
 fn uploads_dir() -> PathBuf {
-    PathBuf::from(std::env::var("KANBAN_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()))
+    PathBuf::from(std::env::var("TARMAK_UPLOADS_DIR").unwrap_or_else(|_| "./uploads".into()))
 }
 
 fn max_upload_size() -> u64 {
-    std::env::var("KANBAN_MAX_UPLOAD_SIZE")
+    std::env::var("TARMAK_MAX_UPLOAD_SIZE")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10 * 1024 * 1024) // 10 MB default

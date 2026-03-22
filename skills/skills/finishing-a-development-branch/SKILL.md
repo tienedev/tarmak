@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - includes kanwise board status check for incomplete tasks
+description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - includes tarmak board status check for incomplete tasks
 ---
 
 # Finishing a Development Branch
@@ -37,9 +37,9 @@ Stop. Don't proceed to Step 2.
 
 **If tests pass:** Continue to Step 2.
 
-### Kanwise Board Check
+### Tarmak Board Check
 
-After verifying tests pass, check the kanwise board for incomplete tasks (informational only):
+After verifying tests pass, check the tarmak board for incomplete tasks (informational only):
 
 1. Resolve the board if not already cached:
    - Get repo name from `git remote get-url origin` (fallback: directory name)
@@ -50,14 +50,14 @@ After verifying tests pass, check the kanwise board for incomplete tasks (inform
 4. If any incomplete tasks found, list them as warnings:
 
 ````
-⚠ Incomplete tasks on kanwise board "<board-name>":
+⚠ Incomplete tasks on tarmak board "<board-name>":
   - "<task title>" (In Progress)
   - "<task title>" (Backlog)
 ````
 
 5. This is informational only — do not block the workflow.
 
-**If kanwise unavailable:** Skip silently. Continue to Step 2.
+**If tarmak unavailable:** Skip silently. Continue to Step 2.
 
 ### Step 2: Determine Base Branch
 

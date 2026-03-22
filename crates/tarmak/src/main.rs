@@ -1,11 +1,11 @@
-use kanwise::db;
-use kanwise::mcp;
-use kanwise::notifications;
+use tarmak::db;
+use tarmak::mcp;
+use tarmak::notifications;
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "kanwise", about = "Self-hosted kanban board")]
+#[command(name = "tarmak", about = "Self-hosted kanban board")]
 struct Args {
     #[command(subcommand)]
     command: Option<Cli>,
@@ -19,7 +19,7 @@ enum Cli {
     Mcp,
     /// Create an atomic backup of the database
     Backup {
-        /// Output file path (default: kanwise-backup-YYYYMMDD-HHMMSS.db)
+        /// Output file path (default: tarmak-backup-YYYYMMDD-HHMMSS.db)
         #[arg(short, long)]
         output: Option<String>,
     },
@@ -39,7 +39,7 @@ enum Cli {
         #[arg(short, long)]
         output: Option<String>,
     },
-    /// Import a board from a Kanwise JSON export
+    /// Import a board from a Tarmak JSON export
     Import {
         /// Path to the JSON file
         file: String,
@@ -59,14 +59,14 @@ enum Cli {
     },
     /// Run the local agent server for Claude Code sessions
     Agent {
-        /// Kanwise server URL
+        /// Tarmak server URL
         #[arg(long)]
         server: String,
         /// Agent port (default: 9876)
         #[arg(long, default_value = "9876")]
         port: u16,
-        /// Auth token for Kanwise server
-        #[arg(long, env = "KANWISE_TOKEN")]
+        /// Auth token for Tarmak server
+        #[arg(long, env = "TARMAK_TOKEN")]
         token: String,
         /// Allowed CORS origins (comma-separated)
         #[arg(long, default_value = "http://localhost:3000,http://localhost:4000")]
@@ -85,17 +85,17 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        None | Some(Cli::Serve) => kanwise::server::run_http_server().await,
+        None | Some(Cli::Serve) => tarmak::server::run_http_server().await,
         Some(Cli::Mcp) => run_mcp_stdio().await,
-        Some(Cli::ResetPassword { email }) => kanwise::server::reset_password(&email).await,
-        Some(Cli::Backup { output }) => kanwise::cli::backup(output).await,
-        Some(Cli::Restore { file, force }) => kanwise::cli::restore(&file, force).await,
+        Some(Cli::ResetPassword { email }) => tarmak::server::reset_password(&email).await,
+        Some(Cli::Backup { output }) => tarmak::cli::backup(output).await,
+        Some(Cli::Restore { file, force }) => tarmak::cli::restore(&file, force).await,
         Some(Cli::Export { board_id, output }) => {
-            kanwise::cli::export_board(&board_id, output).await
+            tarmak::cli::export_board(&board_id, output).await
         }
-        Some(Cli::Import { file, owner }) => kanwise::cli::import_board(&file, &owner).await,
+        Some(Cli::Import { file, owner }) => tarmak::cli::import_board(&file, &owner).await,
         Some(Cli::Users { command }) => match command {
-            UsersCommand::List => kanwise::cli::list_users().await,
+            UsersCommand::List => tarmak::cli::list_users().await,
         },
         Some(Cli::Agent {
             server,
@@ -107,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect();
-            kanwise::agent::server::run_agent_server(server, token, port, origins).await
+            tarmak::agent::server::run_agent_server(server, token, port, origins).await
         }
     }
 }
@@ -117,7 +117,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
         "WARNING: MCP stdio mode has no authentication. Intended for local single-user use only."
     );
 
-    let db_path = kanwise::db_path();
+    let db_path = tarmak::db_path();
     let db = db::Db::new(&db_path).await?;
 
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -151,7 +151,7 @@ async fn run_mcp_stdio() -> anyhow::Result<()> {
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "kanwise",
+                    "name": "tarmak",
                     "version": "0.1.0"
                 }
             }),

@@ -28,7 +28,7 @@
   },
 
   "auth": {
-    "appName": "Kanwise",
+    "appName": "Tarmak",
     "tagline": "Gérez vos projets avec clarté",
     "createAccount": "Créer un compte",
     "welcomeBack": "Bon retour",
@@ -69,7 +69,7 @@
 
   "dashboard": {
     "title": "Tableau de bord",
-    "welcome": "Bienvenue sur Kanwise",
+    "welcome": "Bienvenue sur Tarmak",
     "getStarted": "Créez votre premier tableau depuis le menu latéral pour commencer.",
     "myTasks": "Mes tâches",
     "acrossBoards_one": "sur {{count}} tableau",
@@ -245,7 +245,7 @@
   "agent": {
     "run": "Lancer",
     "launching": "Lancement...",
-    "agentDisabled": "Démarrez l'agent kanwise pour activer",
+    "agentDisabled": "Démarrez l'agent tarmak pour activer",
     "repoRequired": "Définissez d'abord une URL de dépôt sur ce tableau",
     "autopilotTitle": "Mode Autopilote",
     "autopilotWarning": "Claude Code va s'exécuter avec --dangerously-skip-permissions. L'agent exécutera du code de manière autonome sans demander de confirmation.",
@@ -309,7 +309,7 @@
 
   "shortcuts": {
     "title": "Raccourcis clavier",
-    "description": "Actions rapides pour naviguer dans Kanwise",
+    "description": "Actions rapides pour naviguer dans Tarmak",
     "commandPalette": "Palette de commandes",
     "createTask": "Créer une tâche",
     "search": "Rechercher",
@@ -339,7 +339,7 @@
     "title": "DevGround",
     "description": "Votre espace de travail pilot\u00e9 par l'IA. Lisez votre board, comprenez votre projet et agissez sur le code \u2014 le tout depuis ici.",
     "refresh": "Rafra\u00eechir la config",
-    "agentNotReachable": "Serveur agent inaccessible. V\u00e9rifiez que kanwise agent est lanc\u00e9.",
+    "agentNotReachable": "Serveur agent inaccessible. V\u00e9rifiez que tarmak agent est lanc\u00e9.",
     "mcpServers": "Serveurs MCP",
     "noMcpServers": "Aucun serveur MCP configur\u00e9 pour ce projet.",
     "skills": "Skills",
@@ -358,7 +358,7 @@
     "profile": "Profil",
     "profileDesc": "Informations de votre compte",
     "appearance": "Apparence",
-    "appearanceDesc": "Personnalisez l'apparence de Kanwise",
+    "appearanceDesc": "Personnalisez l'apparence de Tarmak",
     "apiKeys": "Cl\u00e9s API",
     "apiKeysDesc": "G\u00e9rez vos cl\u00e9s API pour les int\u00e9grations externes et l'acc\u00e8s MCP",
     "signOutDesc": "Se d\u00e9connecter de votre compte sur cet appareil",

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "kanwise": {
-      "command": "kanwise",
+    "tarmak": {
+      "command": "tarmak",
       "args": ["mcp"],
       "env": {}
     }

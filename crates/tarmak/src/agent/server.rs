@@ -25,7 +25,7 @@ pub struct AgentState {
     pub agent_token: String,
     pub repo_cache: Arc<RwLock<RepoCache>>,
     pub sessions: Arc<RwLock<HashMap<String, Arc<SessionHandle>>>>,
-    /// Cache of validated Kanwise tokens (avoids hitting /auth/me on every request)
+    /// Cache of validated Tarmak tokens (avoids hitting /auth/me on every request)
     pub validated_tokens: Arc<RwLock<HashSet<String>>>,
 }
 
@@ -98,7 +98,7 @@ async fn check_agent_token(
         }
     }
 
-    // Validate against Kanwise server
+    // Validate against Tarmak server
     let client = reqwest::Client::new();
     let resp = client
         .get(format!("{}/api/v1/auth/me", state.server_url))
@@ -140,7 +140,7 @@ async fn run(
             Json(ErrorResponse {
                 error: "unauthorized".to_string(),
                 message: "Invalid agent token".to_string(),
-                hint: "Check the token displayed when starting kanwise agent".to_string(),
+                hint: "Check the token displayed when starting tarmak agent".to_string(),
             }),
         )
     })?;
@@ -154,7 +154,7 @@ async fn run(
                 error: "repo_not_found".to_string(),
                 message: format!("No local clone found for {}", body.repo_url),
                 hint: format!(
-                    "Run: kanwise agent config set-workdir {} /path/to/repo",
+                    "Run: tarmak agent config set-workdir {} /path/to/repo",
                     body.repo_url
                 ),
             }),
@@ -206,7 +206,7 @@ async fn run(
         sessions.insert(session_id.clone(), Arc::clone(&handle));
     }
 
-    // Create session on Kanwise server (fire-and-forget)
+    // Create session on Tarmak server (fire-and-forget)
     let server_url = state.server_url.clone();
     let server_token = state.server_token.clone();
     let board_id = body.board_id.clone();
@@ -316,7 +316,7 @@ async fn cancel_session(
     if let Some(handle) = sessions.remove(&session_id) {
         let _ = handle.pty.kill();
 
-        // Notify Kanwise server
+        // Notify Tarmak server
         let server_url = state.server_url.clone();
         let server_token = state.server_token.clone();
         let board_id = handle.board_id.clone();
@@ -382,7 +382,7 @@ async fn ws_handler(
     }
 
     if !authorized {
-        // Validate against Kanwise server
+        // Validate against Tarmak server
         let client = reqwest::Client::new();
         if let Ok(resp) = client
             .get(format!("{}/api/v1/auth/me", state.server_url))

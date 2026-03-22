@@ -19,8 +19,8 @@ RUN cargo build --release
 # Stage 3: Runtime
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates && mkdir -p /data
-COPY --from=backend /app/target/release/kanwise /usr/local/bin/
+COPY --from=backend /app/target/release/tarmak /usr/local/bin/
 EXPOSE 4000
 ENV PORT=4000
-ENV DATABASE_PATH=/data/kanwise.db
-CMD ["kanwise", "serve"]
+ENV DATABASE_PATH=/data/tarmak.db
+CMD ["tarmak", "serve"]

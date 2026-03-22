@@ -13,7 +13,7 @@ impl RepoCache {
     pub fn path() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".kanwise")
+            .join(".tarmak")
             .join("repo-cache.json")
     }
 

@@ -28,7 +28,7 @@
   },
 
   "auth": {
-    "appName": "Kanwise",
+    "appName": "Tarmak",
     "tagline": "Manage your projects with clarity",
     "createAccount": "Create an account",
     "welcomeBack": "Welcome back",
@@ -69,7 +69,7 @@
 
   "dashboard": {
     "title": "Dashboard",
-    "welcome": "Welcome to Kanwise",
+    "welcome": "Welcome to Tarmak",
     "getStarted": "Create your first board from the sidebar to get started.",
     "myTasks": "My Tasks",
     "acrossBoards_one": "across {{count}} board",
@@ -245,7 +245,7 @@
   "agent": {
     "run": "Run",
     "launching": "Launching...",
-    "agentDisabled": "Start kanwise agent to enable",
+    "agentDisabled": "Start tarmak agent to enable",
     "repoRequired": "Set a repo URL on this board first",
     "autopilotTitle": "Autopilot Mode",
     "autopilotWarning": "This will run Claude Code with --dangerously-skip-permissions. The agent will execute code autonomously without asking for confirmation.",
@@ -309,7 +309,7 @@
 
   "shortcuts": {
     "title": "Keyboard shortcuts",
-    "description": "Quick actions for navigating Kanwise",
+    "description": "Quick actions for navigating Tarmak",
     "commandPalette": "Command palette",
     "createTask": "Create task",
     "search": "Search",
@@ -339,7 +339,7 @@
     "title": "DevGround",
     "description": "Your AI-powered workspace. Read your board, understand your project, and take action on the code — all from here.",
     "refresh": "Refresh config",
-    "agentNotReachable": "Agent server not reachable. Make sure kanwise agent is running.",
+    "agentNotReachable": "Agent server not reachable. Make sure tarmak agent is running.",
     "mcpServers": "MCP Servers",
     "noMcpServers": "No MCP servers configured for this project.",
     "skills": "Skills",
@@ -358,7 +358,7 @@
     "profile": "Profile",
     "profileDesc": "Your account information",
     "appearance": "Appearance",
-    "appearanceDesc": "Customize how Kanwise looks for you",
+    "appearanceDesc": "Customize how Tarmak looks for you",
     "apiKeys": "API Keys",
     "apiKeysDesc": "Manage your API keys for external integrations and MCP access",
     "signOutDesc": "Sign out of your account on this device",
