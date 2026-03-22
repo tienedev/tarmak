@@ -1087,44 +1087,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kanwise"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "argon2",
- "axum",
- "chrono",
- "clap",
- "dashmap",
- "dirs",
- "futures",
- "hex",
- "kbf",
- "mime_guess",
- "rand",
- "regex",
- "reqwest",
- "rmcp",
- "rusqlite",
- "rust-embed",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "tokio",
- "tokio-rusqlite",
- "tokio-stream",
- "tokio-util",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "which",
- "yrs",
-]
-
-[[package]]
 name = "kbf"
 version = "0.1.0"
 dependencies = [
@@ -2076,6 +2038,44 @@ checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "tarmak"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "axum",
+ "chrono",
+ "clap",
+ "dashmap",
+ "dirs",
+ "futures",
+ "hex",
+ "kbf",
+ "mime_guess",
+ "rand",
+ "regex",
+ "reqwest",
+ "rmcp",
+ "rusqlite",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-rusqlite",
+ "tokio-stream",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "which",
+ "yrs",
 ]
 
 [[package]]

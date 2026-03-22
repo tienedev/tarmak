@@ -19,7 +19,7 @@ impl PtySession {
         let claude_bin = which::which("claude")
             .context("claude not found in PATH — is Claude Code installed?")?;
 
-        let tmp_dir = std::env::temp_dir().join("kanwise-sessions");
+        let tmp_dir = std::env::temp_dir().join("tarmak-sessions");
         std::fs::create_dir_all(&tmp_dir)?;
 
         let prompt_file = tmp_dir.join(format!("{session_id}.prompt"));

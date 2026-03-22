@@ -10,7 +10,7 @@ pub fn generate_agent_token() -> String {
 pub fn token_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".kanwise")
+        .join(".tarmak")
         .join("agent-token")
 }
 

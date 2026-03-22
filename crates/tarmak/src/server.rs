@@ -54,7 +54,7 @@ pub async fn run_http_server() -> anyhow::Result<()> {
 
     let db_path = crate::db_path();
 
-    tracing::info!(db_path = %db_path, "Starting kanwise");
+    tracing::info!(db_path = %db_path, "Starting tarmak");
 
     let db = db::Db::new(&db_path).await?;
     let sync_state = Arc::new(SyncState::new(db.clone()));

@@ -1,13 +1,13 @@
 [package]
-name = "kanwise"
+name = "tarmak"
 version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "kanwise"
+name = "tarmak"
 
 [[bin]]
-name = "kanwise"
+name = "tarmak"
 path = "src/main.rs"
 
 [dependencies]

@@ -122,7 +122,7 @@ impl ServerHandler for McpSseHandler {
             protocol_version: Default::default(),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
-                name: "kanwise".to_string(),
+                name: "tarmak".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
             instructions: None,

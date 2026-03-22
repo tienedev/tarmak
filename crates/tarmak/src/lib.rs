@@ -15,15 +15,15 @@ pub use notifications::NotifTx;
 
 use db::models::Priority;
 
-/// Resolve the database path: `DATABASE_PATH` env var, or `~/.kanwise/kanwise.db`.
+/// Resolve the database path: `DATABASE_PATH` env var, or `~/.tarmak/tarmak.db`.
 pub fn db_path() -> String {
     if let Ok(p) = std::env::var("DATABASE_PATH") {
         return p;
     }
     let home = std::env::var("HOME").expect("HOME not set");
-    let dir = std::path::PathBuf::from(home).join(".kanwise");
+    let dir = std::path::PathBuf::from(home).join(".tarmak");
     std::fs::create_dir_all(&dir).ok();
-    dir.join("kanwise.db").to_string_lossy().to_string()
+    dir.join("tarmak.db").to_string_lossy().to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -51,11 +51,11 @@ pub struct DecomposeTask {
     pub depends_on: Vec<usize>,
 }
 
-pub struct Kanwise {
+pub struct Tarmak {
     db: db::Db,
 }
 
-impl Kanwise {
+impl Tarmak {
     pub fn new(db: db::Db) -> Self {
         Self { db }
     }

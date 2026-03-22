@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/kanwise",
+    "crates/tarmak",
     "crates/kbf",
 ]
 
