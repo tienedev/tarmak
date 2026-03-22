@@ -1,4 +1,4 @@
-# Kanwise
+# Tarmak
 
 Kanban board for AI-assisted development. Monorepo with 2 Rust crates, a React frontend, and a Claude Code skills plugin.
 
@@ -6,7 +6,7 @@ Kanban board for AI-assisted development. Monorepo with 2 Rust crates, a React f
 
 ```
 crates/
-  kanwise/       # Kanban board (REST + WebSocket + MCP server + agent)
+  tarmak/        # Kanban board (REST + WebSocket + MCP server + agent)
   kbf/           # Kanban Bit Format codec
 frontend/        # React 19 + TypeScript + Tailwind + shadcn/ui
 skills/          # Claude Code plugin (skills, agents, hooks, commands)
@@ -35,9 +35,9 @@ cd frontend && npx playwright test  # E2E tests (needs backend running)
 
 | Binary | Purpose |
 |--------|---------|
-| `kanwise` | Kanban board server — web server (`serve`), agent server (`agent`), MCP server (`mcp`), CLI (`doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password`) |
+| `tarmak` | Kanban board server — web server (`serve`), agent server (`agent`), MCP server (`mcp`), CLI (`doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password`) |
 
-## MCP Server (kanwise mcp)
+## MCP Server (tarmak mcp)
 
 Stdio-based MCP server using `rmcp` with `ServerHandler` trait.
 
@@ -53,11 +53,11 @@ Claude Code plugin with skills, agents, hooks, and commands. Installed via marke
 
 ## Environment
 
-Copy `.env.example` to `.env`. `KANWISE_EMAIL` / `KANWISE_PASSWORD` are needed for `make agent` auto-login.
+Copy `.env.example` to `.env`. `TARMAK_EMAIL` / `TARMAK_PASSWORD` are needed for `make agent` auto-login.
 
 ## Testing
 
-- Integration tests in `crates/kanwise/tests/`
+- Integration tests in `crates/tarmak/tests/`
 - Use `Db::in_memory()` for DB tests (no file needed)
 - `tempfile::TempDir` + `git init` for git-dependent tests
 - E2E tests in `frontend/e2e/` — Playwright auto-starts backend via `cargo run`

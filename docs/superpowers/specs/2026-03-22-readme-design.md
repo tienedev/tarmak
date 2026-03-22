@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Write a high-quality README for the Kanwise project that serves as both a showcase for potential users and a guide for contributors. The tone is technical, sober, and well-structured — no emojis, no prose, let the features speak.
+Write a high-quality README for the Tarmak project that serves as both a showcase for potential users and a guide for contributors. The tone is technical, sober, and well-structured — no emojis, no prose, let the features speak.
 
 ## Target Audience
 
-- **Primary**: Developers, PMs, and designers evaluating Kanwise as a tool
+- **Primary**: Developers, PMs, and designers evaluating Tarmak as a tool
 - **Secondary**: Open-source contributors wanting to participate
 
 ## Language
@@ -17,7 +17,7 @@ English.
 
 ### 1. Header
 
-- Project name: **Kanwise**
+- Project name: **Tarmak**
 - Tagline: "The developer's kanban board — built for humans and AI agents"
 - Badges: CI status (backend, frontend), license (MIT), Docker image (ghcr.io)
 - Hero image placeholder: `<!-- screenshot coming soon -->` with a note describing what it will show (board view with agent session running in terminal drawer)
@@ -26,7 +26,7 @@ English.
 
 Core message:
 - AI-assisted development is powerful but locked behind the terminal
-- Kanwise gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code
+- Tarmak gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code
 - Click "Run" on a task, watch the agent work in a live terminal, get production-quality code
 
 Keep it concise. No marketing fluff.
@@ -54,7 +54,7 @@ Organized by audience, not by technology. Short descriptions, no paragraphs.
 **For ops**
 - Single Rust binary — serves frontend, API, WebSocket, and MCP
 - SQLite — zero external dependencies, file-based persistence
-- Docker — multi-stage build, published to ghcr.io/tienedev/kanwise
+- Docker — multi-stage build, published to ghcr.io/tienedev/tarmak
 - Self-hosted — your data stays on your infrastructure
 - Backup/restore, export/import, user management CLI
 
@@ -64,16 +64,16 @@ Two paths:
 
 **Docker (recommended)**
 ```bash
-docker run -d --name kanwise \
+docker run -d --name tarmak \
   -p 4000:4000 \
-  -v kanwise-data:/data \
-  ghcr.io/tienedev/kanwise:latest
+  -v tarmak-data:/data \
+  ghcr.io/tienedev/tarmak:latest
 ```
 
 **From source**
 ```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
+git clone https://github.com/tienedev/tarmak.git
+cd tarmak
 make install  # install frontend dependencies
 make dev      # starts backend (4000) + agent (9876) + frontend (3000)
 ```
@@ -86,7 +86,7 @@ Brief monorepo overview with a text diagram:
 
 ```
 crates/
-  kanwise/       Kanban server — REST, WebSocket, MCP, agent, CLI
+  tarmak/       Kanban server — REST, WebSocket, MCP, agent, CLI
   kbf/           Kanban Bit Format codec
 frontend/        React 19 + TypeScript + Tailwind + shadcn/ui
 skills/          Claude Code plugin — skills, agents, hooks
@@ -132,7 +132,7 @@ make dev
 | `make kill` | Kill running dev processes |
 
 **Testing**
-- Integration tests: `crates/kanwise/tests/`
+- Integration tests: `crates/tarmak/tests/`
 - Use `Db::in_memory()` for database tests
 - E2E: Playwright (`cd frontend && npx playwright test`, needs backend running)
 
