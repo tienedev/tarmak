@@ -26,7 +26,8 @@ test.describe('Dashboard', () => {
     await page.goto('/#/')
 
     await sidebarBoard(page, 'Clickable Board').click()
-    await page.locator('aside').getByRole('link', { name: 'Board' }).first().click()
+    const boardLink = page.locator('aside a', { hasText: 'Board' }).first()
+    await boardLink.click()
     await expect(page).toHaveURL(/#\/boards\//)
     await expect(main(page).getByRole('heading', { name: 'Clickable Board' })).toBeVisible()
   })
