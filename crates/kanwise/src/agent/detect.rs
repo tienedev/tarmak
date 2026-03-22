@@ -8,6 +8,9 @@ use super::repo_cache::RepoCache;
 /// On macOS uses mdfind for instant Spotlight-indexed search.
 /// Falls back to scanning common directories.
 pub fn detect_repos(repo_urls: &[String], cache: &mut RepoCache) -> Result<()> {
+    // Prune stale entries where the workdir no longer exists
+    cache.retain(|_, workdir| Path::new(workdir).exists());
+
     let git_dirs = find_git_dirs()?;
     for git_dir in &git_dirs {
         if let Some(remote_url) = read_remote_url(git_dir) {
@@ -45,6 +48,7 @@ fn find_git_dirs() -> Result<Vec<PathBuf>> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
     let search_dirs = [
         home.join("Projects"),
+        home.join("Projets"),
         home.join("Developer"),
         home.join("code"),
         home.join("repos"),

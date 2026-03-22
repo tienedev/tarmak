@@ -30,7 +30,7 @@ front:
 
 # Backend dev server (port 4000)
 back:
-	$(CARGO) run
+	$(CARGO) run --bin kanwise
 
 # Agent server (port 9876) — auto-login to get a token
 agent:
@@ -39,7 +39,7 @@ agent:
 		-d '{"email":"$(KANWISE_EMAIL)","password":"$(KANWISE_PASSWORD)"}' \
 		| python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) && \
 	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set KANWISE_EMAIL and KANWISE_PASSWORD)"; exit 0; fi && \
-	$(CARGO) run -- agent --server http://localhost:4000 --token "$$TOKEN"
+	$(CARGO) run --bin kanwise -- agent --server http://localhost:4000 --token "$$TOKEN"
 
 # Production build (frontend + backend)
 build:

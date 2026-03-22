@@ -21,10 +21,17 @@ make dev              # Start all dev servers (backend 4000 + agent 9876 + front
 make back             # Backend only
 make front            # Frontend only with HMR
 make agent            # Agent server with auto-login
-cargo test --workspace  # Run all tests
-cargo clippy --workspace -- -D warnings  # Lint
-cargo build --workspace  # Build
+make build            # Production build (frontend + backend)
+make cli              # Build kanwise-cli binary
+make clean            # Clean all build artifacts
+make kill             # Kill running dev processes
+cargo test --workspace  # Run all Rust tests
+cargo clippy --workspace -- -D warnings  # Lint Rust
+cargo build --workspace  # Build all crates
 cargo install --path crates/kanwise-cli  # Install kanwise-cli binary
+cd frontend && pnpm test       # Frontend unit tests (vitest)
+cd frontend && pnpm lint       # Frontend lint (eslint)
+cd frontend && npx playwright test  # E2E tests (needs backend running)
 ```
 
 ## Binary
@@ -80,6 +87,10 @@ kanwise-cli update        Update kanwise and/or kanwise-cli to latest version
 
 Claude Code plugin with skills, agents, hooks, and commands. Installed via marketplace.
 
+## Environment
+
+Copy `.env.example` to `.env`. `KANWISE_EMAIL` / `KANWISE_PASSWORD` are needed for `make agent` auto-login.
+
 ## Testing
 
 - Integration tests in `crates/kanwise/tests/`
@@ -87,3 +98,4 @@ Claude Code plugin with skills, agents, hooks, and commands. Installed via marke
 - `tempfile::TempDir` + `git init` for git-dependent tests
 - kanwise-cli integration tests in `crates/kanwise-cli/tests/`
 - kanwise-cli tests use `tempfile::TempDir` for isolated config directories
+- E2E tests in `frontend/e2e/` — Playwright auto-starts backend via `cargo run`
