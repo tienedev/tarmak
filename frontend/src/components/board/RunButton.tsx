@@ -1,5 +1,6 @@
 import { Play } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import type { AgentStatus } from '@/hooks/useAgentStatus'
 import { agentApi } from '@/lib/agent'
@@ -15,21 +16,31 @@ interface RunButtonProps {
   onSessionStarted?: (sessionId: string) => void
 }
 
-function buildPrompt(task: Task, subtasks: Subtask[]): string {
-  let prompt = task.title
+function buildPrompt(task: Task, subtasks: Subtask[], boardName: string): string {
+  let prompt = ''
+
+  // Description first — allows starting with /commands
   if (task.description) {
-    prompt += '\n\n' + task.description
+    prompt += task.description
   }
+
+  // Subtasks
   if (subtasks.length > 0) {
     prompt += '\n\nSubtasks:'
     for (const st of subtasks) {
       prompt += `\n- [${st.completed ? 'x' : ' '}] ${st.title}`
     }
   }
-  return prompt
+
+  // Ticket & board metadata at the end
+  prompt += `\n\nTicket: ${task.title}`
+  prompt += `\nBoard: ${boardName}`
+
+  return prompt.trim()
 }
 
 export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunButtonProps) {
+  const { t } = useTranslation()
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<{ message: string; hint: string } | null>(null)
   const [showWarning, setShowWarning] = useState(false)
@@ -61,7 +72,7 @@ export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunB
     try {
       // Fetch subtasks for prompt construction
       const subtasks = await api.listSubtasks(boardId, task.id)
-      const prompt = buildPrompt(task, subtasks)
+      const prompt = buildPrompt(task, subtasks, currentBoard.name)
 
       const result = await agentApi.run({
         board_id: boardId,
@@ -98,9 +109,9 @@ export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunB
   }
 
   const tooltip = agentStatus === 'disconnected'
-    ? 'Start kanwise agent to enable'
+    ? t('agent.agentDisabled')
     : !currentBoard?.repo_url
-    ? 'Set a repo URL on this board first'
+    ? t('agent.repoRequired')
     : undefined
 
   return (
@@ -114,18 +125,17 @@ export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunB
         className="gap-1.5"
       >
         <Play className="size-3.5" />
-        {launching ? 'Launching...' : 'Run'}
+        {launching ? t('agent.launching') : t('agent.run')}
       </Button>
       {showWarning && (
         <div className="mt-2 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/5 text-sm">
-          <p className="font-medium">Autopilot Mode</p>
+          <p className="font-medium">{t('agent.autopilotTitle')}</p>
           <p className="text-muted-foreground text-xs mt-1">
-            This will run Claude Code with --dangerously-skip-permissions.
-            The agent will execute code autonomously without asking for confirmation.
+            {t('agent.autopilotWarning')}
           </p>
           <div className="flex gap-2 mt-2">
-            <Button size="sm" variant="outline" onClick={() => setShowWarning(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleAcceptWarning}>I understand, proceed</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowWarning(false)}>{t('common.cancel')}</Button>
+            <Button size="sm" onClick={handleAcceptWarning}>{t('agent.autopilotAccept')}</Button>
           </div>
         </div>
       )}

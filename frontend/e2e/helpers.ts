@@ -139,3 +139,8 @@ export async function createTaskViaUI(page: Page, title: string) {
 export function main(page: Page) {
   return page.getByRole('main')
 }
+
+/** Returns the sidebar board button locator for a given board name. */
+export function sidebarBoard(page: Page, name: string) {
+  return page.locator('aside, [data-slot="sheet-content"]').getByRole('button', { name })
+}

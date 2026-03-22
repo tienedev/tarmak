@@ -30,9 +30,9 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
     await user.click(screen.getByText('Create one'))
-    expect(screen.getByText('Create an account')).toBeInTheDocument()
+    expect(screen.getByText('Create an account', { selector: '[data-slot="card-title"]' })).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create an account' })).toBeInTheDocument()
   })
 
   it('toggles back to login form', async () => {

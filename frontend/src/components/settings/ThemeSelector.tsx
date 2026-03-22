@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -23,13 +24,14 @@ import {
 } from '@/lib/themes'
 import { Sun, Moon, Monitor } from 'lucide-react'
 
-const modeOptions: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
+const modeOptions: { value: ThemeMode; labelKey: string; icon: typeof Sun }[] = [
+  { value: 'light', labelKey: 'theme.light', icon: Sun },
+  { value: 'dark', labelKey: 'theme.dark', icon: Moon },
+  { value: 'system', labelKey: 'theme.system', icon: Monitor },
 ]
 
 export function ThemeSelector() {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<ThemeMode>(getStoredMode)
   const [accent, setAccent] = useState<string>(getStoredAccent)
 
@@ -49,14 +51,14 @@ export function ThemeSelector() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-xs" aria-label="Change theme" />
+          <Button variant="ghost" size="icon-xs" aria-label={t('theme.changeTheme')} />
         }
       >
         <ModeIcon className="size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="w-44">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Theme Mode</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('theme.mode')}</DropdownMenuLabel>
           {modeOptions.map((opt) => {
             const Icon = opt.icon
             return (
@@ -66,7 +68,7 @@ export function ThemeSelector() {
                 className={cn(mode === opt.value && 'bg-accent')}
               >
                 <Icon className="size-3.5" />
-                {opt.label}
+                {t(opt.labelKey)}
               </DropdownMenuItem>
             )
           })}
@@ -75,7 +77,7 @@ export function ThemeSelector() {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Accent Color</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('theme.accent')}</DropdownMenuLabel>
           <div className="flex gap-2 px-1.5 py-1.5">
             {accentThemes.map((theme: AccentTheme) => (
               <button

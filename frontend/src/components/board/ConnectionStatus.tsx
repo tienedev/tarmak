@@ -1,10 +1,12 @@
 import type { SyncStatus } from '@/hooks/useSync'
+import { useTranslation } from 'react-i18next'
 
 interface ConnectionStatusProps {
   status: SyncStatus
 }
 
 export function ConnectionStatus({ status }: ConnectionStatusProps) {
+  const { t } = useTranslation()
   if (status === 'connected') return null
 
   return (
@@ -16,7 +18,7 @@ export function ConnectionStatus({ status }: ConnectionStatusProps) {
             : 'bg-red-500'
         }`}
       />
-      {status === 'connecting' ? 'Reconnecting...' : 'Offline'}
+      {status === 'connecting' ? t('board.reconnecting') : t('board.offline')}
     </div>
   )
 }

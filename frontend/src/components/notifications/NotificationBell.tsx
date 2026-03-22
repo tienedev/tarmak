@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useNotificationStore } from '@/stores/notifications'
 import type { ServerNotification } from '@/lib/api'
 import { useEffect } from 'react'
@@ -13,19 +14,20 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { Bell, Check, X } from 'lucide-react'
 
-function formatTimeAgo(timestamp: number): string {
+function formatTimeAgo(timestamp: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diff = Date.now() - timestamp
   const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return 'just now'
+  if (seconds < 60) return t('dashboard.justNow')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return t('dashboard.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('dashboard.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return t('dashboard.daysAgo', { count: days })
 }
 
 export function NotificationBell() {
+  const { t } = useTranslation()
   const { notifications, markRead, markAllRead, dismiss, unreadCount, fetch, connectSSE, disconnectSSE, fetchUnreadCount } =
     useNotificationStore()
   // unreadCount is now a plain number, not a function
@@ -41,7 +43,7 @@ export function NotificationBell() {
     <Popover onOpenChange={(open) => { if (open) fetch() }}>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon-xs" className="relative" aria-label="Notifications" />
+          <Button variant="ghost" size="icon-xs" className="relative" aria-label={t('notifications.title')} />
         }
       >
         <Bell className="size-3.5" />
@@ -53,7 +55,7 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <PopoverHeader className="flex items-center justify-between border-b px-3 py-2.5">
-          <PopoverTitle className="text-sm">Notifications</PopoverTitle>
+          <PopoverTitle className="text-sm">{t('notifications.title')}</PopoverTitle>
           {count > 0 && (
             <Button
               variant="ghost"
@@ -62,7 +64,7 @@ export function NotificationBell() {
               onClick={markAllRead}
             >
               <Check className="size-3" />
-              Mark all read
+              {t('notifications.markAllRead')}
             </Button>
           )}
         </PopoverHeader>
@@ -95,7 +97,7 @@ export function NotificationBell() {
                       {notif.title}
                     </p>
                     <span className="text-[0.65rem] text-muted-foreground">
-                      {formatTimeAgo(new Date(notif.created_at).getTime())}
+                      {formatTimeAgo(new Date(notif.created_at).getTime(), t)}
                     </span>
                   </div>
 
@@ -126,7 +128,7 @@ export function NotificationBell() {
         ) : (
           <div className="py-8 text-center">
             <Bell className="mx-auto mb-2 size-5 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground/60">No notifications</p>
+            <p className="text-sm text-muted-foreground/60">{t('notifications.empty')}</p>
           </div>
         )}
       </PopoverContent>

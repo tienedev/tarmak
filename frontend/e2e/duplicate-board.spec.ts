@@ -7,6 +7,7 @@ import {
   createLabel,
   addTaskLabel,
   main,
+  sidebarBoard,
 } from './helpers'
 
 test.describe('Duplicate board', () => {
@@ -153,8 +154,8 @@ test.describe('Duplicate board', () => {
     await expect(main(page).getByRole('heading', { name: 'Copy of Sidebar Board' })).toBeVisible()
 
     // Both boards should be visible in the sidebar
-    await expect(page.getByRole('link', { name: 'Sidebar Board' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Copy of Sidebar Board' })).toBeVisible()
+    await expect(sidebarBoard(page, 'Sidebar Board')).toBeVisible()
+    await expect(sidebarBoard(page, 'Copy of Sidebar Board')).toBeVisible()
   })
 
   test('cancel button closes the duplicate dialog', async ({ page }) => {

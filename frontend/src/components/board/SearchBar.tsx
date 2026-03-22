@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search, X, FileText, MessageSquare, ListChecks, Archive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -11,10 +12,10 @@ const typeIcons: Record<string, React.ReactNode> = {
   subtask: <ListChecks className="size-3.5 shrink-0 text-amber-500" />,
 }
 
-const typeLabels: Record<string, string> = {
-  task: 'Tasks',
-  comment: 'Comments',
-  subtask: 'Subtasks',
+const typeLabelKeys: Record<string, string> = {
+  task: 'search.tasks',
+  comment: 'search.comments',
+  subtask: 'search.subtasks',
 }
 
 interface SearchBarProps {
@@ -23,6 +24,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -124,7 +126,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
         size="icon-xs"
         onClick={() => setExpanded(true)}
         className="text-muted-foreground"
-        aria-label="Search"
+        aria-label={t('common.search')}
       >
         <Search className="size-3.5" />
       </Button>
@@ -140,7 +142,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
             ref={inputRef}
             value={query}
             onChange={(e) => handleInputChange(e.target.value)}
-            placeholder="Search tasks, comments..."
+            placeholder={t('search.placeholder')}
             className="h-7 w-52 pl-7 text-xs"
           />
         </div>
@@ -149,7 +151,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
           size="icon-xs"
           onClick={() => setIncludeArchived((prev) => !prev)}
           className={cn('text-muted-foreground', includeArchived && 'text-foreground bg-muted')}
-          title={includeArchived ? 'Including archives' : 'Include archives'}
+          title={t('search.includeArchives')}
         >
           <Archive className="size-3.5" />
         </Button>
@@ -167,7 +169,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
               return (
                 <div key={type}>
                   <p className="px-2 py-1 text-[0.65rem] font-medium uppercase tracking-wider text-muted-foreground">
-                    {typeLabels[type] ?? type}
+                    {t(typeLabelKeys[type] ?? type)}
                   </p>
                   {items.map((r) => (
                     <button
@@ -182,7 +184,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
                       />
                       {r.archived && (
                         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[0.6rem] text-muted-foreground">
-                          Archived
+                          {t('search.archived')}
                         </span>
                       )}
                     </button>
@@ -192,7 +194,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
             })}
           </div>
           {loading && (
-            <p className="px-3 py-2 text-center text-xs text-muted-foreground">Searching...</p>
+            <p className="px-3 py-2 text-center text-xs text-muted-foreground">{t('search.searching')}</p>
           )}
         </div>
       )}

@@ -20,13 +20,13 @@ test.describe('Login flow', () => {
 
     // Switch to register form
     await page.getByText('Create one').click()
-    await expect(page.getByText('Create an account')).toBeVisible()
+    await expect(page.locator('[data-slot="card-title"]')).toHaveText('Create an account')
 
     // Fill in registration form
     await page.getByLabel('Name').fill(TEST_USER.name)
     await page.getByLabel('Email').fill(TEST_USER.email)
     await page.getByLabel('Password').fill(TEST_USER.password)
-    await page.getByRole('button', { name: 'Create account' }).click()
+    await page.getByRole('button', { name: 'Create an account' }).click()
 
     // Wait for dashboard to appear (confirms registration succeeded)
     await expect(page.getByRole('main').getByText('Dashboard')).toBeVisible()

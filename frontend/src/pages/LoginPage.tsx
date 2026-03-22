@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,6 +11,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isRegister, setIsRegister] = useState(false)
+  const { t } = useTranslation()
   const { login, register, loading, error, clearError } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,10 +37,10 @@ export function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-xl font-bold tracking-tight">
-              Kanwise
+              {t('auth.appName')}
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Manage your projects with clarity
+              {t('auth.tagline')}
             </p>
           </div>
         </div>
@@ -46,12 +48,12 @@ export function LoginPage() {
         <Card className="glass glass-border">
           <CardHeader>
             <CardTitle>
-              {isRegister ? 'Create an account' : 'Welcome back'}
+              {isRegister ? t('auth.createAccount') : t('auth.welcomeBack')}
             </CardTitle>
             <CardDescription>
               {isRegister
-                ? 'Enter your details to get started'
-                : 'Sign in to your account'}
+                ? t('auth.enterDetails')
+                : t('auth.signInPrompt')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -62,12 +64,12 @@ export function LoginPage() {
                     htmlFor="name"
                     className="text-xs font-medium text-muted-foreground"
                   >
-                    Name
+                    {t('auth.name')}
                   </label>
                   <Input
                     id="name"
                     type="text"
-                    placeholder="Your name"
+                    placeholder={t('auth.namePlaceholder')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -80,12 +82,12 @@ export function LoginPage() {
                   htmlFor="email"
                   className="text-xs font-medium text-muted-foreground"
                 >
-                  Email
+                  {t('auth.email')}
                 </label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -97,12 +99,12 @@ export function LoginPage() {
                   htmlFor="password"
                   className="text-xs font-medium text-muted-foreground"
                 >
-                  Password
+                  {t('auth.password')}
                 </label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Password"
+                  placeholder={t('auth.password')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -121,14 +123,14 @@ export function LoginPage() {
               >
                 {loading && <Loader2 className="size-3.5 animate-spin" data-icon="inline-start" />}
                 {loading
-                  ? (isRegister ? 'Creating account…' : 'Signing in…')
+                  ? (isRegister ? t('auth.creatingAccount') : t('auth.signingIn'))
                   : isRegister
-                    ? 'Create account'
-                    : 'Sign in'}
+                    ? t('auth.createAccount')
+                    : t('auth.signIn')}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
-                {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+                {isRegister ? t('auth.alreadyHaveAccount') : t('auth.dontHaveAccount')}{' '}
                 <button
                   type="button"
                   className="font-medium text-primary underline underline-offset-2 hover:no-underline"
@@ -137,7 +139,7 @@ export function LoginPage() {
                     clearError()
                   }}
                 >
-                  {isRegister ? 'Sign in' : 'Create one'}
+                  {isRegister ? t('auth.signIn') : t('auth.createOne')}
                 </button>
               </p>
             </form>

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin, createBoard, main } from './helpers'
+import { registerAndLogin, createBoard, main, sidebarBoard } from './helpers'
 
 test.describe('Board management', () => {
   test('dashboard shows empty state for new user', async ({ page }) => {
@@ -37,8 +37,8 @@ test.describe('Board management', () => {
     await page.goto('/#/')
 
     // Boards should appear in sidebar navigation
-    await expect(page.getByRole('link', { name: 'Alpha Board' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Beta Board' })).toBeVisible()
+    await expect(sidebarBoard(page, 'Alpha Board')).toBeVisible()
+    await expect(sidebarBoard(page, 'Beta Board')).toBeVisible()
   })
 
   test('can navigate to a board and back', async ({ page }) => {
@@ -54,6 +54,6 @@ test.describe('Board management', () => {
     const content = main(page)
     await expect(content.getByText('Dashboard')).toBeVisible()
     // Board should be accessible from sidebar
-    await expect(page.getByRole('link', { name: 'Navigation Board' })).toBeVisible()
+    await expect(sidebarBoard(page, 'Navigation Board')).toBeVisible()
   })
 })

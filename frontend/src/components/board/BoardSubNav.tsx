@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useBoardStore } from '@/stores/board'
 import { useFilterStore } from '@/hooks/useFilters'
 import { Button } from '@/components/ui/button'
@@ -13,11 +14,11 @@ import { Filter, X, ChevronDown } from 'lucide-react'
 import type { ViewMode } from '@/components/board/ViewSwitcher'
 
 const priorityOptions = [
-  { value: 'urgent', label: 'Urgent', color: 'bg-red-500' },
-  { value: 'high', label: 'High', color: 'bg-orange-500' },
-  { value: 'medium', label: 'Medium', color: 'bg-yellow-500' },
-  { value: 'low', label: 'Low', color: 'bg-zinc-400' },
-  { value: 'none', label: 'None', color: 'bg-zinc-300' },
+  { value: 'urgent', labelKey: 'task.priorityUrgent', color: 'bg-red-500' },
+  { value: 'high', labelKey: 'task.priorityHigh', color: 'bg-orange-500' },
+  { value: 'medium', labelKey: 'task.priorityMedium', color: 'bg-yellow-500' },
+  { value: 'low', labelKey: 'task.priorityLow', color: 'bg-zinc-400' },
+  { value: 'none', labelKey: 'task.priorityNone', color: 'bg-zinc-300' },
 ]
 
 interface BoardSubNavProps {
@@ -26,6 +27,7 @@ interface BoardSubNavProps {
 }
 
 export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardSubNavProps) {
+  const { t } = useTranslation()
   const { columns, members } = useBoardStore()
   const { filters, toggleFilter, clearFilter, clearAll, hasActiveFilters } = useFilterStore()
   const isActive = hasActiveFilters()
@@ -45,11 +47,11 @@ export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardS
       </div>
 
       <FilterDropdown
-        label="Priority"
+        label={t('filter.priority')}
         selected={filters.priority}
         options={priorityOptions.map((p) => ({
           value: p.value,
-          label: p.label,
+          label: t(p.labelKey),
           leading: (
             <span className={cn('inline-block size-2 rounded-full', p.color)} />
           ),
@@ -59,7 +61,7 @@ export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardS
       />
 
       <FilterDropdown
-        label="Status"
+        label={t('filter.status')}
         selected={filters.column}
         options={[...columns]
           .sort((a, b) => a.position - b.position)
@@ -79,7 +81,7 @@ export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardS
 
       {assignees.length > 0 && (
         <FilterDropdown
-          label="Assignee"
+          label={t('filter.assignee')}
           selected={filters.assignee}
           options={assignees.map((a) => ({
             value: a,
@@ -100,7 +102,7 @@ export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardS
           <div className="mx-1 h-4 w-px bg-border" />
           <div className="flex items-center gap-1">
             <Badge variant="secondary" className="gap-1 text-[0.6rem]">
-              {activeFilterCount} active
+              {t('filter.activeCount', { count: activeFilterCount })}
               <button
                 type="button"
                 onClick={clearAll}
@@ -133,6 +135,7 @@ interface FilterDropdownProps {
 }
 
 function FilterDropdown({ label, selected, options, onToggle, onClear }: FilterDropdownProps) {
+  const { t } = useTranslation()
   const hasSelection = selected.length > 0
 
   return (
@@ -209,7 +212,7 @@ function FilterDropdown({ label, selected, options, onToggle, onClear }: FilterD
                 onClick={onClear}
                 className="rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                Clear selection
+                {t('filter.clearSelection')}
               </button>
             </>
           )}

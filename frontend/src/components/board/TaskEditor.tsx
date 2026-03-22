@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Task, Comment } from '@/lib/api'
 import { api } from '@/lib/api'
 import { useBoardStore } from '@/stores/board'
@@ -31,14 +32,13 @@ import { SubtaskList } from '@/components/board/SubtaskList'
 import { RunButton } from '@/components/board/RunButton'
 import { SessionsPanel } from '@/components/board/SessionsPanel'
 import { useAgentStatus } from '@/hooks/useAgentStatus'
-import type { AgentSession } from '@/lib/api'
 
 const priorityOptions = [
-  { value: 'none', label: 'None' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'urgent', label: 'Urgent' },
+  { value: 'none', labelKey: 'task.priorityNone' },
+  { value: 'low', labelKey: 'task.priorityLow' },
+  { value: 'medium', labelKey: 'task.priorityMedium' },
+  { value: 'high', labelKey: 'task.priorityHigh' },
+  { value: 'urgent', labelKey: 'task.priorityUrgent' },
 ]
 
 const priorityColors: Record<string, string> = {
@@ -52,10 +52,10 @@ const priorityColors: Record<string, string> = {
 interface TaskEditorProps {
   task: Task
   onClose: () => void
-  onOpenTerminal?: (session: AgentSession) => void
 }
 
-export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
+export function TaskEditor({ task, onClose }: TaskEditorProps) {
+  const { t } = useTranslation()
   const { currentBoard, columns, fields, members, updateTask, deleteTask } = useBoardStore()
   const user = useAuthStore((s) => s.user)
   const addNotification = useNotificationStore((s) => s.add)
@@ -97,7 +97,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         })
         .catch(() => {})
       api.listComments(currentBoard.id, task.id).then(setComments).catch(() => {
-        addNotification('Failed to load comments')
+        addNotification(t('errors.commentLoadFailed'))
       })
     }
   }, [task.id, currentBoard])
@@ -171,7 +171,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
       setFieldValues((prev) => ({ ...prev, [fieldId]: value }))
       if (!currentBoard) return
       api.setFieldValue(currentBoard.id, task.id, fieldId, value).catch(() => {
-        addNotification('Failed to save field value')
+        addNotification(t('errors.fieldSaveFailed'))
       })
     },
     [currentBoard, task.id, addNotification],
@@ -190,7 +190,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
       setNewCommentHtml('')
       addNotification(`Comment added to "${task.title}"`)
     } catch {
-      addNotification('Failed to add comment')
+      addNotification(t('errors.commentAddFailed'))
     } finally {
       setSubmittingComment(false)
     }
@@ -206,18 +206,18 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
       setEditingCommentId(null)
       setEditingCommentHtml('')
     } catch {
-      addNotification('Failed to update comment')
+      addNotification(t('errors.commentUpdateFailed'))
     }
   }
 
   const handleDeleteComment = async (commentId: string) => {
     if (!currentBoard) return
-    if (!window.confirm('Delete this comment?')) return
+    if (!window.confirm(t('task.deleteCommentConfirm'))) return
     try {
       await api.deleteComment(currentBoard.id, task.id, commentId)
       setComments((prev) => prev.filter((c) => c.id !== commentId))
     } catch {
-      addNotification('Failed to delete comment')
+      addNotification(t('errors.commentDeleteFailed'))
     }
   }
 
@@ -227,20 +227,20 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
       await useBoardStore.getState().archiveTask(currentBoard.id, task.id)
       onClose()
     } catch {
-      addNotification('Failed to archive task')
+      addNotification(t('errors.taskArchiveFailed'))
     }
   }
 
   const handleDelete = async () => {
     if (!currentBoard) return
-    if (!window.confirm(`Delete "${task.title}"? This cannot be undone.`)) return
+    if (!window.confirm(t('task.deleteConfirm', { title: task.title }))) return
     const taskTitle = task.title
     try {
       await deleteTask(currentBoard.id, task.id)
-      addNotification(`Deleted task "${taskTitle}"`)
+      addNotification(t('errors.taskDeleted', { title: taskTitle }))
       onClose()
     } catch {
-      addNotification('Failed to delete task')
+      addNotification(t('errors.taskDeleteFailed'))
     }
   }
 
@@ -250,7 +250,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
       await useBoardStore.getState().duplicateTask(currentBoard.id, task.id)
       onClose()
     } catch {
-      addNotification('Failed to duplicate task')
+      addNotification(t('errors.taskDuplicateFailed'))
     }
   }
 
@@ -288,7 +288,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
               setTimeout(() => titleInputRef.current?.focus(), 0)
             }}
           >
-            {title || 'Untitled task'}
+            {title || t('task.untitled')}
           </button>
         )}
       </div>
@@ -298,7 +298,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         {/* Status */}
         {column && (
           <>
-            <span className="text-muted-foreground">Status</span>
+            <span className="text-muted-foreground">{t('task.status')}</span>
             <span className="flex items-center gap-2">
               {column.color && (
                 <span
@@ -312,7 +312,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         )}
 
         {/* Priority */}
-        <span className="text-muted-foreground">Priority</span>
+        <span className="text-muted-foreground">{t('task.priority')}</span>
         <div>
           <Select value={priority} onValueChange={handlePriorityChange}>
             <SelectTrigger
@@ -326,7 +326,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                     priorityColors[priority] ?? priorityColors.none,
                   )}
                 />
-                {priorityOptions.find((o) => o.value === priority)?.label ?? 'None'}
+                {t(priorityOptions.find((o) => o.value === priority)?.labelKey ?? 'task.priorityNone')}
               </span>
             </SelectTrigger>
             <SelectContent>
@@ -339,7 +339,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                         priorityColors[opt.value],
                       )}
                     />
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </span>
                 </SelectItem>
               ))}
@@ -348,7 +348,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         </div>
 
         {/* Assignee */}
-        <span className="text-muted-foreground">Assignee</span>
+        <span className="text-muted-foreground">{t('task.assignee')}</span>
         <div>
           <Select value={assignee || '__unassigned__'} onValueChange={(v) => handleAssigneeChange(v ?? '__unassigned__')}>
             <SelectTrigger
@@ -358,13 +358,13 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
               <span className="flex items-center gap-2">
                 <UserIcon className="size-3.5 text-muted-foreground" />
                 <span className={assignee ? '' : 'text-muted-foreground'}>
-                  {assignee || 'Unassigned'}
+                  {assignee || t('task.unassigned')}
                 </span>
               </span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__unassigned__">
-                <span className="text-muted-foreground">Unassigned</span>
+                <span className="text-muted-foreground">{t('task.unassigned')}</span>
               </SelectItem>
               {members.map((m) => (
                 <SelectItem key={m.id} value={m.name}>
@@ -381,13 +381,13 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         </div>
 
         {/* Labels */}
-        <span className="text-muted-foreground">Labels</span>
+        <span className="text-muted-foreground">{t('task.labels')}</span>
         <div>
           <LabelPicker taskId={task.id} taskLabels={task.labels ?? []} />
         </div>
 
         {/* Due date */}
-        <span className="text-muted-foreground">Due date</span>
+        <span className="text-muted-foreground">{t('task.dueDate')}</span>
         <div>
           <input
             type="date"
@@ -401,13 +401,13 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         </div>
 
         {/* Created */}
-        <span className="text-muted-foreground">Created</span>
+        <span className="text-muted-foreground">{t('task.created')}</span>
         <span className="text-muted-foreground/70">{formatTimestamp(task.created_at)}</span>
 
         {/* Updated */}
         {task.updated_at !== task.created_at && (
           <>
-            <span className="text-muted-foreground">Updated</span>
+            <span className="text-muted-foreground">{t('task.updated')}</span>
             <span className="text-muted-foreground/70">{formatTimestamp(task.updated_at)}</span>
           </>
         )}
@@ -445,7 +445,6 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
         <SessionsPanel
           boardId={currentBoard.id}
           taskId={task.id}
-          onViewTerminal={(session) => onOpenTerminal?.(session)}
         />
       )}
 
@@ -464,7 +463,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
               commentsOpen && 'rotate-90',
             )}
           />
-          Comments
+          {t('task.comments')}
           {comments.length > 0 && (
             <Badge variant="secondary" className="text-[0.6rem]">
               {comments.length}
@@ -484,7 +483,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                       </div>
                       <span className="text-[0.65rem] text-muted-foreground">
                         {formatTimestamp(comment.created_at)}
-                        {comment.updated_at && <span className="ml-1">(edited)</span>}
+                        {comment.updated_at && <span className="ml-1">{t('task.edited')}</span>}
                       </span>
                       {comment.user_id === user?.id && editingCommentId !== comment.id && (
                         <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100">
@@ -515,13 +514,13 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                         <TiptapEditor
                           content={editingCommentHtml}
                           onChange={setEditingCommentHtml}
-                          placeholder="Edit comment..."
+                          placeholder={t('task.editComment')}
                           boardId={currentBoard?.id}
                           taskId={task.id}
                         />
                         <div className="mt-2 flex gap-2">
                           <Button size="sm" onClick={() => handleUpdateComment(comment.id)}>
-                            Save
+                            {t('common.save')}
                           </Button>
                           <Button
                             size="sm"
@@ -531,7 +530,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                               setEditingCommentHtml('')
                             }}
                           >
-                            Cancel
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       </div>
@@ -545,14 +544,14 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground/50">No comments yet</p>
+              <p className="text-xs text-muted-foreground/50">{t('task.noComments')}</p>
             )}
 
             <div className="mt-1">
               <TiptapEditor
                 content={newCommentHtml}
                 onChange={setNewCommentHtml}
-                placeholder="Write a comment..."
+                placeholder={t('task.commentPlaceholder')}
                 boardId={currentBoard?.id}
                 taskId={task.id}
               />
@@ -563,7 +562,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
                   disabled={isEmptyHtml(newCommentHtml) || submittingComment}
                 >
                   <Send className="size-3.5 mr-1.5" />
-                  {submittingComment ? 'Sending...' : 'Comment'}
+                  {submittingComment ? t('common.sending') : t('task.comment')}
                 </Button>
               </div>
             </div>
@@ -575,7 +574,7 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
       <Separator />
       <div className="flex items-center justify-between py-4">
         <div className="text-xs text-muted-foreground">
-          {saving ? 'Saving...' : 'Auto-saved'}
+          {saving ? t('common.saving') : t('task.autoSaved')}
         </div>
         <div className="flex items-center gap-2">
           {currentBoard && (
@@ -587,15 +586,15 @@ export function TaskEditor({ task, onClose, onOpenTerminal }: TaskEditorProps) {
           )}
           <Button variant="ghost" size="sm" onClick={handleDuplicate} className="gap-1.5 text-muted-foreground">
             <Copy className="size-3.5" />
-            Duplicate
+            {t('common.duplicate')}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleArchive} className="gap-1.5 text-muted-foreground">
             <Archive className="size-3.5" />
-            Archive
+            {t('common.archive')}
           </Button>
           <Button variant="destructive" size="sm" onClick={handleDelete}>
             <Trash2 className="size-3.5" />
-            Delete
+            {t('common.delete')}
           </Button>
         </div>
       </div>

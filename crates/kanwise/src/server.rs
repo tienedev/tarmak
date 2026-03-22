@@ -63,10 +63,10 @@ pub async fn run_http_server() -> anyhow::Result<()> {
         .route("/boards/{board_id}", get(sync::ws::ws_handler))
         .with_state(Arc::clone(&sync_state));
 
-    // CORS: allow the Vite dev server (3000) and the backend itself (3001)
+    // CORS: allow the Vite dev server (3000) and the backend itself (4000)
     // Override with KANBAN_ALLOWED_ORIGINS for production.
     let allowed_origins = std::env::var("KANBAN_ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001".to_string());
+        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:4000".to_string());
 
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')
@@ -128,7 +128,8 @@ pub async fn run_http_server() -> anyhow::Result<()> {
             HeaderValue::from_static("max-age=63072000; includeSubDomains"),
         ));
 
-    let addr = "0.0.0.0:3001";
+    let port = std::env::var("PORT").unwrap_or_else(|_| "4000".to_string());
+    let addr = format!("0.0.0.0:{port}");
     tracing::info!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(

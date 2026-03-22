@@ -11,7 +11,7 @@ export function createSyncProvider(boardId: string, token: string | null) {
   // In dev, connect directly to the backend to avoid Vite proxy noise (ECONNRESET).
   // In production, the backend serves everything on the same origin.
   const wsBase = import.meta.env.DEV
-    ? 'ws://localhost:3001'
+    ? 'ws://localhost:4000'
     : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
 
   const provider = new WebsocketProvider(`${wsBase}/ws/boards`, boardId, doc, {

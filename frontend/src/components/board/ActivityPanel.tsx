@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { api, type ActivityEntry, type BoardMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { DrawerLayout } from '@/components/ui/drawer-layout'
@@ -22,19 +23,19 @@ import {
 
 const PAGE_SIZE = 50
 
-const actionTypes = [
-  { value: '__all__', label: 'All actions' },
-  { value: 'task_created', label: 'Task created' },
-  { value: 'task_updated', label: 'Task updated' },
-  { value: 'task_moved', label: 'Task moved' },
-  { value: 'task_deleted', label: 'Task deleted' },
-  { value: 'column_created', label: 'Column created' },
-  { value: 'column_updated', label: 'Column updated' },
-  { value: 'column_deleted', label: 'Column deleted' },
-  { value: 'comment_added', label: 'Comment added' },
-  { value: 'member_joined', label: 'Member joined' },
-  { value: 'field_created', label: 'Field created' },
-  { value: 'field_value_set', label: 'Field value set' },
+const ACTION_TYPE_KEYS: { value: string; key: string }[] = [
+  { value: '__all__', key: 'activity.allActions' },
+  { value: 'task_created', key: 'activity.taskCreated' },
+  { value: 'task_updated', key: 'activity.taskUpdated' },
+  { value: 'task_moved', key: 'activity.taskMoved' },
+  { value: 'task_deleted', key: 'activity.taskDeleted' },
+  { value: 'column_created', key: 'activity.columnCreated' },
+  { value: 'column_updated', key: 'activity.columnUpdated' },
+  { value: 'column_deleted', key: 'activity.columnDeleted' },
+  { value: 'comment_added', key: 'activity.commentAdded' },
+  { value: 'member_joined', key: 'activity.memberJoined' },
+  { value: 'field_created', key: 'activity.fieldCreated' },
+  { value: 'field_value_set', key: 'activity.fieldValueSet' },
 ]
 
 const actionIcons: Record<string, React.ReactNode> = {
@@ -120,6 +121,8 @@ interface ActivityPanelProps {
 }
 
 export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanelProps) {
+  const { t } = useTranslation()
+  const actionTypes = ACTION_TYPE_KEYS.map((a) => ({ value: a.value, label: t(a.key) }))
   const [entries, setEntries] = useState<ActivityEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -165,12 +168,12 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
       <div className="flex gap-2">
         <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '__all__')}>
           <SelectTrigger size="sm" className="flex-1 pl-2.5 text-xs">
-            {actionTypes.find((t) => t.value === actionFilter)?.label ?? 'All actions'}
+            {actionTypes.find((at) => at.value === actionFilter)?.label ?? t('activity.allActions')}
           </SelectTrigger>
           <SelectContent>
-            {actionTypes.map((t) => (
-              <SelectItem key={t.value} value={t.value} className="text-xs">
-                {t.label}
+            {actionTypes.map((at) => (
+              <SelectItem key={at.value} value={at.value} className="text-xs">
+                {at.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -178,11 +181,11 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
         <Select value={userFilter} onValueChange={(v) => setUserFilter(v ?? '__all__')}>
           <SelectTrigger size="sm" className="flex-1 pl-2.5 text-xs">
             {userFilter === '__all__'
-              ? 'All users'
-              : members.find((m) => m.id === userFilter)?.name ?? 'All users'}
+              ? t('activity.allUsers')
+              : members.find((m) => m.id === userFilter)?.name ?? t('activity.allUsers')}
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__" className="text-xs">All users</SelectItem>
+            <SelectItem value="__all__" className="text-xs">{t('activity.allUsers')}</SelectItem>
             {members.map((m) => (
               <SelectItem key={m.id} value={m.id} className="text-xs">
                 {m.name}
@@ -201,7 +204,7 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
             onClick={() => setAgentFilter(f)}
           >
             {f === 'agents' && <Bot className="mr-1 size-3" />}
-            {f}
+            {f === 'all' ? t('common.all') : f === 'humans' ? t('activity.humans') : t('activity.agents')}
           </Button>
         ))}
       </div>
@@ -209,7 +212,7 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
   )
 
   return (
-    <DrawerLayout open={open} onClose={onClose} title="Activity" toolbar={toolbar}>
+    <DrawerLayout open={open} onClose={onClose} title={t('activity.title')} toolbar={toolbar}>
       <div className="flex flex-col gap-1">
         {entries
           .filter((e) => {
@@ -242,7 +245,7 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
         ))}
 
         {entries.length === 0 && !loading && (
-          <p className="py-8 text-center text-xs text-muted-foreground/50">No activity yet</p>
+          <p className="py-8 text-center text-xs text-muted-foreground/50">{t('activity.noActivity')}</p>
         )}
 
         {hasMore && entries.length > 0 && (
@@ -253,7 +256,7 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
             onClick={loadMore}
             disabled={loading}
           >
-            {loading ? 'Loading...' : 'Load more'}
+            {loading ? t('common.loading') : t('activity.loadMore')}
           </Button>
         )}
       </div>

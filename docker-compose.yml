@@ -3,10 +3,11 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "${PORT:-4000}:${PORT:-4000}"
     volumes:
       - kanwise-data:/data
     environment:
+      - PORT=${PORT:-4000}
       - DATABASE_PATH=/data/kanwise.db
       - RUST_LOG=info
       # IMPORTANT: Set this to your domain to avoid CORS errors.
