@@ -20,7 +20,7 @@ English.
 - Project name: **Kanwise**
 - Tagline: "The developer's kanban board — built for humans and AI agents"
 - Badges: CI status (backend, frontend), license (MIT), Docker image (ghcr.io)
-- Hero image placeholder: `<!-- screenshot coming soon -->` with a note
+- Hero image placeholder: `<!-- screenshot coming soon -->` with a note describing what it will show (board view with agent session running in terminal drawer)
 
 ### 2. Pitch (2-3 sentences)
 
@@ -37,17 +37,18 @@ Organized by audience, not by technology. Short descriptions, no paragraphs.
 
 **For everyone**
 - Agent sessions — click "Run" on any task, Claude Code executes in an embedded terminal (xterm.js)
-- Multiple views — drag-and-drop kanban, sortable list, Gantt-style timeline
+- Multiple views — drag-and-drop kanban, sortable list, Gantt-style timeline, sessions
 - Real-time collaboration — CRDT sync (Yjs) with live presence
+- Multi-user — role-based access (Owner, Member, Viewer), board sharing via invite links
 - Rich editing — Tiptap-based markdown editor
-- Custom fields, labels, subtasks, comments, attachments
+- Custom fields, labels, subtasks, comments, attachments, notifications
 - i18n — English and French
 
 **For AI agents**
 - MCP server — stdio and SSE transports, 4 tools (query, mutate, sync, ask)
-- KBF (Kanban Bit Format) — 95% token reduction vs JSON for AI-efficient communication
+- KBF (Kanban Bit Format) — compact token-efficient format for AI communication
 - Atomic task claiming — advisory locks prevent race conditions between agents
-- Skills plugin — Claude Code integration with TDD, planning, debugging workflows
+- Skills plugin — Claude Code integration with brainstorming, planning, TDD, debugging, code review workflows
 - Natural language queries — "what's overdue?", "unassigned tasks", board stats
 
 **For ops**
@@ -63,7 +64,7 @@ Two paths:
 
 **Docker (recommended)**
 ```bash
-docker run -d \
+docker run -d --name kanwise \
   -p 4000:4000 \
   -v kanwise-data:/data \
   ghcr.io/tienedev/kanwise:latest
@@ -99,13 +100,13 @@ Tech stack as a compact table:
 | Frontend | React 19, TypeScript, Vite, Tailwind, shadcn/ui |
 | Real-time | Yjs (CRDT) over WebSocket |
 | AI | MCP (rmcp), KBF, xterm.js |
+| Agent | Rust, PTY, git worktrees |
 
 ### 6. Contributing
 
 **Prerequisites**
-- Rust (stable, auto-installed via rust-toolchain.toml)
+- Rust via rustup (channel set by rust-toolchain.toml)
 - Node.js 22+ and pnpm
-- SQLite 3
 
 **Development setup**
 ```bash
@@ -127,6 +128,8 @@ make dev
 | `cargo clippy --workspace -- -D warnings` | Lint Rust |
 | `cd frontend && pnpm test` | Frontend unit tests |
 | `cd frontend && pnpm lint` | Frontend lint |
+| `make clean` | Clean all build artifacts |
+| `make kill` | Kill running dev processes |
 
 **Testing**
 - Integration tests: `crates/kanwise/tests/`
