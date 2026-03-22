@@ -13,7 +13,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'cd .. && cargo run --bin kanwise',
+    command: 'cd .. && cargo run --bin tarmak',
     url: 'http://localhost:4000/api/v1/health',
     reuseExistingServer: true,
     timeout: 120_000,

@@ -6,7 +6,7 @@ test.describe('Board management', () => {
     await registerAndLogin(page, 'board-empty')
 
     const content = main(page)
-    await expect(content.getByText('Welcome to Kanwise')).toBeVisible()
+    await expect(content.getByText('Welcome to Tarmak')).toBeVisible()
     await expect(content.getByText('Create your first board from the sidebar to get started.')).toBeVisible()
   })
 

@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
 
-const savedLang = localStorage.getItem('kanwise-language')
+const savedLang = localStorage.getItem('tarmak-language')
 
 i18n.use(initReactI18next).init({
   resources: {
@@ -21,7 +21,7 @@ export default i18n
 
 export function setLanguage(lang: string) {
   i18n.changeLanguage(lang)
-  localStorage.setItem('kanwise-language', lang)
+  localStorage.setItem('tarmak-language', lang)
 }
 
 export function getLanguage(): string {

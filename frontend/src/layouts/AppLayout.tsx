@@ -134,7 +134,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Kanban className="size-4" />
         </div>
         <span className="text-sm font-bold tracking-tight">
-          Kanwise
+          Tarmak
         </span>
       </div>
 
@@ -262,7 +262,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Kanban className="size-3.5" />
           </div>
-          <span className="text-sm font-bold tracking-tight">Kanwise</span>
+          <span className="text-sm font-bold tracking-tight">Tarmak</span>
         </div>
 
         {children}
