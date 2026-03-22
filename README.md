@@ -1,43 +1,53 @@
-<div align="center">
-
 # Kanwise
 
-**Kanban board for AI-assisted development.**
+The developer's kanban board — built for humans and AI agents.
 
-[Quick Start](#quick-start) · [Architecture](#architecture) · [MCP Server](#mcp-server) · [Features](#features) · [Contributing](#contributing)
+[![Backend](https://github.com/tienedev/kanwise/actions/workflows/backend.yml/badge.svg)](https://github.com/tienedev/kanwise/actions/workflows/backend.yml)
+[![Frontend](https://github.com/tienedev/kanwise/actions/workflows/frontend.yml/badge.svg)](https://github.com/tienedev/kanwise/actions/workflows/frontend.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/ghcr.io-kanwise-blue)](https://ghcr.io/tienedev/kanwise)
 
-</div>
+<!-- Screenshot coming soon — board view with an agent session running in the terminal drawer -->
 
----
+AI-assisted development is powerful but locked behind the terminal. Kanwise gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code. Click "Run" on a task, watch the agent work in a live terminal, get production-quality code.
 
-Kanwise is a kanban board built for AI-assisted development. It ships as a single Rust binary with a web UI, a WebSocket-based real-time sync engine, and an MCP server that any AI agent can talk to.
+## Features
+
+### For everyone
+
+- **Agent sessions** — click "Run" on any task, Claude Code executes in an embedded terminal
+- **Multiple views** — drag-and-drop kanban, sortable list, Gantt-style timeline, sessions
+- **Real-time collaboration** — CRDT sync (Yjs) with live presence
+- **Multi-user** — role-based access (Owner, Member, Viewer), board sharing via invite links
+- **Rich editing** — Tiptap-based markdown editor
+- **Custom fields**, labels, subtasks, comments, attachments, notifications
+- **i18n** — English and French
+
+### For AI agents
+
+- **MCP server** — stdio and SSE transports, 4 tools (query, mutate, sync, ask)
+- **KBF** (Kanban Bit Format) — compact token-efficient format for AI communication
+- **Atomic task claiming** — advisory locks prevent race conditions between agents
+- **Skills plugin** — Claude Code integration with brainstorming, planning, TDD, debugging, code review workflows
+- **Natural language queries** — "what's overdue?", "unassigned tasks", board stats
+
+### For ops
+
+- **Single binary** — Rust, serves frontend, API, WebSocket, and MCP
+- **SQLite** — zero external dependencies, file-based persistence
+- **Docker** — multi-stage build, published to ghcr.io/tienedev/kanwise
+- **Self-hosted** — your data stays on your infrastructure
+- **CLI** — backup/restore, export/import, user management
 
 ## Quick Start
-
-### Prerequisites
-
-| Tool | Version | Install |
-|------|---------|---------|
-| Rust | 1.87+ (auto-installed via `rust-toolchain.toml`) | [rustup.rs](https://rustup.rs) |
-| Node.js | 22+ | [nodejs.org](https://nodejs.org) |
-| pnpm | 10+ (via corepack) | `corepack enable` |
-
-### From source
-
-```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
-cp .env.example .env   # configure dev settings
-make install           # install frontend dependencies
-make dev               # start backend (4000) + agent (9876) + frontend (3000)
-```
-
-Open [http://localhost:3000](http://localhost:3000), create an account, and you're in.
 
 ### Docker
 
 ```bash
-docker run -d -p 4000:4000 -v kanwise-data:/data ghcr.io/tienedev/kanwise:latest
+docker run -d --name kanwise \
+  -p 4000:4000 \
+  -v kanwise-data:/data \
+  ghcr.io/tienedev/kanwise:latest
 ```
 
 Or with docker compose:
@@ -46,22 +56,19 @@ Or with docker compose:
 docker compose up -d
 ```
 
-Open [http://localhost:4000](http://localhost:4000). To use a different port:
+Open [http://localhost:4000](http://localhost:4000), create an account, and you're in.
+
+### From source
 
 ```bash
-PORT=8080 docker compose up -d
+git clone https://github.com/tienedev/kanwise.git
+cd kanwise
+cp .env.example .env
+make install  # install frontend dependencies
+make dev      # starts backend (4000) + agent (9876) + frontend (3000)
 ```
 
-### Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `4000` | Server port (also used by Docker) |
-| `DATABASE_PATH` | `kanwise.db` | SQLite database path |
-| `KANBAN_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:4000` | CORS origins |
-| `KANBAN_ENV` | — | Set to `production` to enforce security |
-| `KANWISE_EMAIL` | — | Dev only: account email for `make agent` auto-login |
-| `KANWISE_PASSWORD` | — | Dev only: account password for `make agent` auto-login |
+Open [http://localhost:3000](http://localhost:3000). Requires [rustup](https://rustup.rs/) and [pnpm](https://pnpm.io/).
 
 ### MCP configuration
 
@@ -78,37 +85,6 @@ Add to your Claude Code MCP config:
 }
 ```
 
-## Architecture
-
-```
-crates/
-  kanwise/       # Kanban board server (REST + WebSocket + MCP + agent)
-  kbf/           # Kanban Bit Format codec
-frontend/        # React 19 + TypeScript + Tailwind + shadcn/ui
-skills/          # Claude Code plugin (skills, agents, hooks)
-```
-
-### Commands
-
-```bash
-make dev       # All dev servers (backend 4000 + agent 9876 + frontend 3000)
-make back      # Backend only
-make front     # Frontend only with HMR
-make agent     # Agent server with auto-login (requires .env)
-make build     # Production build (frontend + backend)
-make clean     # Clean build artifacts
-```
-
-### Binaries
-
-| Binary | Purpose |
-|--------|---------|
-| `kanwise` | Server: `serve`, `agent`, `mcp`, `doctor`, `backup`, `restore`, `export`, `import`, `users`, `reset-password` |
-
-## MCP Server
-
-When running `kanwise mcp`, Kanwise exposes 4 tools over stdio:
-
 | Tool | Purpose |
 |------|---------|
 | `board_query` | Read board state (KBF or JSON) |
@@ -116,62 +92,62 @@ When running `kanwise mcp`, Kanwise exposes 4 tools over stdio:
 | `board_sync` | Apply KBF deltas, return current state |
 | `board_ask` | Natural language queries about the board |
 
-## Features
-
-### Agent Sessions
-
-Click **Run** on any task card to launch an autopiloted Claude Code session:
-
-- Embedded terminal (xterm.js) streams live output
-- Multiple parallel sessions via git worktrees
-- Atomic task claiming prevents race conditions
-- Agent auto-authenticates using your Kanwise token
-
-### KBF: 95% fewer tokens
-
-**KBF (Kanban Bit Format)** is a compact protocol for AI interactions:
+## Architecture
 
 ```
-# JSON: 2,847 tokens → KBF: 142 tokens (95% reduction)
-B|abc-123|Sprint 24
-C|col-1|Todo|0
-T|task-1|Fix auth bug|high|0
+crates/
+  kanwise/       Kanban server — REST, WebSocket, MCP, agent, CLI
+  kbf/           Kanban Bit Format codec
+frontend/        React 19 + TypeScript + Tailwind + shadcn/ui
+skills/          Claude Code plugin — skills, agents, hooks
 ```
 
-### More
-
-- **Views** — Drag-and-drop kanban, sortable list, Gantt-style timeline
-- **Rich editing** — Tiptap editor with markdown support
-- **Custom fields** — Text, number, URL, date fields on any board
-- **Collaboration** — Real-time CRDT sync (Yjs), live presence, comments, invite links
-- **i18n** — English and French
-- **Auth** — Argon2 passwords, session tokens, API keys
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend | Rust, Axum, tokio, SQLite (rusqlite + tokio-rusqlite) |
-| Frontend | React 19, TypeScript, Tailwind CSS, shadcn/ui |
-| Real-time | Yjs (CRDT), y-websocket |
-| MCP | rmcp (Rust MCP library), stdio transport |
+| Layer | Stack |
+|-------|-------|
+| Backend | Rust, Tokio, Axum, SQLite |
+| Frontend | React 19, TypeScript, Vite, Tailwind, shadcn/ui |
+| Real-time | Yjs (CRDT) over WebSocket |
+| AI | MCP (rmcp), KBF, xterm.js |
+| Agent | Rust, PTY, git worktrees |
 
 ## Contributing
 
-```bash
-git clone https://github.com/tienedev/kanwise.git
-cd kanwise
-cp .env.example .env     # configure dev credentials
-make install             # frontend dependencies
-make dev                 # backend + agent + frontend with HMR
-```
+### Prerequisites
+
+- [Rust](https://rustup.rs/) (channel set by `rust-toolchain.toml`)
+- [Node.js](https://nodejs.org/) 22+ and [pnpm](https://pnpm.io/)
+
+### Setup
 
 ```bash
-cargo test --workspace                       # run all tests
-cargo clippy --workspace -- -D warnings      # lint
-cd frontend && pnpm test                     # frontend unit tests
-cd frontend && pnpm e2e                      # Playwright E2E tests
+cp .env.example .env
+make install
+make dev
 ```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `make dev` | Start all dev servers |
+| `make back` | Backend only |
+| `make front` | Frontend with HMR |
+| `make agent` | Agent server |
+| `make build` | Production build |
+| `make clean` | Clean all build artifacts |
+| `make kill` | Kill running dev processes |
+| `cargo test --workspace` | Run all Rust tests |
+| `cargo clippy --workspace -- -D warnings` | Lint Rust |
+| `cd frontend && pnpm test` | Frontend unit tests |
+| `cd frontend && pnpm lint` | Frontend lint |
+
+### Testing
+
+- **Integration tests** — `crates/kanwise/tests/`, uses `Db::in_memory()` for database tests
+- **Frontend unit tests** — Vitest (`cd frontend && pnpm test`)
+- **E2E** — Playwright (`cd frontend && npx playwright test`), requires backend running
+
+See [CLAUDE.md](CLAUDE.md) for detailed codebase patterns and conventions.
 
 ## License
 
