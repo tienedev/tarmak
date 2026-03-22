@@ -1,13 +1,13 @@
 {
-  "name": "tienedev-kanwise-skills",
-  "description": "Kanwise skills overlay for Superpowers",
+  "name": "tienedev-tarmak-skills",
+  "description": "Tarmak skills overlay for Superpowers",
   "owner": {
     "name": "tienedev"
   },
   "plugins": [
     {
-      "name": "kanwise-skills",
-      "description": "Full superpowers fork with kanwise board integration — TDD, debugging, planning, collaboration, and kanban tracking",
+      "name": "tarmak-skills",
+      "description": "Full superpowers fork with tarmak board integration — TDD, debugging, planning, collaboration, and kanban tracking",
       "version": "1.0.0",
       "source": "./"
     }

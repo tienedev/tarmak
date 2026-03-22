@@ -1,12 +1,12 @@
 {
-  "name": "kanwise-skills",
-  "description": "Full superpowers fork with kanwise board integration — TDD, debugging, planning, collaboration, and kanban tracking",
+  "name": "tarmak-skills",
+  "description": "Full superpowers fork with tarmak board integration — TDD, debugging, planning, collaboration, and kanban tracking",
   "version": "1.0.0",
   "author": {
     "name": "tienedev"
   },
-  "homepage": "https://github.com/tienedev/kanwise",
-  "repository": "https://github.com/tienedev/kanwise",
+  "homepage": "https://github.com/tienedev/tarmak",
+  "repository": "https://github.com/tienedev/tarmak",
   "license": "MIT",
-  "keywords": ["kanwise", "kanban", "superpowers", "skills", "tdd", "debugging", "collaboration"]
+  "keywords": ["tarmak", "kanban", "superpowers", "skills", "tdd", "debugging", "collaboration"]
 }

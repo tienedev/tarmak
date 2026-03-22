@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans with independent tasks in the current session. Includes automatic kanwise board tracking.
+description: Use when executing implementation plans with independent tasks in the current session. Includes automatic tarmak board tracking.
 ---
 
 # Subagent-Driven Development
@@ -84,13 +84,13 @@ digraph process {
 }
 ```
 
-## Kanwise Board Tracking
+## Tarmak Board Tracking
 
-If kanwise MCP is connected, task progress is automatically tracked on the kanwise board. This provides team visibility into which tasks are in progress and which are done.
+If tarmak MCP is connected, task progress is automatically tracked on the tarmak board. This provides team visibility into which tasks are in progress and which are done.
 
 ### Board Resolution
 
-If writing-plans already resolved the board and provided a task-to-board mapping (`Task N → <kanwise_task_id>`), use that cached data. Otherwise, resolve the board now:
+If writing-plans already resolved the board and provided a task-to-board mapping (`Task N → <tarmak_task_id>`), use that cached data. Otherwise, resolve the board now:
 
 1. Get repo name from `git remote get-url origin` (fallback: directory name)
 2. `board_query` with `board_id: "list"` → find matching board (case-insensitive)
@@ -99,20 +99,20 @@ If writing-plans already resolved the board and provided a task-to-board mapping
 
 ### Task Identity
 
-The mapping between plan task numbers and kanwise task IDs should come from writing-plans. If the mapping is missing (e.g., plan was written without kanwise connected), fall back to matching by task title via `board_query` with `board_id: <board_id>`, `scope: "tasks"`.
+The mapping between plan task numbers and tarmak task IDs should come from writing-plans. If the mapping is missing (e.g., plan was written without tarmak connected), fall back to matching by task title via `board_query` with `board_id: <board_id>`, `scope: "tasks"`.
 
 ### Per-Task Board Updates
 
 **On task start** (before dispatching implementer subagent):
-- Look up kanwise `task_id` from the task-to-board mapping
+- Look up tarmak `task_id` from the task-to-board mapping
 - `board_mutate` action `move_task` with `board_id: <board_id>`, `data: { "task_id": <id>, "column_id": <in_progress_id> }`
 
 **On task complete** (after both spec compliance and code quality reviews pass):
 - `board_mutate` action `move_task` with `board_id: <board_id>`, `data: { "task_id": <id>, "column_id": <done_id> }`
 
-### If Kanwise Unavailable
+### If Tarmak Unavailable
 
-Skip silently. **Never block execution.** The entire kanwise integration is fire-and-forget — if any board operation fails, log the error and continue.
+Skip silently. **Never block execution.** The entire tarmak integration is fire-and-forget — if any board operation fails, log the error and continue.
 
 ## Model Selection
 
