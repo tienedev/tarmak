@@ -8,8 +8,8 @@
     {
       "name": "tarmak-skills",
       "description": "Full superpowers fork with tarmak board integration — TDD, debugging, planning, collaboration, and kanban tracking",
-      "version": "1.0.0",
-      "source": "./"
+      "version": "1.0.1",
+      "source": "skills/"
     }
   ]
 }
