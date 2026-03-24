@@ -63,10 +63,10 @@ export function ArchivePanel({ boardId, open, onClose }: ArchivePanelProps) {
             <div>
               <h3 className="mb-2 text-xs font-bold text-muted-foreground">{t('archives.tasks')}</h3>
               <div className="flex flex-col gap-1.5">
-                {tasks.map(t => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                    <span className="truncate">{t.title}</span>
-                    <Button variant="ghost" size="icon-xs" onClick={() => restoreTask(t.id)}>
+                {tasks.map(task => (
+                  <div key={task.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                    <span className="truncate">{task.title}</span>
+                    <Button variant="ghost" size="icon-xs" onClick={() => restoreTask(task.id)}>
                       <ArchiveRestore className="size-3.5" />
                     </Button>
                   </div>

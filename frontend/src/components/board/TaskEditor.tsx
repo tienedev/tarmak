@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import DOMPurify from 'dompurify'
 import type { Task, Comment } from '@/lib/api'
 import { api } from '@/lib/api'
 import { useBoardStore } from '@/stores/board'
@@ -537,7 +538,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
                     ) : (
                       <div
                         className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: comment.content }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.content) }}
                       />
                     )}
                   </div>

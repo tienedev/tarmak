@@ -98,9 +98,11 @@ pub async fn create_stream_ticket(
     Extension(store): Extension<TicketStore>,
 ) -> Json<serde_json::Value> {
     // Clean expired tickets opportunistically
+    // Retain for 90s (wider than 60s validation window) to prevent race
+    // where cleanup removes a ticket right as a client tries to use it
     store
         .0
-        .retain(|_, (_, exp)| exp.elapsed() < Duration::from_secs(60));
+        .retain(|_, (_, created)| created.elapsed() < Duration::from_secs(90));
 
     let ticket = uuid::Uuid::new_v4().to_string();
     let expiry = Instant::now();

@@ -312,17 +312,14 @@ function MembersTab({ boardId }: { boardId: string }) {
 
 // --- Labels Tab ---
 
-const PALETTE = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
-]
+import { LABEL_PALETTE } from '@/lib/constants'
 
 function LabelsTab() {
   const { t } = useTranslation()
   const { currentBoard, labels, createLabel, updateLabel, deleteLabel } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState(PALETTE[0])
+  const [newColor, setNewColor] = useState(LABEL_PALETTE[0])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState('')
@@ -377,7 +374,7 @@ function LabelsTab() {
                   autoFocus
                 />
                 <div className="flex gap-1">
-                  {PALETTE.map((c) => (
+                  {LABEL_PALETTE.map((c) => (
                     <button
                       key={c}
                       type="button"
@@ -437,7 +434,7 @@ function LabelsTab() {
           </Button>
         </div>
         <div className="mt-1.5 flex gap-1">
-          {PALETTE.map((c) => (
+          {LABEL_PALETTE.map((c) => (
             <button
               key={c}
               type="button"

@@ -63,19 +63,8 @@ impl RateLimiter {
 }
 
 fn extract_client_ip(req: &Request<Body>) -> String {
-    // Prefer X-Forwarded-For if present (behind reverse proxy)
-    if let Some(xff) = req
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        && let Some(first) = xff.split(',').next()
-    {
-        let ip = first.trim();
-        if !ip.is_empty() {
-            return ip.to_string();
-        }
-    }
-    // Fall back to actual TCP peer address
+    // Always prefer actual TCP peer address to prevent rate-limit bypass
+    // via spoofed X-Forwarded-For headers
     req.extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ci| ci.0.ip().to_string())

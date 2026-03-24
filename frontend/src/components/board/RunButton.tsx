@@ -98,11 +98,9 @@ export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunB
 
       onSessionStarted?.(result.session_id)
     } catch (err: unknown) {
-      const e = err as { message?: string; hint?: string }
-      setError({
-        message: e.message || 'Failed to launch session',
-        hint: e.hint || '',
-      })
+      const message = err instanceof Error ? err.message : 'Failed to launch session'
+      const hint = err instanceof Error && 'hint' in err ? (err as { hint?: string }).hint || '' : ''
+      setError({ message, hint })
     } finally {
       setLaunching(false)
     }

@@ -1,5 +1,16 @@
 import { useAuthStore } from '@/stores/auth'
 
+export class AgentApiError extends Error {
+  status: number
+  hint?: string
+  constructor(status: number, message: string, hint?: string) {
+    super(message)
+    this.name = 'AgentApiError'
+    this.status = status
+    this.hint = hint
+  }
+}
+
 export interface McpServer {
   name: string
   scope: 'global' | 'user' | 'project' | 'local'
@@ -68,7 +79,7 @@ export const agentApi = {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      throw { status: res.status, ...body }
+      throw new AgentApiError(res.status, body.message || res.statusText, body.hint)
     }
     return res.json()
   },

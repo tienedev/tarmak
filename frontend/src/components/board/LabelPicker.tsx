@@ -5,12 +5,8 @@ import { Input } from '@/components/ui/input'
 import { useBoardStore } from '@/stores/board'
 import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { LABEL_PALETTE } from '@/lib/constants'
 import type { Label } from '@/lib/api'
-
-const PALETTE = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
-]
 
 interface LabelPickerProps {
   taskId: string
@@ -21,7 +17,7 @@ export function LabelPicker({ taskId, taskLabels }: LabelPickerProps) {
   const { currentBoard, labels, createLabel, addTaskLabel, removeTaskLabel } = useBoardStore()
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState(PALETTE[0])
+  const [newColor, setNewColor] = useState(LABEL_PALETTE[0])
 
   if (!currentBoard) return null
 
@@ -103,7 +99,7 @@ export function LabelPicker({ taskId, taskLabels }: LabelPickerProps) {
                 autoFocus
               />
               <div className="flex gap-1">
-                {PALETTE.map((c) => (
+                {LABEL_PALETTE.map((c) => (
                   <button
                     key={c}
                     type="button"

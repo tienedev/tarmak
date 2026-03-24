@@ -8,6 +8,7 @@ import { DrawerLayout } from '@/components/ui/drawer-layout'
 import { api } from '@/lib/api'
 import type { AgentSession } from '@/lib/api'
 import { agentApi } from '@/lib/agent'
+import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
 import { useBoardStore } from '@/stores/board'
 
@@ -15,13 +16,6 @@ interface BoardSessionsPanelProps {
   boardId: string
   open: boolean
   onClose: () => void
-}
-
-const statusColors: Record<string, string> = {
-  running: 'bg-green-500/10 text-green-500',
-  success: 'bg-emerald-500/10 text-emerald-500',
-  failed: 'bg-red-500/10 text-red-500',
-  cancelled: 'bg-zinc-500/10 text-zinc-400',
 }
 
 export function BoardSessionsPanel({ boardId, open, onClose }: BoardSessionsPanelProps) {
@@ -60,8 +54,8 @@ export function BoardSessionsPanel({ boardId, open, onClose }: BoardSessionsPane
   }
 
   const taskTitle = (taskId: string) => {
-    const t = tasks.find((t) => t.id === taskId)
-    return t?.title ?? taskId.slice(0, 8)
+    const found = tasks.find((task) => task.id === taskId)
+    return found?.title ?? taskId.slice(0, 8)
   }
 
   const runningSessions = sessions.filter((s) => s.status === 'running')
@@ -151,7 +145,7 @@ function SessionRow({
           {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         </Button>
 
-        <Badge variant="outline" className={statusColors[session.status]}>
+        <Badge variant="outline" className={SESSION_STATUS_COLORS[session.status]}>
           {session.status}
         </Badge>
 
