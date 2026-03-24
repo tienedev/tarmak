@@ -58,7 +58,7 @@ pub async fn create(
     let task = db
         .get_task(&tid)
         .await?
-        .unwrap_or_else(|| panic!("task {tid} must exist"));
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     let mentioned_ids = parse_mentions(&body.content);
 
     // Notify task participants (assignee + previous commenters), excluding author
@@ -132,7 +132,7 @@ pub async fn update(
     let task = db
         .get_task(&tid)
         .await?
-        .unwrap_or_else(|| panic!("task {tid} must exist"));
+        .ok_or_else(|| ApiError::NotFound("task not found".into()))?;
     for mid in &new_mentions {
         if mid == &user.id || old_mentions.contains(mid) {
             continue;

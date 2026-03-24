@@ -40,13 +40,9 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { LABEL_PALETTE } from '@/lib/constants'
 import { TaskCard } from './TaskCard'
 import { AddTaskForm } from './AddTaskForm'
-
-const PALETTE = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
-]
 
 interface KanbanColumnProps {
   column: Column
@@ -204,7 +200,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick, columnIndex,
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="p-2">
                 <div className="grid grid-cols-4 gap-1.5">
-                  {PALETTE.map((c) => (
+                  {LABEL_PALETTE.map((c) => (
                     <button
                       key={c}
                       type="button"

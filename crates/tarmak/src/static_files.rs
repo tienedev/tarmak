@@ -16,7 +16,7 @@ pub async fn static_handler(uri: Uri) -> impl IntoResponse {
             Response::builder()
                 .header(header::CONTENT_TYPE, mime.as_ref())
                 .body(axum::body::Body::from(content.data.to_vec()))
-                .unwrap()
+                .expect("valid static response")
         }
         None => {
             // SPA fallback: serve index.html for unmatched routes
@@ -24,11 +24,11 @@ pub async fn static_handler(uri: Uri) -> impl IntoResponse {
                 Some(content) => Response::builder()
                     .header(header::CONTENT_TYPE, "text/html")
                     .body(axum::body::Body::from(content.data.to_vec()))
-                    .unwrap(),
+                    .expect("valid static response"),
                 None => Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .body(axum::body::Body::from("Not Found"))
-                    .unwrap(),
+                    .expect("valid static response"),
             }
         }
     }

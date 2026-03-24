@@ -75,19 +75,13 @@ impl AskEngine {
     async fn query_due_range(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
         let board_id_owned = board_id.to_string();
         let tasks = self.db.with_conn(move |conn| {
-            let end_expr = if days == 0 {
-                "date('now')".to_string()
-            } else {
-                format!("date('now', '+{days} days')")
-            };
-            let sql = format!(
+            let mut stmt = conn.prepare(
                 "SELECT id, board_id, column_id, title, description, priority, assignee, due_date, position, created_at, updated_at
                  FROM tasks
-                 WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= {end_expr}
+                 WHERE board_id = ?1 AND archived = 0 AND due_date IS NOT NULL AND due_date >= date('now') AND due_date <= date('now', '+' || ?2 || ' days')
                  ORDER BY due_date ASC"
-            );
-            let mut stmt = conn.prepare(&sql)?;
-            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+            )?;
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql, &days as &dyn rusqlite::types::ToSql])
         }).await?;
         let label = if days == 0 {
             "tasks due today"
@@ -131,18 +125,17 @@ impl AskEngine {
     async fn query_stale(&self, board_id: &str, days: i64, format: &str) -> Result<String> {
         let board_id_owned = board_id.to_string();
         let tasks = self.db.with_conn(move |conn| {
-            let sql = format!(
+            let mut stmt = conn.prepare(
                 "SELECT t.id, t.board_id, t.column_id, t.title, t.description, t.priority, t.assignee, t.due_date, t.position, t.created_at, t.updated_at
                  FROM tasks t
                  INNER JOIN columns c ON c.id = t.column_id
                  WHERE t.board_id = ?1
                    AND t.archived = 0
-                   AND t.updated_at < datetime('now', '-{days} days')
+                   AND t.updated_at < datetime('now', '-' || ?2 || ' days')
                    AND LOWER(c.name) NOT IN ('done', 'closed', 'complete', 'completed', 'archive', 'archived')
                  ORDER BY t.updated_at ASC"
-            );
-            let mut stmt = conn.prepare(&sql)?;
-            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql])
+            )?;
+            Self::collect_tasks(&mut stmt, &[&board_id_owned as &dyn rusqlite::types::ToSql, &days as &dyn rusqlite::types::ToSql])
         }).await?;
         self.format_tasks(&tasks, "stale tasks", format, board_id)
             .await
@@ -333,11 +326,7 @@ impl AskEngine {
                 lines.push(format!("- {} high/urgent priority", high_prio));
             }
             if sub_total > 0 {
-                let pct = if sub_total > 0 {
-                    (sub_done as f64 / sub_total as f64 * 100.0).round() as i64
-                } else {
-                    0
-                };
+                let pct = (sub_done as f64 / sub_total as f64 * 100.0).round() as i64;
                 lines.push(format!("- Subtask completion: {}/{} ({}%)", sub_done, sub_total, pct));
             }
             if unassigned > 0 {

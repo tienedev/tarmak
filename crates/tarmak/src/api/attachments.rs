@@ -142,20 +142,20 @@ pub async fn download(
         .await
         .map_err(|_| ApiError::NotFound("file not found on disk".into()))?;
 
+    let safe_name = att
+        .filename
+        .replace('\"', "\\\"")
+        .replace(['\\', '\n', '\r'], "_");
+    let encoded = urlencoding::encode(&att.filename);
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, &att.mime_type)
         .header(
             header::CONTENT_DISPOSITION,
-            format!(
-                "inline; filename=\"{}\"",
-                att.filename
-                    .replace('\"', "\\\"")
-                    .replace(['\\', '\n', '\r'], "_")
-            ),
+            format!("inline; filename=\"{safe_name}\"; filename*=UTF-8''{encoded}"),
         )
         .body(Body::from(data))
-        .unwrap())
+        .expect("valid download response"))
 }
 
 pub async fn delete(

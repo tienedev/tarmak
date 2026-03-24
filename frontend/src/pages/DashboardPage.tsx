@@ -343,7 +343,7 @@ export function DashboardPage() {
                   </p>
                 ) : (
                   <div className="flex flex-col gap-1">
-                    {data.tasks.map((t) => <TaskRow key={t.id} task={t} />)}
+                    {data.tasks.map((task) => <TaskRow key={task.id} task={task} />)}
                   </div>
                 )}
               </div>

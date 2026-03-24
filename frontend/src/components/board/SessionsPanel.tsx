@@ -7,18 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
 import type { AgentSession } from '@/lib/api'
 import { agentApi } from '@/lib/agent'
+import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
 
 interface SessionsPanelProps {
   boardId: string
   taskId: string
-}
-
-const statusColors: Record<string, string> = {
-  running: 'bg-green-500/10 text-green-500',
-  success: 'bg-emerald-500/10 text-emerald-500',
-  failed: 'bg-red-500/10 text-red-500',
-  cancelled: 'bg-zinc-500/10 text-zinc-400',
 }
 
 export function SessionsPanel({ boardId, taskId }: SessionsPanelProps) {
@@ -85,7 +79,7 @@ export function SessionsPanel({ boardId, taskId }: SessionsPanelProps) {
               )}
             </Button>
 
-            <Badge variant="outline" className={statusColors[session.status]}>
+            <Badge variant="outline" className={SESSION_STATUS_COLORS[session.status]}>
               {session.status}
             </Badge>
 

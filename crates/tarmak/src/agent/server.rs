@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -25,8 +26,8 @@ pub struct AgentState {
     pub agent_token: String,
     pub repo_cache: Arc<RwLock<RepoCache>>,
     pub sessions: Arc<RwLock<HashMap<String, Arc<SessionHandle>>>>,
-    /// Cache of validated Tarmak tokens (avoids hitting /auth/me on every request)
-    pub validated_tokens: Arc<RwLock<HashSet<String>>>,
+    /// Cache of validated Tarmak tokens with TTL (avoids hitting /auth/me on every request)
+    pub validated_tokens: Arc<RwLock<HashMap<String, Instant>>>,
 }
 
 pub struct SessionHandle {
@@ -90,10 +91,13 @@ async fn check_agent_token(
         return Ok(());
     }
 
-    // Check cache of previously validated tokens
+    // Check cache of previously validated tokens (5 min TTL)
+    const TOKEN_TTL: std::time::Duration = std::time::Duration::from_secs(300);
     {
         let cache = state.validated_tokens.read().await;
-        if cache.contains(token) {
+        if let Some(cached_at) = cache.get(token)
+            && cached_at.elapsed() < TOKEN_TTL
+        {
             return Ok(());
         }
     }
@@ -108,9 +112,9 @@ async fn check_agent_token(
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     if resp.status().is_success() {
-        // Cache the validated token
+        // Cache the validated token with timestamp
         let mut cache = state.validated_tokens.write().await;
-        cache.insert(token.to_string());
+        cache.insert(token.to_string(), Instant::now());
         Ok(())
     } else {
         Err(StatusCode::UNAUTHORIZED)
@@ -277,11 +281,12 @@ async fn run(
         }
     });
 
+    let ws_url = format!("/ws/{session_id}");
     Ok(Json(RunResponse {
-        session_id: session_id.clone(),
+        session_id,
         status: "running".to_string(),
         branch_name: branch,
-        ws_url: format!("/ws/{session_id}"),
+        ws_url,
     }))
 }
 
@@ -376,9 +381,13 @@ async fn ws_handler(
     let mut authorized = token == &state.agent_token || token == &state.server_token;
 
     if !authorized {
-        // Check cache
+        // Check cache (5 min TTL)
+        const TOKEN_TTL: std::time::Duration = std::time::Duration::from_secs(300);
         let cache = state.validated_tokens.read().await;
-        authorized = cache.contains(token.as_str());
+        authorized = cache
+            .get(token.as_str())
+            .map(|t| t.elapsed() < TOKEN_TTL)
+            .unwrap_or(false);
     }
 
     if !authorized {
@@ -392,7 +401,7 @@ async fn ws_handler(
             && resp.status().is_success()
         {
             let mut cache = state.validated_tokens.write().await;
-            cache.insert(token.clone());
+            cache.insert(token.clone(), Instant::now());
             authorized = true;
         }
     }
@@ -733,7 +742,7 @@ pub async fn run_agent_server(
         agent_token: agent_token.clone(),
         repo_cache: Arc::new(RwLock::new(repo_cache)),
         sessions: Arc::new(RwLock::new(HashMap::new())),
-        validated_tokens: Arc::new(RwLock::new(HashSet::new())),
+        validated_tokens: Arc::new(RwLock::new(HashMap::new())),
     };
 
     // CORS

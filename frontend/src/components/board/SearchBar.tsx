@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import DOMPurify from 'dompurify'
 import { Search, X, FileText, MessageSquare, ListChecks, Archive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -180,7 +181,7 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
                       {typeIcons[r.entity_type]}
                       <span
                         className="min-w-0 flex-1 text-xs leading-snug"
-                        dangerouslySetInnerHTML={{ __html: r.snippet }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(r.snippet) }}
                       />
                       {r.archived && (
                         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[0.6rem] text-muted-foreground">

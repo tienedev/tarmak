@@ -20,7 +20,9 @@ pub fn db_path() -> String {
     if let Ok(p) = std::env::var("DATABASE_PATH") {
         return p;
     }
-    let home = std::env::var("HOME").expect("HOME not set");
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .expect("HOME not set — set DATABASE_PATH env var instead");
     let dir = std::path::PathBuf::from(home).join(".tarmak");
     std::fs::create_dir_all(&dir).ok();
     dir.join("tarmak.db").to_string_lossy().to_string()
