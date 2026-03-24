@@ -637,12 +637,13 @@ async fn get_config(
     let plugins_file = claude_dir.join("plugins").join("installed_plugins.json");
     let plugins = read_json_file(&plugins_file);
 
+    // Global skills (computed from global settings only)
+    let global_enabled = enabled_plugin_ids(&global_settings, &None);
+    let all_skills = discover_skills(&plugins_file, &global_enabled);
+
     // Project-level config (from all known workdirs)
     let cache = state.repo_cache.read().await;
     let mut projects: Vec<serde_json::Value> = Vec::new();
-    // We'll compute skills per-project since enabledPlugins can differ
-    let mut all_skills = Vec::new();
-    let mut skills_computed = false;
 
     for (repo_url, workdir) in &cache.mappings {
         let workdir_path = PathBuf::from(workdir);
@@ -651,12 +652,9 @@ async fn get_config(
         let project_settings = read_json_file(&workdir_path.join(".claude").join("settings.json"));
         let mcp_servers = collect_mcp_servers(&global_mcp, &user_config, &project_mcp, workdir);
 
-        // Skills: merge global + project enabled plugins, then discover
-        if !skills_computed {
-            let enabled = enabled_plugin_ids(&global_settings, &project_settings);
-            all_skills = discover_skills(&plugins_file, &enabled);
-            skills_computed = true;
-        }
+        // Skills: merge global + project enabled plugins, then discover per-project
+        let project_enabled = enabled_plugin_ids(&global_settings, &project_settings);
+        let project_skills = discover_skills(&plugins_file, &project_enabled);
 
         projects.push(serde_json::json!({
             "repo_url": repo_url,
@@ -664,13 +662,8 @@ async fn get_config(
             "claude_md": project_claude_md,
             "settings": project_settings,
             "mcp_servers": mcp_servers,
+            "skills": project_skills,
         }));
-    }
-
-    // If no projects in cache, still compute skills from global settings
-    if !skills_computed {
-        let enabled = enabled_plugin_ids(&global_settings, &None);
-        all_skills = discover_skills(&plugins_file, &enabled);
     }
 
     // Stats
