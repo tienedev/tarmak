@@ -28,6 +28,7 @@ export interface ProjectConfig {
   claude_md: string | null
   settings: Record<string, unknown> | null
   mcp_servers: McpServer[]
+  skills: SkillInfo[]
 }
 
 export interface AgentConfig {

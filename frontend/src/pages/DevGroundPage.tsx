@@ -133,25 +133,30 @@ export function DevGroundPage({ boardId }: DevGroundPageProps) {
                 )}
               </ConfigCard>
 
-              {/* Skills */}
-              <ConfigCard
-                icon={<Puzzle className="size-4" />}
-                title={t('devGround.skills')}
-                count={config.skills.filter((s) => s.enabled).length}
-                subtitle={config.skills.some((s) => !s.enabled)
-                  ? `${config.skills.filter((s) => !s.enabled).length} ${t('devGround.disabled')}`
-                  : undefined}
-              >
-                {config.skills.length > 0 ? (
-                  <div className="max-h-64 overflow-y-auto space-y-2 -mx-1 px-1">
-                    {config.skills.map((skill) => (
-                      <SkillRow key={skill.dir} skill={skill} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground py-2">{t('devGround.noSkills')}</p>
-                )}
-              </ConfigCard>
+              {/* Skills — use project-level skills if available, fallback to global */}
+              {(() => {
+                const skills = projectConfig?.skills ?? config.skills
+                return (
+                  <ConfigCard
+                    icon={<Puzzle className="size-4" />}
+                    title={t('devGround.skills')}
+                    count={skills.filter((s) => s.enabled).length}
+                    subtitle={skills.some((s) => !s.enabled)
+                      ? `${skills.filter((s) => !s.enabled).length} ${t('devGround.disabled')}`
+                      : undefined}
+                  >
+                    {skills.length > 0 ? (
+                      <div className="max-h-64 overflow-y-auto space-y-2 -mx-1 px-1">
+                        {skills.map((skill) => (
+                          <SkillRow key={`${skill.plugin}-${skill.dir}`} skill={skill} />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground py-2">{t('devGround.noSkills')}</p>
+                    )}
+                  </ConfigCard>
+                )
+              })()}
 
               {/* Hooks */}
               {config.hooks && Object.keys(config.hooks).length > 0 && (
