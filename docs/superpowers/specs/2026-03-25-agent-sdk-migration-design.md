@@ -86,7 +86,6 @@ agent/
 
 - `fastify` + `@fastify/websocket` — HTTP and WebSocket server
 - `@anthropic-ai/claude-agent-sdk` — Claude Code integration
-- `simple-git` — Git worktree operations
 - `uuid` — Session ID generation
 
 ---
