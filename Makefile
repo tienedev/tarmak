@@ -14,6 +14,7 @@ kill:
 	@pkill -f "target/debug/tarmak" 2>/dev/null || true
 	@pkill -f "target/release/tarmak" 2>/dev/null || true
 	@pkill -f "node.*vite" 2>/dev/null || true
+	@pkill -f "tsx.*agent/src/index" 2>/dev/null || true
 	@sleep 1
 
 ## dev: Start all dev servers (backend + agent + frontend)
@@ -43,7 +44,7 @@ agent:
 		-d '{"email":"$(TARMAK_EMAIL)","password":"$(TARMAK_PASSWORD)"}' \
 		| python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) && \
 	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set TARMAK_EMAIL and TARMAK_PASSWORD)"; exit 0; fi && \
-	$(CARGO) run --bin tarmak -- agent --server http://localhost:4000 --token "$$TOKEN"
+	cd agent && npx tsx src/index.ts --server http://localhost:4000 --token "$$TOKEN"
 
 ## build: Production build (frontend + backend)
 build:
@@ -51,11 +52,13 @@ build:
 	$(CARGO) build --release
 	@echo "Binary at target/release/tarmak"
 
-## install: Install frontend dependencies
+## install: Install all dependencies
 install:
 	cd frontend && corepack pnpm install
+	cd agent && npm install
 
 ## clean: Clean all build artifacts
 clean:
 	$(CARGO) clean
 	rm -rf frontend/dist frontend/node_modules
+	rm -rf agent/node_modules agent/dist
