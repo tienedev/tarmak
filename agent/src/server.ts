@@ -2,6 +2,7 @@
 import Fastify from "fastify";
 import fastifyCors from "@fastify/cors";
 import fastifyWebsocket from "@fastify/websocket";
+import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { WebSocket } from "ws";
@@ -59,15 +60,22 @@ export async function startServer(opts: StartOptions): Promise<void> {
     // Fast path: known tokens
     if (token === agentToken || token === opts.serverToken) return true;
     // Cache check
+    const now = Date.now();
     const cached = validatedTokens.get(token);
-    if (cached && Date.now() - cached < TOKEN_TTL_MS) return true;
+    if (cached && now - cached < TOKEN_TTL_MS) return true;
+    // Prune stale entries periodically (keep cache bounded)
+    if (validatedTokens.size > 100) {
+      for (const [k, ts] of validatedTokens) {
+        if (now - ts > TOKEN_TTL_MS) validatedTokens.delete(k);
+      }
+    }
     // HTTP validation
     try {
       const res = await fetch(`${opts.serverUrl}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        validatedTokens.set(token, Date.now());
+        validatedTokens.set(token, now);
         return true;
       }
     } catch { /* validation failed */ }
@@ -116,7 +124,10 @@ export async function startServer(opts: StartOptions): Promise<void> {
 
   // --- POST /run ---
   app.post<{ Body: RunRequest }>("/run", async (request, reply) => {
-    const { board_id, task_id, prompt, repo_url } = request.body;
+    const { board_id, task_id, prompt, repo_url } = request.body ?? {} as RunRequest;
+    if (!board_id || !task_id || !prompt || !repo_url) {
+      return reply.code(400).send({ error: "Missing required fields: board_id, task_id, prompt, repo_url" });
+    }
 
     // Resolve workdir
     let workdir = repoCache.get(repo_url);
@@ -158,7 +169,7 @@ export async function startServer(opts: StartOptions): Promise<void> {
     sessions.set(sessionId, session);
 
     // Report to Tarmak main server (fire-and-forget)
-    reportSessionCreated(opts.serverUrl, opts.serverToken, session);
+    reportSessionCreated(opts.serverUrl, opts.serverToken, session).catch(() => {});
 
     // Run session in background (don't await)
     runSession(session).catch((err) => {
@@ -252,96 +263,108 @@ export async function startServer(opts: StartOptions): Promise<void> {
   }
 
   async function runSession(session: Session): Promise<void> {
-    // --- Phase 1: Plan ---
-    broadcastToSession(session.id, { type: "status", status: "planning" });
-    let planText = "";
+    try {
+      // --- Phase 1: Plan ---
+      broadcastToSession(session.id, { type: "status", status: "planning" });
+      let planText = "";
 
-    for await (const message of query({
-      prompt: session.prompt,
-      options: {
-        cwd: session.worktreePath,
-        permissionMode: "plan",
-        ...SDK_OPTIONS,
-      },
-    })) {
+      for await (const message of query({
+        prompt: session.prompt,
+        options: {
+          cwd: session.worktreePath,
+          permissionMode: "plan",
+          ...SDK_OPTIONS,
+        },
+      })) {
+        if (session.status === "cancelled") return;
+        const transformed = transformMessageAll(message);
+        for (const msg of transformed) {
+          broadcastToSession(session.id, msg);
+        }
+        if ("result" in message && typeof message.result === "string") {
+          planText = message.result;
+        }
+      }
+
       if (session.status === "cancelled") return;
-      const transformed = transformMessageAll(message);
-      for (const msg of transformed) {
-        broadcastToSession(session.id, msg);
+
+      // --- Approval gate ---
+      broadcastToSession(session.id, { type: "plan", content: planText });
+      broadcastToSession(session.id, { type: "status", status: "awaiting_approval" });
+      session.status = "awaiting_approval";
+
+      // Wait for any connected client to approve/reject
+      const response = await waitForApproval(session.id);
+      if (!response || response.type === "reject" || (session.status as string) === "cancelled") {
+        session.status = "cancelled";
+        session.exitCode = 0;
+        broadcastToSession(session.id, { type: "status", status: "cancelled" });
+        return;
       }
-      if ("result" in message && typeof message.result === "string") {
-        planText = message.result;
+
+      // --- Phase 2: Execute ---
+      session.status = "executing";
+      broadcastToSession(session.id, { type: "status", status: "executing" });
+
+      for await (const message of query({
+        prompt: session.prompt,
+        options: {
+          cwd: session.worktreePath,
+          permissionMode: "acceptEdits",
+          ...SDK_OPTIONS,
+        },
+      })) {
+        if ((session.status as string) === "cancelled") return;
+        const transformed = transformMessageAll(message);
+        for (const msg of transformed) {
+          broadcastToSession(session.id, msg);
+        }
+        if ("result" in message && typeof message.result === "string") {
+          session.log = message.result;
+        }
       }
-    }
 
-    if (session.status === "cancelled") return;
-
-    // --- Approval gate ---
-    broadcastToSession(session.id, { type: "plan", content: planText });
-    broadcastToSession(session.id, { type: "status", status: "awaiting_approval" });
-    session.status = "awaiting_approval";
-
-    // Wait for any connected client to approve/reject
-    const response = await waitForApproval(session.id);
-    if (!response || response.type === "reject" || (session.status as string) === "cancelled") {
-      session.status = "cancelled";
+      session.status = "success";
       session.exitCode = 0;
-      broadcastToSession(session.id, { type: "status", status: "cancelled" });
+      broadcastToSession(session.id, { type: "status", status: "success" });
+    } finally {
       await cleanupSession(session);
-      return;
     }
-
-    // --- Phase 2: Execute ---
-    session.status = "executing";
-    broadcastToSession(session.id, { type: "status", status: "executing" });
-
-    for await (const message of query({
-      prompt: session.prompt,
-      options: {
-        cwd: session.worktreePath,
-        permissionMode: "acceptEdits",
-        ...SDK_OPTIONS,
-      },
-    })) {
-      if ((session.status as string) === "cancelled") return;
-      const transformed = transformMessageAll(message);
-      for (const msg of transformed) {
-        broadcastToSession(session.id, msg);
-      }
-      if ("result" in message && typeof message.result === "string") {
-        session.log = message.result;
-      }
-    }
-
-    session.status = "success";
-    session.exitCode = 0;
-    broadcastToSession(session.id, { type: "status", status: "success" });
-    await cleanupSession(session);
   }
 
   function waitForApproval(sessionId: string): Promise<{ type: string } | null> {
     return new Promise((resolve) => {
+      let resolved = false;
+      const done = (result: { type: string } | null) => {
+        if (resolved) return;
+        resolved = true;
+        clearInterval(checkInterval);
+        clearTimeout(timeoutId);
+        resolve(result);
+      };
+
+      const checkInterval = setInterval(() => {
+        const session = sessions.get(sessionId);
+        if (session?.status === "cancelled") {
+          done(null);
+          return;
+        }
+        const c = sessionWs.get(sessionId);
+        if (c && c.size > 0) {
+          clearInterval(checkInterval);
+          listenForApproval(sessionId, done);
+        }
+      }, 500);
+
+      // Timeout after 10 minutes
+      const timeoutId = setTimeout(() => done(null), 600_000);
+
+      // If clients already connected, listen immediately
       const clients = sessionWs.get(sessionId);
-      if (!clients || clients.size === 0) {
-        // No clients connected — wait for one
-        const checkInterval = setInterval(() => {
-          const session = sessions.get(sessionId);
-          if (session?.status === "cancelled") {
-            clearInterval(checkInterval);
-            resolve(null);
-            return;
-          }
-          const c = sessionWs.get(sessionId);
-          if (c && c.size > 0) {
-            clearInterval(checkInterval);
-            listenForApproval(sessionId, resolve);
-          }
-        }, 500);
-        // Timeout after 10 minutes
-        setTimeout(() => { clearInterval(checkInterval); resolve(null); }, 600_000);
-        return;
+      if (clients && clients.size > 0) {
+        clearInterval(checkInterval);
+        listenForApproval(sessionId, done);
       }
-      listenForApproval(sessionId, resolve);
     });
   }
 
@@ -349,17 +372,19 @@ export async function startServer(opts: StartOptions): Promise<void> {
     const clients = sessionWs.get(sessionId);
     if (!clients) { resolve(null); return; }
 
+    const handlers: Array<[WebSocket, (data: Buffer) => void]> = [];
     for (const ws of clients) {
       const handler = (data: Buffer) => {
         try {
           const parsed = JSON.parse(data.toString());
           if (parsed.type === "approve" || parsed.type === "reject") {
-            // Remove handler from all clients
-            for (const c of clients) c.off("message", handler);
+            // Remove all handlers from all clients
+            for (const [c, h] of handlers) c.off("message", h);
             resolve(parsed);
           }
         } catch { /* ignore */ }
       };
+      handlers.push([ws, handler]);
       ws.on("message", handler);
     }
   }
@@ -377,7 +402,8 @@ export async function startServer(opts: StartOptions): Promise<void> {
     // Cleanup worktree
     try {
       // Find the repo dir (parent of .worktrees)
-      const repoDir = session.worktreePath.split("/.worktrees/")[0];
+      const sep = `${path.sep}.worktrees${path.sep}`;
+      const repoDir = session.worktreePath.split(sep)[0];
       await cleanupWorktree(repoDir, session.id, session.branchName);
     } catch {
       // best-effort
@@ -385,7 +411,7 @@ export async function startServer(opts: StartOptions): Promise<void> {
   }
 
   // --- Start ---
-  await app.listen({ port: opts.port, host: "0.0.0.0" });
-  console.log(`Agent server listening on port ${opts.port}`);
-  console.log(`Agent token: ${agentToken}`);
+  await app.listen({ port: opts.port, host: "127.0.0.1" });
+  console.log(`Agent server listening on http://127.0.0.1:${opts.port}`);
+  console.log(`Agent token: ${agentToken.slice(0, 8)}...`);
 }

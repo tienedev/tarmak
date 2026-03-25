@@ -16,7 +16,7 @@ export function tokenPath(customPath?: string): string {
 export async function saveToken(token: string, filepath?: string): Promise<void> {
   const p = tokenPath(filepath);
   await fs.mkdir(path.dirname(p), { recursive: true });
-  await fs.writeFile(p, token, "utf-8");
+  await fs.writeFile(p, token, { encoding: "utf-8", mode: 0o600 });
 }
 
 export async function loadToken(filepath?: string): Promise<string | null> {
