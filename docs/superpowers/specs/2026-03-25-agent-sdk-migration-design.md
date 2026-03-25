@@ -47,7 +47,7 @@ Frontend ◁══WebSocket══▷ Agent Server (Node :9876) ◁══subproce
 | Claude Code invocation | osascript → Terminal.app → `claude -p` | SDK `query()` subprocess |
 | Output delivery | Log file captured post-mortem | Real-time message streaming via WebSocket |
 | Session control | SIGTERM via PID file | `client.interrupt()` via SDK |
-| Plan mode | N/A | `permissionMode: "plan"` with inline approval |
+| Plan mode | N/A | Two-pass: `plan` mode first, then `acceptEdits` on approval |
 | Platform support | macOS only | Cross-platform |
 
 ### What stays the same
@@ -76,7 +76,10 @@ agent/
 │   ├── worktree.ts       # Git worktree create/cleanup (port from Rust)
 │   ├── repo-cache.ts     # URL → workdir mapping (port from Rust)
 │   ├── token.ts          # Agent token generation/validation (port from Rust)
-│   └── types.ts          # Shared message types
+│   ├── config.ts         # Claude Code config discovery (port from Rust /config endpoint)
+│   ├── detect.ts         # Repo auto-detection (mdfind on macOS, dir scan fallback)
+│   ├── callback.ts       # Session completion reporting to Tarmak main server
+│   └── types.ts          # Shared message types (WebSocket protocol types)
 ```
 
 ### Dependencies
@@ -97,8 +100,8 @@ All endpoints remain compatible with the existing frontend `agentApi` client.
 | `/health` | GET | Unchanged |
 | `/run` | POST | Spawns SDK `query()` instead of PTY |
 | `/sessions` | GET | Unchanged |
-| `/sessions/:id/cancel` | POST | Calls `client.interrupt()` instead of SIGTERM |
-| `/config` | GET | Unchanged (reads Claude Code config files) |
+| `/sessions/:id/cancel` | POST | Calls SDK interrupt instead of SIGTERM |
+| `/config` | GET | Ported to TS (`config.ts`) — reads Claude Code settings, plugins, skills, MCP servers |
 | `/config/set-workdir` | POST | Unchanged |
 | `/ws/:sessionId` | WS | **Major upgrade** — bidirectional streaming |
 
@@ -109,23 +112,24 @@ All endpoints remain compatible with the existing frontend `agentApi` client.
 ### Server → Client messages
 
 ```typescript
-// Agent text output
+// Agent text output (from SDKAssistantMessage text blocks)
 { type: "assistant", content: string }
 
-// Thinking block (if adaptive thinking enabled)
-{ type: "thinking", content: string }
-
-// Tool usage notification
+// Tool usage notification (from SDKAssistantMessage tool_use blocks)
 { type: "tool_use", tool: string, input: Record<string, unknown> }
 
-// Plan proposal (requires user approval)
+// Tool result (from SDKToolUseSummaryMessage or tool_result blocks)
+{ type: "tool_result", tool: string, output: string }
+
+// Plan complete — the full plan text from the plan-mode pass
+// Sent once when the plan-mode query() finishes
 { type: "plan", content: string }
 
-// Final result
+// Final result (from SDKResultMessage)
 { type: "result", content: string }
 
 // Session status change
-{ type: "status", status: "running" | "success" | "failed" | "cancelled" }
+{ type: "status", status: "running" | "planning" | "awaiting_approval" | "executing" | "success" | "failed" | "cancelled" }
 
 // Error
 { type: "error", message: string }
@@ -134,56 +138,130 @@ All endpoints remain compatible with the existing frontend `agentApi` client.
 ### Client → Server messages
 
 ```typescript
-// Approve a proposed plan
+// Approve the plan → starts execution pass
 { type: "approve" }
 
-// Reject a proposed plan (stops the session)
+// Reject the plan → session ends
 { type: "reject" }
 ```
+
+### Message transformation rules
+
+The `transformMessage()` function maps SDK message types to WebSocket messages:
+
+| SDK Message Type | WebSocket Type | Extraction |
+|---|---|---|
+| `SDKAssistantMessage` with text content blocks | `assistant` | Concatenate text block contents |
+| `SDKAssistantMessage` with tool_use content blocks | `tool_use` | Extract tool name and input |
+| `SDKToolUseSummaryMessage` | `tool_result` | Extract tool name and output |
+| `SDKResultMessage` | `result` | Extract `.result` string |
+| `SDKSystemMessage` (subtype: "init") | Ignored | Used internally to capture session_id |
+| `SDKStatusMessage` | `status` | Map to session status |
+| All other SDK message types | Ignored | Hooks, retries, etc. — not relevant to UI |
+
+### Reconnection strategy
+
+Messages are buffered server-side per session in `messages: StreamMessage[]`. On WebSocket reconnect, the server replays all buffered messages before resuming the live stream. Buffer is kept until session completion + 5 minutes.
 
 ---
 
 ## SDK Integration
 
+### Two-pass plan mode
+
+`permissionMode: "plan"` in the SDK is read-only — the agent describes what it would do but never executes tools. This is used as the "planning" phase. If approved, a second `query()` call runs with `permissionMode: "acceptEdits"` to actually execute.
+
+**Behavioral change from current system:** The current PTY system runs with `--dangerously-skip-permissions` (auto-execute everything). The new system requires explicit user approval before code changes. This is a deliberate safety improvement for the PM/PrD audience.
+
 ### Session lifecycle
 
 ```typescript
-import { query, ClaudeSDKClient } from "@anthropic-ai/claude-agent-sdk";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+const SDK_OPTIONS = {
+  allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+  maxTurns: 50,
+  maxBudgetUsd: 5,
+  settingSources: ["project"] as const,
+};
 
 async function runSession(session: Session, ws: WebSocket) {
+  // --- Phase 1: Plan ---
+  ws.send(JSON.stringify({ type: "status", status: "planning" }));
+  let planText = "";
+
   for await (const message of query({
     prompt: session.prompt,
     options: {
       cwd: session.worktreePath,
       permissionMode: "plan",
-      allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-      maxTurns: 50,
-      maxBudgetUsd: 5,
-      settingSources: ["project"],
+      ...SDK_OPTIONS,
     },
   })) {
     const transformed = transformMessage(message);
     ws.send(JSON.stringify(transformed));
-
-    // If plan message, wait for user approval
-    if (transformed.type === "plan") {
-      const response = await waitForClientMessage(ws);
-      if (response.type === "reject") {
-        // SDK handles cleanup
-        break;
-      }
-    }
-
-    if ("result" in message) {
-      session.log = message.result;
-    }
+    if ("result" in message) planText = message.result;
   }
+
+  // --- Approval gate ---
+  ws.send(JSON.stringify({ type: "plan", content: planText }));
+  ws.send(JSON.stringify({ type: "status", status: "awaiting_approval" }));
+
+  const response = await waitForClientMessage(ws);
+  if (response.type === "reject") {
+    ws.send(JSON.stringify({ type: "status", status: "cancelled" }));
+    return;
+  }
+
+  // --- Phase 2: Execute ---
+  ws.send(JSON.stringify({ type: "status", status: "executing" }));
+
+  for await (const message of query({
+    prompt: session.prompt,
+    options: {
+      cwd: session.worktreePath,
+      permissionMode: "acceptEdits",
+      ...SDK_OPTIONS,
+    },
+  })) {
+    const transformed = transformMessage(message);
+    ws.send(JSON.stringify(transformed));
+    bufferMessage(session.id, transformed);
+    if ("result" in message) session.log = message.result;
+  }
+
+  // --- Notify Tarmak main server ---
+  await reportSessionCompletion(session);
+}
+```
+
+### Session completion callback
+
+When a session finishes (success or failure), the agent server reports back to the Tarmak main server:
+
+```typescript
+// callback.ts
+async function reportSessionCompletion(session: Session) {
+  await fetch(`${TARMAK_SERVER_URL}/api/v1/boards/${session.boardId}/agent-sessions/${session.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${serverToken}` },
+    body: JSON.stringify({
+      status: session.exitCode === 0 ? "success" : "failed",
+      exit_code: session.exitCode,
+      log: session.log,
+      finished_at: new Date().toISOString(),
+    }),
+  });
 }
 ```
 
 ### Prompt construction
 
 Unchanged from current `buildPrompt()` in RunButton — task description, subtasks, ticket/board metadata.
+
+### Crash recovery
+
+On startup, the agent server scans for orphaned worktrees in `<repo>/.worktrees/` and cleans them up. This handles the case where the Node process crashed mid-session.
 
 ---
 
@@ -204,13 +282,14 @@ Unchanged from current `buildPrompt()` in RunButton — task description, subtas
 // useSessionStream.ts
 function useSessionStream(sessionId: string | null): {
   messages: StreamMessage[];
-  status: SessionStatus;
+  status: "planning" | "awaiting_approval" | "executing" | "success" | "failed" | "cancelled";
   approve: () => void;
   reject: () => void;
+  connected: boolean;
 }
 ```
 
-Connects to `ws://localhost:9876/ws/{sessionId}`, accumulates messages, exposes approve/reject controls.
+Connects to `ws://localhost:9876/ws/{sessionId}`, accumulates messages, exposes approve/reject controls. On reconnect, the server replays buffered messages so the UI catches up.
 
 ### No new pages or routes
 
