@@ -44,6 +44,7 @@ export async function startServer(opts: StartOptions): Promise<void> {
   const sessions = new Map<string, Session>();
   const validatedTokens = new Map<string, number>(); // token → timestamp
   const sessionWs = new Map<string, Set<WebSocket>>(); // sessionId → connected clients
+  const approvalResolvers = new Map<string, (msg: { type: string }) => void>(); // sessionId → resolver
 
   // Cleanup orphaned worktrees from previous crashes
   for (const [, workdir] of repoCache.entries()) {
@@ -244,6 +245,18 @@ export async function startServer(opts: StartOptions): Promise<void> {
         sendMessage(socket, msg);
       }
 
+      // Route incoming messages (approve/reject) to pending resolver
+      socket.on("message", (data) => {
+        try {
+          const parsed = JSON.parse(data.toString());
+          if ((parsed.type === "approve" || parsed.type === "reject") && approvalResolvers.has(sessionId)) {
+            const resolver = approvalResolvers.get(sessionId)!;
+            approvalResolvers.delete(sessionId);
+            resolver(parsed);
+          }
+        } catch { /* ignore malformed */ }
+      });
+
       socket.on("close", () => {
         sessionWs.get(sessionId)?.delete(socket);
       });
@@ -338,55 +351,24 @@ export async function startServer(opts: StartOptions): Promise<void> {
       const done = (result: { type: string } | null) => {
         if (resolved) return;
         resolved = true;
-        clearInterval(checkInterval);
+        clearInterval(cancelCheck);
         clearTimeout(timeoutId);
+        approvalResolvers.delete(sessionId);
         resolve(result);
       };
 
-      const checkInterval = setInterval(() => {
+      // Register resolver — any WS client sending approve/reject will trigger it
+      approvalResolvers.set(sessionId, (msg) => done(msg));
+
+      // Poll for cancellation
+      const cancelCheck = setInterval(() => {
         const session = sessions.get(sessionId);
-        if (session?.status === "cancelled") {
-          done(null);
-          return;
-        }
-        const c = sessionWs.get(sessionId);
-        if (c && c.size > 0) {
-          clearInterval(checkInterval);
-          listenForApproval(sessionId, done);
-        }
+        if (session?.status === "cancelled") done(null);
       }, 500);
 
       // Timeout after 10 minutes
       const timeoutId = setTimeout(() => done(null), 600_000);
-
-      // If clients already connected, listen immediately
-      const clients = sessionWs.get(sessionId);
-      if (clients && clients.size > 0) {
-        clearInterval(checkInterval);
-        listenForApproval(sessionId, done);
-      }
     });
-  }
-
-  function listenForApproval(sessionId: string, resolve: (msg: { type: string } | null) => void): void {
-    const clients = sessionWs.get(sessionId);
-    if (!clients) { resolve(null); return; }
-
-    const handlers: Array<[WebSocket, (data: Buffer) => void]> = [];
-    for (const ws of clients) {
-      const handler = (data: Buffer) => {
-        try {
-          const parsed = JSON.parse(data.toString());
-          if (parsed.type === "approve" || parsed.type === "reject") {
-            // Remove all handlers from all clients
-            for (const [c, h] of handlers) c.off("message", h);
-            resolve(parsed);
-          }
-        } catch { /* ignore */ }
-      };
-      handlers.push([ws, handler]);
-      ws.on("message", handler);
-    }
   }
 
   async function cleanupSession(session: Session): Promise<void> {
