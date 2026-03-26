@@ -261,7 +261,14 @@
     "runningInTerminal": "Session en cours dans le Terminal — vérifiez la fenêtre sur votre bureau.",
     "noLog": "Aucun log disponible.",
     "exitCode": "Code de sortie : {{code}}",
-    "finished": "Terminé {{time}}"
+    "finished": "Terminé {{time}}",
+    "planProposal": "Plan proposé",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "planning": "Planification...",
+    "awaitingApproval": "En attente d'approbation",
+    "executing": "Exécution...",
+    "streamDisconnected": "Déconnecté de l'agent"
   },
 
   "activity": {

@@ -12,6 +12,9 @@ import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
 import { useBoardStore } from '@/stores/board'
 
+const ACTIVE_STATUSES = ['running', 'planning', 'awaiting_approval', 'executing']
+const isActive = (s: AgentSession) => ACTIVE_STATUSES.includes(s.status)
+
 interface BoardSessionsPanelProps {
   boardId: string
   open: boolean
@@ -24,7 +27,7 @@ export function BoardSessionsPanel({ boardId, open, onClose }: BoardSessionsPane
   const { tasks } = useBoardStore()
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const hasRunning = sessions.some((s) => s.status === 'running')
+  const hasRunning = sessions.some(isActive)
 
   useEffect(() => {
     if (open) {
@@ -58,8 +61,8 @@ export function BoardSessionsPanel({ boardId, open, onClose }: BoardSessionsPane
     return found?.title ?? taskId.slice(0, 8)
   }
 
-  const runningSessions = sessions.filter((s) => s.status === 'running')
-  const completedSessions = sessions.filter((s) => s.status !== 'running')
+  const runningSessions = sessions.filter(isActive)
+  const completedSessions = sessions.filter((s) => !isActive(s))
 
   return (
     <DrawerLayout
@@ -163,7 +166,7 @@ function SessionRow({
             formatDistanceToNow(new Date(session.started_at), { addSuffix: true })}
         </span>
 
-        {session.status === 'running' && onCancel && (
+        {ACTIVE_STATUSES.includes(session.status) && onCancel && (
           <Button
             size="sm"
             variant="ghost"
@@ -182,7 +185,7 @@ function SessionRow({
 
 function SessionDetail({ session }: { session: AgentSession }) {
   const { t } = useTranslation()
-  if (session.status === 'running') {
+  if (ACTIVE_STATUSES.includes(session.status)) {
     return (
       <div className="border-t px-3 py-3 text-xs text-muted-foreground">
         {t('agent.runningInTerminal')}

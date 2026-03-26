@@ -16,6 +16,27 @@ export function SessionIndicator({ session }: SessionIndicatorProps) {
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
         </span>
       )
+    case 'planning':
+      return (
+        <span className="relative flex h-2.5 w-2.5" title="Agent planning">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+        </span>
+      )
+    case 'awaiting_approval':
+      return (
+        <span className="relative flex h-2.5 w-2.5" title="Awaiting approval">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+        </span>
+      )
+    case 'executing':
+      return (
+        <span className="relative flex h-2.5 w-2.5" title="Agent executing">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+        </span>
+      )
     case 'success':
       return <Check className="size-3.5 text-green-500" />
     case 'failed':

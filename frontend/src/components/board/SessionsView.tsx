@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns'
 import { ChevronDown, ChevronRight, Square, GitBranch, Terminal } from 'lucide-react'
@@ -11,6 +11,12 @@ import { agentApi } from '@/lib/agent'
 import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
 import { useBoardStore } from '@/stores/board'
+import { useSessionStream } from '@/hooks/useSessionStream'
+import { StreamMessage } from '@/components/board/StreamMessage'
+import { PlanApproval } from '@/components/board/PlanApproval'
+
+const ACTIVE_STATUSES = ['running', 'planning', 'awaiting_approval', 'executing']
+const isActive = (s: AgentSession) => ACTIVE_STATUSES.includes(s.status)
 
 interface SessionsViewProps {
   boardId: string
@@ -22,7 +28,7 @@ export function SessionsView({ boardId }: SessionsViewProps) {
   const { tasks } = useBoardStore()
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const hasRunning = sessions.some((s) => s.status === 'running')
+  const hasRunning = sessions.some(isActive)
 
   useEffect(() => {
     fetchSessions(boardId)
@@ -53,8 +59,8 @@ export function SessionsView({ boardId }: SessionsViewProps) {
     return task?.title ?? taskId.slice(0, 8)
   }
 
-  const runningSessions = sessions.filter((s) => s.status === 'running')
-  const completedSessions = sessions.filter((s) => s.status !== 'running')
+  const runningSessions = sessions.filter(isActive)
+  const completedSessions = sessions.filter((s) => !isActive(s))
 
   if (loading && sessions.length === 0) {
     return (
@@ -160,7 +166,7 @@ function SessionCard({
             formatDistanceToNow(new Date(session.started_at), { addSuffix: true })}
         </span>
 
-        {session.status === 'running' && onCancel && (
+        {isActive(session) && onCancel && (
           <Button
             size="sm"
             variant="ghost"
@@ -174,10 +180,8 @@ function SessionCard({
 
       {expanded && (
         <div className="border-t">
-          {session.status === 'running' ? (
-            <div className="px-4 py-3 text-xs text-muted-foreground">
-              {t('agent.runningInTerminal')}
-            </div>
+          {ACTIVE_STATUSES.includes(session.status) ? (
+            <SessionStream sessionId={session.id} />
           ) : (
             <>
               {session.exit_code !== null && (
@@ -203,6 +207,29 @@ function SessionCard({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function SessionStream({ sessionId }: { sessionId: string }) {
+  const { messages, status, approve, reject } = useSessionStream(sessionId)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
+
+  const planMsg = messages.find((m) => m.type === 'plan')
+
+  return (
+    <div className="px-4 py-3 max-h-96 overflow-auto space-y-1.5">
+      {messages
+        .filter((m) => m.type !== 'plan' && m.type !== 'status')
+        .map((m, i) => <StreamMessage key={i} message={m} />)}
+      {planMsg && status === 'awaiting_approval' && (
+        <PlanApproval plan={planMsg.content ?? ''} onApprove={approve} onReject={reject} />
+      )}
+      <div ref={bottomRef} />
     </div>
   )
 }

@@ -261,7 +261,14 @@
     "runningInTerminal": "Session running in Terminal — check the terminal window on your desktop.",
     "noLog": "No log output available.",
     "exitCode": "Exit code: {{code}}",
-    "finished": "Finished {{time}}"
+    "finished": "Finished {{time}}",
+    "planProposal": "Proposed Plan",
+    "approve": "Approve",
+    "reject": "Reject",
+    "planning": "Planning...",
+    "awaitingApproval": "Awaiting approval",
+    "executing": "Executing...",
+    "streamDisconnected": "Disconnected from agent"
   },
 
   "activity": {

@@ -107,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect();
-            tarmak::agent::server::run_agent_server(server, token, port, origins).await
+            tarmak::agent::launch_agent_server(&server, &token, port, &origins)
         }
     }
 }

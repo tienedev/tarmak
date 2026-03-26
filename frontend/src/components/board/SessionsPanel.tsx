@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns'
 import { ChevronDown, ChevronRight, Square, GitBranch, Terminal } from 'lucide-react'
@@ -9,6 +9,12 @@ import type { AgentSession } from '@/lib/api'
 import { agentApi } from '@/lib/agent'
 import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
+import { useSessionStream } from '@/hooks/useSessionStream'
+import { StreamMessage } from '@/components/board/StreamMessage'
+import { PlanApproval } from '@/components/board/PlanApproval'
+
+const ACTIVE_STATUSES = ['running', 'planning', 'awaiting_approval', 'executing']
+const isActive = (s: AgentSession) => ACTIVE_STATUSES.includes(s.status)
 
 interface SessionsPanelProps {
   boardId: string
@@ -21,7 +27,7 @@ export function SessionsPanel({ boardId, taskId }: SessionsPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const taskSessions = sessions.filter((s) => s.task_id === taskId)
 
-  const hasRunning = taskSessions.some((s) => s.status === 'running')
+  const hasRunning = taskSessions.some(isActive)
 
   useEffect(() => {
     fetchSessions(boardId, taskId)
@@ -95,7 +101,7 @@ export function SessionsPanel({ boardId, taskId }: SessionsPanelProps) {
                 formatDistanceToNow(new Date(session.started_at), { addSuffix: true })}
             </span>
 
-            {session.status === 'running' && (
+            {isActive(session) && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -118,10 +124,25 @@ export function SessionsPanel({ boardId, taskId }: SessionsPanelProps) {
 
 function SessionLog({ session }: { session: AgentSession }) {
   const { t } = useTranslation()
-  if (session.status === 'running') {
+  const active = ACTIVE_STATUSES.includes(session.status)
+  const { messages, status, approve, reject } = useSessionStream(active ? session.id : null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
+
+  if (active) {
+    const planMsg = messages.find((m) => m.type === 'plan')
     return (
-      <div className="border-t px-3 py-3 text-xs text-muted-foreground">
-        {t('agent.runningInTerminal')}
+      <div className="border-t px-3 py-3 max-h-64 overflow-auto space-y-1.5">
+        {messages
+          .filter((m) => m.type !== 'plan' && m.type !== 'status')
+          .map((m, i) => <StreamMessage key={i} message={m} />)}
+        {planMsg && status === 'awaiting_approval' && (
+          <PlanApproval plan={planMsg.content ?? ''} onApprove={approve} onReject={reject} />
+        )}
+        <div ref={bottomRef} />
       </div>
     )
   }
