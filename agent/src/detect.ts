@@ -58,7 +58,7 @@ export async function detectRepos(
 }
 
 async function findGitDirs(): Promise<string[]> {
-  // Try macOS Spotlight first
+  // Try platform-specific fast search first
   if (process.platform === "darwin") {
     try {
       const { stdout } = await exec("mdfind", [
@@ -69,7 +69,20 @@ async function findGitDirs(): Promise<string[]> {
         .filter(Boolean)
         .filter((p) => p.endsWith(".git"));
     } catch {
-      // fallback
+      // fallback to directory scan
+    }
+  } else if (process.platform === "linux") {
+    try {
+      const { stdout } = await exec("locate", ["-r", "/\\.git$"], {
+        timeout: 5000,
+      });
+      const dirs = stdout
+        .split("\n")
+        .filter(Boolean)
+        .filter((p) => p.endsWith(".git"));
+      if (dirs.length > 0) return dirs;
+    } catch {
+      // locate not installed or db not built — fallback to directory scan
     }
   }
 
