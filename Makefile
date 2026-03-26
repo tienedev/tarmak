@@ -7,7 +7,7 @@ help:
 -include .env
 export
 
-CARGO := $(HOME)/.cargo/bin/cargo
+CARGO := $(shell command -v cargo)
 
 ## kill: Kill running dev processes
 kill:
@@ -42,7 +42,7 @@ agent:
 	@TOKEN=$$(curl -sf http://localhost:4000/api/v1/auth/login \
 		-H 'Content-Type: application/json' \
 		-d '{"email":"$(TARMAK_EMAIL)","password":"$(TARMAK_PASSWORD)"}' \
-		| python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) && \
+		| node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).token))" 2>/dev/null) && \
 	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set TARMAK_EMAIL and TARMAK_PASSWORD)"; exit 0; fi && \
 	cd agent && npx tsx src/index.ts --server http://localhost:4000 --token "$$TOKEN"
 
