@@ -10,8 +10,8 @@ export function StreamMessage({ message }: { message: StreamMessageType }) {
       return (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-mono">✎ {message.tool}</span>
-          {message.input?.file_path && (
-            <span className="truncate">{String(message.input.file_path)}</span>
+          {typeof message.input?.file_path === 'string' && (
+            <span className="truncate">{message.input.file_path}</span>
           )}
         </div>
       )

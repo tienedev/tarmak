@@ -506,7 +506,7 @@ export interface AgentSession {
   id: string
   board_id: string
   task_id: string
-  status: 'running' | 'success' | 'failed' | 'cancelled'
+  status: 'running' | 'planning' | 'awaiting_approval' | 'executing' | 'success' | 'failed' | 'cancelled'
   user_id: string
   branch_name: string | null
   agent_profile_id: string | null
