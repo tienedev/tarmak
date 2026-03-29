@@ -205,7 +205,7 @@ describe("agent repo", () => {
       expect(succeeded).toHaveLength(1);
     });
 
-    it("returns all sessions for the board", () => {
+    it("returns sessions with correct IDs", () => {
       const db = setup();
       const { board, col, task } = seedBoardColumnTask(db);
       const task2 = createTask(db, { boardId: board.id, columnId: col.id, title: "Task 2" });

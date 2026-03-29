@@ -1,5 +1,4 @@
-import { sql } from "drizzle-orm";
-import { eq } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import type { DB } from "../connection";
 import { boardCrdtState } from "../schema/index";
 

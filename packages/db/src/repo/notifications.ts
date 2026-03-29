@@ -81,8 +81,11 @@ export function markAllRead(db: DB, userId: string) {
   return result.changes;
 }
 
-export function deleteNotification(db: DB, id: string) {
-  const result = db.delete(notifications).where(eq(notifications.id, id)).run();
+export function deleteNotification(db: DB, id: string, userId: string) {
+  const result = db
+    .delete(notifications)
+    .where(and(eq(notifications.id, id), eq(notifications.user_id, userId)))
+    .run();
   return result.changes > 0;
 }
 

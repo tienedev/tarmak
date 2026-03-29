@@ -188,7 +188,7 @@ describe("notifications repo", () => {
       const board = createBoard(db, "Board");
 
       const notif = createNotification(db, { userId, boardId: board.id, type: "a", title: "Test" });
-      expect(deleteNotification(db, notif.id)).toBe(true);
+      expect(deleteNotification(db, notif.id, userId)).toBe(true);
 
       const all = listNotifications(db, userId);
       expect(all).toHaveLength(0);
@@ -196,7 +196,7 @@ describe("notifications repo", () => {
 
     it("returns false for non-existent notification", () => {
       const db = setup();
-      expect(deleteNotification(db, "nonexistent")).toBe(false);
+      expect(deleteNotification(db, "nonexistent", "nonexistent")).toBe(false);
     });
   });
 
