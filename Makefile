@@ -1,64 +1,44 @@
-.PHONY: help dev front back agent build clean install kill
+.PHONY: dev back front agent build clean install kill test lint help
 
-## help: Show available commands
-help:
-	@grep '^## ' $(MAKEFILE_LIST) | sed 's/.*## //' | column -t -s ':'
+dev:
+	pnpm dev
 
--include .env
-export
-
-CARGO := $(shell command -v cargo)
-
-## kill: Kill running dev processes
-kill:
-	@pkill -f "target/debug/tarmak" 2>/dev/null || true
-	@pkill -f "target/release/tarmak" 2>/dev/null || true
-	@pkill -f "node.*vite" 2>/dev/null || true
-	@pkill -f "tsx.*agent/src/index" 2>/dev/null || true
-	@sleep 1
-
-## dev: Start all dev servers (backend + agent + frontend)
-dev: kill
-	@$(MAKE) back &
-	@printf "Waiting for backend..."
-	@until curl -sf http://localhost:4000/api/v1/health > /dev/null 2>&1; do printf "."; sleep 0.5; done
-	@echo " ready."
-	@$(MAKE) agent &
-	@printf "Waiting for agent..."
-	@until curl -sf http://localhost:9876/health > /dev/null 2>&1; do printf "."; sleep 0.5; done
-	@echo " ready."
-	@$(MAKE) front
-
-## front: Frontend dev server (port 3000)
-front:
-	cd frontend && corepack pnpm run dev
-
-## back: Backend dev server (port 4000)
 back:
-	$(CARGO) run --bin tarmak
+	pnpm --filter=@tarmak/api dev
 
-## agent: Agent server (port 9876, auto-login)
+front:
+	pnpm --filter=@tarmak/web dev
+
 agent:
-	@TOKEN=$$(curl -sf http://localhost:4000/api/v1/auth/login \
-		-H 'Content-Type: application/json' \
-		-d '{"email":"$(TARMAK_EMAIL)","password":"$(TARMAK_PASSWORD)"}' \
-		| node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).token))" 2>/dev/null) && \
-	if [ -z "$$TOKEN" ]; then echo "Warning: could not auto-login for agent (set TARMAK_EMAIL and TARMAK_PASSWORD)"; exit 0; fi && \
-	cd agent && npx tsx src/index.ts --server http://localhost:4000 --token "$$TOKEN"
+	pnpm --filter=@tarmak/agent dev
 
-## build: Production build (frontend + backend)
 build:
-	cd frontend && corepack pnpm run build
-	$(CARGO) build --release
-	@echo "Binary at target/release/tarmak"
+	pnpm build
 
-## install: Install all dependencies
-install:
-	cd frontend && corepack pnpm install
-	cd agent && npm install
-
-## clean: Clean all build artifacts
 clean:
-	$(CARGO) clean
-	rm -rf frontend/dist frontend/node_modules
-	rm -rf agent/node_modules agent/dist
+	rm -rf node_modules packages/*/dist apps/*/dist .turbo packages/*/.turbo apps/*/.turbo
+
+install:
+	pnpm install
+
+kill:
+	-pkill -f "tsx watch" 2>/dev/null || true
+	-pkill -f "vite" 2>/dev/null || true
+
+test:
+	pnpm test
+
+lint:
+	pnpm lint
+
+help:
+	@echo "dev     - Start all dev servers"
+	@echo "back    - Backend only"
+	@echo "front   - Frontend only"
+	@echo "agent   - Agent server only"
+	@echo "build   - Production build"
+	@echo "test    - Run all tests"
+	@echo "lint    - Lint all packages"
+	@echo "clean   - Clean artifacts"
+	@echo "install - Install dependencies"
+	@echo "kill    - Kill dev processes"
