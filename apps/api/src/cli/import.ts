@@ -90,6 +90,12 @@ interface ImportFieldValue {
 }
 
 function importData(db: DB, data: ImportData) {
+  return db.transaction((tx) => {
+    return importDataInner(tx, data);
+  });
+}
+
+function importDataInner(db: DB, data: ImportData) {
   let boardCount = 0;
   let columnCount = 0;
   let taskCount = 0;
@@ -216,6 +222,7 @@ function importData(db: DB, data: ImportData) {
 
   return { boardCount, columnCount, taskCount, labelCount };
 }
+
 
 export async function runImport(args: string[]): Promise<void> {
   const dbPath = process.env.DATABASE_PATH ?? "./tarmak.db";

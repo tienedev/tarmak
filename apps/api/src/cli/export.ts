@@ -2,13 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   createDb,
-  migrateDb,
   boardsRepo,
   columnsRepo,
   tasksRepo,
   labelsRepo,
   subtasksRepo,
-  commentsRepo,
   customFieldsRepo,
   type DB,
 } from "@tarmak/db";
