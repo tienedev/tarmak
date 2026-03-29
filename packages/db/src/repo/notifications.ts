@@ -89,6 +89,25 @@ export function deleteNotification(db: DB, id: string, userId: string) {
   return result.changes > 0;
 }
 
+export function hasDeadlineNotification(
+  db: DB,
+  taskId: string,
+  userId: string,
+) {
+  const row = db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.task_id, taskId),
+        eq(notifications.user_id, userId),
+        eq(notifications.type, "deadline_overdue"),
+      ),
+    )
+    .get();
+  return (row?.count ?? 0) > 0;
+}
+
 export function getUnreadCount(db: DB, userId: string) {
   const row = db
     .select({ count: sql<number>`COUNT(*)` })

@@ -7,7 +7,7 @@ import { logger } from "../logger";
 export function startDeadlineChecker(
   db: DB,
   broadcaster: NotificationBroadcaster,
-  intervalMs: number = 60_000,
+  intervalMs: number = 3_600_000,
 ): NodeJS.Timeout {
   return setInterval(() => {
     checkDeadlines(db, broadcaster);
@@ -43,6 +43,11 @@ export function checkDeadlines(
   for (const task of overdue) {
     // assignee is guaranteed non-null by the query filter
     const assignee = task.assignee!;
+
+    // Deduplicate: skip if we already sent a deadline notification for this task+user
+    if (notificationsRepo.hasDeadlineNotification(db, task.id, assignee)) {
+      continue;
+    }
 
     try {
       const notification = notificationsRepo.createNotification(db, {

@@ -1,10 +1,11 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import { createDb, migrateDb, notificationsRepo } from "@tarmak/db";
 import {
   NotificationBroadcaster,
   type NotificationEvent,
 } from "../notifications/broadcaster";
+import { TicketStore } from "../notifications/ticket-store";
 import { checkDeadlines } from "../background/deadlines";
 import { cleanupSessions } from "../background/sessions";
 
@@ -109,6 +110,30 @@ describe("NotificationBroadcaster", () => {
   });
 });
 
+describe("TicketStore", () => {
+  it("creates and consumes a ticket", () => {
+    const store = new TicketStore();
+    const ticket = store.create("user-1");
+    expect(ticket).toBeTruthy();
+
+    const userId = store.consume(ticket);
+    expect(userId).toBe("user-1");
+  });
+
+  it("tickets are single-use", () => {
+    const store = new TicketStore();
+    const ticket = store.create("user-1");
+
+    expect(store.consume(ticket)).toBe("user-1");
+    expect(store.consume(ticket)).toBeNull();
+  });
+
+  it("returns null for unknown ticket", () => {
+    const store = new TicketStore();
+    expect(store.consume("bogus")).toBeNull();
+  });
+});
+
 describe("checkDeadlines", () => {
   it("creates notifications for overdue tasks", () => {
     const db = createTestDb();
@@ -134,6 +159,28 @@ describe("checkDeadlines", () => {
     // Should have broadcast an event
     expect(received).toHaveLength(1);
     expect(received[0]!.type).toBe("deadline_overdue");
+  });
+
+  it("deduplicates — does not re-notify for the same overdue task", () => {
+    const db = createTestDb();
+    const broadcaster = new NotificationBroadcaster();
+    const received: NotificationEvent[] = [];
+    broadcaster.subscribe("user-1", (event) => received.push(event));
+
+    const pastDate = new Date(Date.now() - 86_400_000).toISOString();
+    db.run(
+      sql`INSERT INTO tasks (id, board_id, column_id, title, assignee, due_date, archived, position)
+          VALUES ('task-1', 'board-1', 'col-1', 'Overdue Task', 'user-1', ${pastDate}, 0, 0)`,
+    );
+
+    // Run twice
+    checkDeadlines(db, broadcaster);
+    checkDeadlines(db, broadcaster);
+
+    // Should only have one notification despite two runs
+    const notifications = notificationsRepo.listNotifications(db, "user-1");
+    expect(notifications).toHaveLength(1);
+    expect(received).toHaveLength(1);
   });
 
   it("does not notify for archived tasks", () => {
@@ -204,7 +251,6 @@ describe("cleanupSessions", () => {
 
     cleanupSessions(db);
 
-    const remaining = db.run(sql`SELECT COUNT(*) as count FROM sessions`);
     // Check that only the valid session remains
     const rows = db.all(sql`SELECT id FROM sessions`);
     expect(rows).toHaveLength(1);
@@ -214,7 +260,7 @@ describe("cleanupSessions", () => {
   it("marks stale agent sessions as failed", () => {
     const db = createTestDb();
 
-    // Insert tasks for the agent session FK (unique index requires different tasks per running session)
+    // Insert tasks for the agent session FK
     db.run(
       sql`INSERT INTO tasks (id, board_id, column_id, title, position)
           VALUES ('task-1', 'board-1', 'col-1', 'Test Task 1', 0)`,
