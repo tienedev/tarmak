@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { securityHeaders } from "./middleware/security";
+import { rateLimit } from "./middleware/rate-limit";
 import { createDb, migrateDb, type DB } from "@tarmak/db";
 
 export function createApp(dbPath?: string): { app: Hono; db: DB } {
@@ -17,6 +18,9 @@ export function createApp(dbPath?: string): { app: Hono; db: DB } {
 
   // Security headers
   app.use("*", securityHeaders());
+
+  // Rate limiting on API routes
+  app.use("/api/*", rateLimit({ max: 100, windowMs: 60_000 }));
 
   // Health check
   app.get("/health", (c) => c.json({ status: "ok" }));
