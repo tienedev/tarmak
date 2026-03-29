@@ -3,8 +3,20 @@ import { TRPCError } from "@trpc/server";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
 import { notificationsRepo } from "@tarmak/db";
+import type { TicketStore } from "../../notifications/ticket-store";
+
+let _ticketStore: TicketStore | null = null;
+
+export function setTicketStore(store: TicketStore): void {
+  _ticketStore = store;
+}
 
 export const notificationRouter = router({
+  createStreamTicket: protectedProcedure.mutation(({ ctx }) => {
+    if (!_ticketStore) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "SSE not configured" });
+    const ticket = _ticketStore.create(ctx.user.id);
+    return { ticket };
+  }),
   list: protectedProcedure
     .input(
       z

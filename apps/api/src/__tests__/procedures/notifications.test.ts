@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm";
 import { createDb, migrateDb, notificationsRepo } from "@tarmak/db";
 import { appRouter } from "../../trpc/router";
 import type { Context } from "../../trpc/context";
+import { TicketStore } from "../../notifications/ticket-store";
+import { setTicketStore } from "../../trpc/procedures/notifications";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -33,6 +35,23 @@ function seedNotification(ctx: Context, overrides?: { id?: string; read?: boolea
 }
 
 describe("notification procedures", () => {
+  describe("createStreamTicket", () => {
+    it("creates a ticket for the authenticated user", async () => {
+      const store = new TicketStore();
+      setTicketStore(store);
+
+      const ctx = createTestContext();
+      seedUser(ctx);
+      const caller = appRouter.createCaller(ctx);
+
+      const result = await caller.notification.createStreamTicket();
+      expect(result.ticket).toBeTruthy();
+
+      // Ticket should resolve to the user's id
+      const userId = store.consume(result.ticket);
+      expect(userId).toBe("u1");
+    });
+  });
   describe("list", () => {
     it("lists notifications for the current user", async () => {
       const ctx = createTestContext();

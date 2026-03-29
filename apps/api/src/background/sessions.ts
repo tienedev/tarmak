@@ -8,7 +8,11 @@ export function startSessionCleanup(
   intervalMs: number = 3_600_000,
 ): NodeJS.Timeout {
   return setInterval(() => {
-    cleanupSessions(db);
+    try {
+      cleanupSessions(db);
+    } catch (err) {
+      logger.error({ err }, "Session cleanup failed");
+    }
   }, intervalMs);
 }
 

@@ -10,6 +10,11 @@ export interface NotificationEvent {
 }
 
 export class NotificationBroadcaster extends EventEmitter {
+  constructor() {
+    super();
+    this.setMaxListeners(0);
+  }
+
   send(event: NotificationEvent): void {
     this.emit(`user:${event.userId}`, event);
   }

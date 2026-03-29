@@ -10,7 +10,11 @@ export function startDeadlineChecker(
   intervalMs: number = 3_600_000,
 ): NodeJS.Timeout {
   return setInterval(() => {
-    checkDeadlines(db, broadcaster);
+    try {
+      checkDeadlines(db, broadcaster);
+    } catch (err) {
+      logger.error({ err }, "Deadline check failed");
+    }
   }, intervalMs);
 }
 

@@ -5,6 +5,7 @@ import { rateLimit } from "./middleware/rate-limit";
 import { createDb, migrateDb, type DB } from "@tarmak/db";
 import { NotificationBroadcaster } from "./notifications/broadcaster";
 import { TicketStore } from "./notifications/ticket-store";
+import { setTicketStore } from "./trpc/procedures/notifications";
 
 export function createApp(dbPath?: string): {
   app: Hono;
@@ -18,6 +19,9 @@ export function createApp(dbPath?: string): {
   const app = new Hono();
   const broadcaster = new NotificationBroadcaster();
   const ticketStore = new TicketStore();
+
+  // Wire ticket store into tRPC notification procedures
+  setTicketStore(ticketStore);
 
   // CORS
   const origins = (
@@ -34,17 +38,7 @@ export function createApp(dbPath?: string): {
   // Health check
   app.get("/health", (c) => c.json({ status: "ok" }));
 
-  // Create a short-lived ticket for SSE stream (must be called by authenticated user)
-  app.post("/api/notifications/stream/ticket", (c) => {
-    const userId = c.req.query("userId");
-    if (!userId) {
-      return c.json({ error: "userId required" }, 400);
-    }
-    const ticket = ticketStore.create(userId);
-    return c.json({ ticket });
-  });
-
-  // SSE endpoint for notifications (ticket-based auth)
+  // SSE endpoint for notifications (ticket-based auth via tRPC createStreamTicket)
   app.get("/api/notifications/stream", (c) => {
     const ticketId = c.req.query("ticket");
     if (!ticketId) {
@@ -60,6 +54,7 @@ export function createApp(dbPath?: string): {
       new ReadableStream({
         start(controller) {
           const encoder = new TextEncoder();
+          let closed = false;
 
           // Send connected confirmation
           controller.enqueue(
@@ -67,22 +62,38 @@ export function createApp(dbPath?: string): {
           );
 
           const unsubscribe = broadcaster.subscribe(userId, (event) => {
-            controller.enqueue(
-              encoder.encode(
-                `event: notification\ndata: ${JSON.stringify(event)}\n\n`,
-              ),
-            );
+            if (closed) return;
+            try {
+              controller.enqueue(
+                encoder.encode(
+                  `event: notification\ndata: ${JSON.stringify(event)}\n\n`,
+                ),
+              );
+            } catch {
+              // Stream already closed — ignore
+            }
           });
 
           // Keep-alive ping every 30 seconds
           const keepAlive = setInterval(() => {
-            controller.enqueue(encoder.encode(": keepalive\n\n"));
+            if (closed) return;
+            try {
+              controller.enqueue(encoder.encode(": keepalive\n\n"));
+            } catch {
+              // Stream already closed — ignore
+            }
           }, 30_000);
 
           // Cleanup on client disconnect
           c.req.raw.signal.addEventListener("abort", () => {
+            closed = true;
             unsubscribe();
             clearInterval(keepAlive);
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
           });
         },
       }),
