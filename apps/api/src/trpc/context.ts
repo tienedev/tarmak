@@ -1,5 +1,8 @@
 import { initTRPC } from "@trpc/server";
-import type { DB } from "@tarmak/db";
+import type { DB as DrizzleDB } from "@tarmak/db";
+
+// Re-alias DB to avoid tsup DTS failing to resolve drizzle schema internals
+type DB = DrizzleDB;
 
 export interface Context {
   db: DB;

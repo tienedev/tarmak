@@ -1,8 +1,8 @@
 import { defineConfig } from "tsup";
 export default defineConfig({
-  entry: ["src/index.ts", "src/trpc/router.ts"],
+  entry: ["src/index.ts"],
   format: ["esm"],
-  dts: true,
+  dts: false,
   clean: true,
   external: ["better-sqlite3"],
 });

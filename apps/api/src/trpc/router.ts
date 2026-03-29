@@ -1,6 +1,10 @@
 import { router } from "./context";
+import { boardRouter } from "./procedures/boards";
+import { columnRouter } from "./procedures/columns";
 
-// Sub-routers will be added in Tasks 10-13
-export const appRouter = router({});
+export const appRouter = router({
+  board: boardRouter,
+  column: columnRouter,
+});
 
 export type AppRouter = typeof appRouter;
