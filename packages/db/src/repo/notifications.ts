@@ -38,6 +38,7 @@ export function listNotifications(
   userId: string,
   limit?: number,
   unreadOnly?: boolean,
+  offset?: number,
 ) {
   const conditions = [eq(notifications.user_id, userId)];
   if (unreadOnly) {
@@ -55,14 +56,18 @@ export function listNotifications(
     query = query.limit(limit);
   }
 
+  if (offset !== undefined) {
+    query = query.offset(offset);
+  }
+
   return query.all();
 }
 
-export function markRead(db: DB, id: string) {
+export function markRead(db: DB, id: string, userId: string) {
   const result = db
     .update(notifications)
     .set({ read: true })
-    .where(eq(notifications.id, id))
+    .where(and(eq(notifications.id, id), eq(notifications.user_id, userId)))
     .run();
   return result.changes > 0;
 }

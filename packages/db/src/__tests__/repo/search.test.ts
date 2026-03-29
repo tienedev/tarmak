@@ -104,6 +104,7 @@ describe("search repo", () => {
 
       const results = search(db, board.id, "archivable", { includeArchived: true });
       expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0].archived).toBe(true);
     });
 
     it("returns multiple matching tasks", () => {

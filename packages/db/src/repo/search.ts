@@ -29,7 +29,7 @@ export function search(
       rank: number;
       archived: number;
     }>(
-      sql`SELECT entity_type, entity_id, board_id, task_id, snippet(search_index, 4, '<b>', '</b>', '...', 32) as snippet, rank, 0 as archived FROM search_index WHERE search_index MATCH ${query} AND board_id = ${boardId} ORDER BY rank LIMIT 50`,
+      sql`SELECT entity_type, entity_id, board_id, task_id, snippet(search_index, 4, '<b>', '</b>', '...', 32) as snippet, rank, COALESCE((SELECT archived FROM tasks WHERE id = search_index.task_id), 0) as archived FROM search_index WHERE search_index MATCH ${query} AND board_id = ${boardId} ORDER BY rank LIMIT 50`,
     );
     return rows.map((r) => ({ ...r, archived: Boolean(r.archived) }));
   }

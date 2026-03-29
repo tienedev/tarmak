@@ -110,7 +110,7 @@ describe("notifications repo", () => {
       const n1 = createNotification(db, { userId, boardId: board.id, type: "a", title: "Read" });
       createNotification(db, { userId, boardId: board.id, type: "b", title: "Unread" });
 
-      markRead(db, n1.id);
+      markRead(db, n1.id, userId);
 
       const unread = listNotifications(db, userId, undefined, true);
       expect(unread).toHaveLength(1);
@@ -141,7 +141,7 @@ describe("notifications repo", () => {
       const notif = createNotification(db, { userId, boardId: board.id, type: "a", title: "Test" });
       expect(notif.read).toBe(false);
 
-      const result = markRead(db, notif.id);
+      const result = markRead(db, notif.id, userId);
       expect(result).toBe(true);
 
       const all = listNotifications(db, userId);
@@ -150,7 +150,8 @@ describe("notifications repo", () => {
 
     it("returns false for non-existent notification", () => {
       const db = setup();
-      expect(markRead(db, "nonexistent")).toBe(false);
+      const userId = seedUser(db);
+      expect(markRead(db, "nonexistent", userId)).toBe(false);
     });
   });
 
@@ -211,7 +212,7 @@ describe("notifications repo", () => {
 
       expect(getUnreadCount(db, userId)).toBe(3);
 
-      markRead(db, n3.id);
+      markRead(db, n3.id, userId);
       expect(getUnreadCount(db, userId)).toBe(2);
     });
 
