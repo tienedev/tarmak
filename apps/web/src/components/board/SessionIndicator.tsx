@@ -1,4 +1,4 @@
-import type { AgentSession } from '@/lib/api'
+import type { AgentSession } from '@/lib/types'
 import { Check, X } from 'lucide-react'
 
 interface SessionIndicatorProps {

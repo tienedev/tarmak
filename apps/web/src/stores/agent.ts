@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { api } from '@/lib/api'
-import type { AgentSession } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { AgentSession } from '@/lib/types'
 
 export interface StreamMessage {
   type: 'assistant' | 'tool_use' | 'tool_result' | 'plan' | 'result' | 'status' | 'error'
@@ -34,8 +34,13 @@ export const useAgentStore = create<AgentStore>((set) => ({
   fetchSessions: async (boardId, taskId) => {
     set({ loading: true })
     try {
-      const sessions = await api.listAgentSessions(boardId, taskId)
-      set({ sessions, loading: false })
+      const sessions = await trpcClient.agent.list.query({
+        boardId,
+        status: taskId ? undefined : undefined,
+      }) as AgentSession[]
+      // If taskId was given, filter client-side (the tRPC procedure filters by boardId + optional status)
+      const filtered = taskId ? sessions.filter((s) => s.task_id === taskId) : sessions
+      set({ sessions: filtered, loading: false })
     } catch {
       set({ loading: false })
     }

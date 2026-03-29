@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import DOMPurify from 'dompurify'
-import type { Task, Comment } from '@/lib/api'
-import { api } from '@/lib/api'
+import type { Task, Comment } from '@/lib/types'
+import { trpcClient } from '@/lib/trpc'
 import { useBoardStore } from '@/stores/board'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
@@ -90,14 +90,14 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     setComments([])
 
     if (currentBoard) {
-      api.getFieldValues(currentBoard.id, task.id)
+      trpcClient.customField.getTaskValues.query({ taskId: task.id })
         .then((vals) => {
           const map: Record<string, string> = {}
           for (const v of vals) map[v.field_id] = v.value
           setFieldValues(map)
         })
         .catch(() => {})
-      api.listComments(currentBoard.id, task.id).then(setComments).catch(() => {
+      trpcClient.comment.list.query({ taskId: task.id }).then((c) => setComments(c as Comment[])).catch(() => {
         addNotification(t('errors.commentLoadFailed'))
       })
     }
@@ -171,7 +171,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     (fieldId: string, value: string) => {
       setFieldValues((prev) => ({ ...prev, [fieldId]: value }))
       if (!currentBoard) return
-      api.setFieldValue(currentBoard.id, task.id, fieldId, value).catch(() => {
+      trpcClient.customField.setTaskValue.mutate({ taskId: task.id, fieldId, value }).catch(() => {
         addNotification(t('errors.fieldSaveFailed'))
       })
     },
@@ -184,9 +184,10 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     if (isEmptyHtml(newCommentHtml) || !currentBoard || !user || submittingComment) return
     setSubmittingComment(true)
     try {
-      const comment = await api.createComment(currentBoard.id, task.id, {
+      const comment = await trpcClient.comment.create.mutate({
+        taskId: task.id,
         content: newCommentHtml,
-      })
+      }) as Comment
       setComments((prev) => [...prev, comment])
       setNewCommentHtml('')
       addNotification(`Comment added to "${task.title}"`)
@@ -200,9 +201,10 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
   const handleUpdateComment = async (commentId: string) => {
     if (isEmptyHtml(editingCommentHtml) || !currentBoard) return
     try {
-      const updated = await api.updateComment(currentBoard.id, task.id, commentId, {
+      const updated = await trpcClient.comment.update.mutate({
+        commentId,
         content: editingCommentHtml,
-      })
+      }) as Comment
       setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)))
       setEditingCommentId(null)
       setEditingCommentHtml('')
@@ -215,7 +217,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     if (!currentBoard) return
     if (!window.confirm(t('task.deleteCommentConfirm'))) return
     try {
-      await api.deleteComment(currentBoard.id, task.id, commentId)
+      await trpcClient.comment.delete.mutate({ commentId })
       setComments((prev) => prev.filter((c) => c.id !== commentId))
     } catch {
       addNotification(t('errors.commentDeleteFailed'))

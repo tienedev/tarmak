@@ -4,8 +4,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { ChevronDown, ChevronRight, Square, GitBranch, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { api } from '@/lib/api'
-import type { AgentSession } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { AgentSession } from '@/lib/types'
 import { agentApi } from '@/lib/agent'
 import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
@@ -46,7 +46,7 @@ export function SessionsPanel({ boardId, taskId }: SessionsPanelProps) {
       updateSession(session.id, { status: 'cancelled' })
     } catch {
       // fallback: cancel on server
-      await api.cancelAgentSession(boardId, session.id)
+      await trpcClient.agent.update.mutate({ id: session.id, status: 'cancelled' })
       updateSession(session.id, { status: 'cancelled' })
     }
   }

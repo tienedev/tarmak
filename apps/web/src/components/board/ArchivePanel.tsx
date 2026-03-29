@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { DrawerLayout } from '@/components/ui/drawer-layout'
 import { Button } from '@/components/ui/button'
 import { ArchiveRestore } from 'lucide-react'
-import { api, type Task, type Column } from '@/lib/api'
+import type { Task, Column } from '@/lib/types'
+import { trpcClient } from '@/lib/trpc'
 import { useBoardStore } from '@/stores/board'
 
 interface ArchivePanelProps {
@@ -21,8 +22,14 @@ export function ArchivePanel({ boardId, open, onClose }: ArchivePanelProps) {
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    api.listArchived(boardId)
-      .then(({ tasks, columns }) => { setTasks(tasks); setColumns(columns) })
+    Promise.all([
+      trpcClient.archive.listArchivedTasks.query({ boardId }),
+      trpcClient.archive.listArchivedColumns.query({ boardId }),
+    ])
+      .then(([archivedTasks, archivedColumns]) => {
+        setTasks(archivedTasks as Task[])
+        setColumns(archivedColumns as Column[])
+      })
       .finally(() => setLoading(false))
   }, [open, boardId])
 

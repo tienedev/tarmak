@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, type ActivityEntry, type BoardMember } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { ActivityEntry, BoardMember } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { DrawerLayout } from '@/components/ui/drawer-layout'
 import {
@@ -134,15 +135,14 @@ export function ActivityPanel({ boardId, open, onClose, members }: ActivityPanel
     async (offset = 0, append = false) => {
       setLoading(true)
       try {
-        const params: { limit: number; offset: number; action?: string; user_id?: string } = {
-          limit: PAGE_SIZE,
-          offset,
-        }
-        if (actionFilter !== '__all__') params.action = actionFilter
-        if (userFilter !== '__all__') params.user_id = userFilter
-        const data = await api.listActivity(boardId, params)
+        // tRPC activity.list only supports boardId + limit; filtering is done client-side
+        const limit = PAGE_SIZE + offset
+        const raw = await trpcClient.activity.list.query({ boardId, limit }) as ActivityEntry[]
+        let data = raw.slice(offset)
+        if (actionFilter !== '__all__') data = data.filter((e) => e.action === actionFilter)
+        if (userFilter !== '__all__') data = data.filter((e) => e.user_id === userFilter)
         setEntries((prev) => (append ? [...prev, ...data] : data))
-        setHasMore(data.length === PAGE_SIZE)
+        setHasMore(raw.length === limit)
       } catch {
         setEntries((prev) => (append ? prev : []))
         setHasMore(false)

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useNotificationStore } from '@/stores/notifications'
-import type { ServerNotification } from '@/lib/api'
+import type { ServerNotification } from '@/lib/types'
 import { useEffect } from 'react'
 import {
   Popover,

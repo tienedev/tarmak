@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { useMemo } from 'react'
-import type { Task } from '@/lib/api'
+import type { Task } from '@/lib/types'
 
 export interface FilterState {
   priority: string[]

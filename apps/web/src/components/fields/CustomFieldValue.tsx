@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CustomField } from '@/lib/api'
+import type { CustomField } from '@/lib/types'
 import { Input } from '@/components/ui/input'
 
 interface CustomFieldValueProps {

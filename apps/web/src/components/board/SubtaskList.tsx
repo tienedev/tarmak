@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { api } from '@/lib/api'
-import type { Subtask } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { Subtask } from '@/lib/types'
 import { useBoardStore } from '@/stores/board'
 import { useNotificationStore } from '@/stores/notifications'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,7 @@ export function SubtaskList({ taskId }: SubtaskListProps) {
 
   useEffect(() => {
     if (!currentBoard) return
-    api.listSubtasks(currentBoard.id, taskId).then(setSubtasks).catch(() => {})
+    trpcClient.subtask.list.query({ taskId }).then((s) => setSubtasks(s as Subtask[])).catch(() => {})
   }, [currentBoard, taskId])
 
   if (!currentBoard) return null
@@ -31,7 +31,7 @@ export function SubtaskList({ taskId }: SubtaskListProps) {
   const handleAdd = async () => {
     if (!newTitle.trim()) return
     try {
-      const subtask = await api.createSubtask(currentBoard.id, taskId, { title: newTitle.trim() })
+      const subtask = await trpcClient.subtask.create.mutate({ taskId, title: newTitle.trim() }) as Subtask
       setSubtasks((prev) => [...prev, subtask])
       setNewTitle('')
     } catch {
@@ -41,9 +41,7 @@ export function SubtaskList({ taskId }: SubtaskListProps) {
 
   const handleToggle = async (subtask: Subtask) => {
     try {
-      const updated = await api.updateSubtask(currentBoard.id, taskId, subtask.id, {
-        completed: !subtask.completed,
-      })
+      const updated = await trpcClient.subtask.toggle.mutate({ subtaskId: subtask.id }) as Subtask
       setSubtasks((prev) => prev.map((s) => (s.id === subtask.id ? updated : s)))
     } catch {
       addNotification('Failed to update subtask')
@@ -52,7 +50,7 @@ export function SubtaskList({ taskId }: SubtaskListProps) {
 
   const handleDelete = async (subtaskId: string) => {
     try {
-      await api.deleteSubtask(currentBoard.id, taskId, subtaskId)
+      await trpcClient.subtask.delete.mutate({ subtaskId })
       setSubtasks((prev) => prev.filter((s) => s.id !== subtaskId))
     } catch {
       addNotification('Failed to delete subtask')

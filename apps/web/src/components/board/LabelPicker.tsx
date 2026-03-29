@@ -6,7 +6,7 @@ import { useBoardStore } from '@/stores/board'
 import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LABEL_PALETTE } from '@/lib/constants'
-import type { Label } from '@/lib/api'
+import type { Label } from '@/lib/types'
 
 interface LabelPickerProps {
   taskId: string

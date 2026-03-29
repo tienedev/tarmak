@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { Task } from '@/lib/api'
+import type { Task } from '@/lib/types'
 import { useBoardStore } from '@/stores/board'
 import { KanbanColumn } from './KanbanColumn'
 import { AddColumnForm } from './AddColumnForm'

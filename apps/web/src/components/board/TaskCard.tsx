@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Task, AgentSession } from '@/lib/api'
+import type { Task, AgentSession } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { isLightColor } from '@/lib/color'
 import { SessionIndicator } from './SessionIndicator'

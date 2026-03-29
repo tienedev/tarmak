@@ -5,7 +5,8 @@ import { Search, X, FileText, MessageSquare, ListChecks, Archive } from 'lucide-
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { api, type SearchResult } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { SearchResult } from '@/lib/types'
 
 const typeIcons: Record<string, React.ReactNode> = {
   task: <FileText className="size-3.5 shrink-0 text-blue-500" />,
@@ -45,7 +46,11 @@ export function SearchBar({ boardId, onSelectResult }: SearchBarProps) {
       }
       setLoading(true)
       try {
-        const data = await api.searchBoard(boardId, q.trim(), 20, includeArchived)
+        const data = await trpcClient.search.query.query({
+          boardId,
+          query: q.trim(),
+          includeArchived,
+        }) as SearchResult[]
         setResults(data)
         setShowDropdown(data.length > 0)
       } catch {

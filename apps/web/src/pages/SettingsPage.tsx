@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
-import { api, type ApiKey } from '@/lib/api'
+import { api } from '@/lib/api'
+import type { ApiKey } from '@/lib/types'
 import { setLanguage } from '@/i18n'
 import {
   type ThemeMode,

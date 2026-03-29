@@ -1,4 +1,4 @@
-import type { Task } from '@/lib/api'
+import type { Task } from '@/lib/types'
 import {
   Dialog,
   DialogContent,

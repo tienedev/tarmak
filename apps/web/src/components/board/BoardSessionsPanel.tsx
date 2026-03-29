@@ -5,8 +5,8 @@ import { ChevronDown, ChevronRight, Square, GitBranch, Terminal } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DrawerLayout } from '@/components/ui/drawer-layout'
-import { api } from '@/lib/api'
-import type { AgentSession } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { AgentSession } from '@/lib/types'
 import { agentApi } from '@/lib/agent'
 import { SESSION_STATUS_COLORS } from '@/lib/constants'
 import { useAgentStore } from '@/stores/agent'
@@ -47,7 +47,7 @@ export function BoardSessionsPanel({ boardId, open, onClose }: BoardSessionsPane
       await agentApi.cancelSession(session.id)
       updateSession(session.id, { status: 'cancelled' })
     } catch {
-      await api.cancelAgentSession(boardId, session.id)
+      await trpcClient.agent.update.mutate({ id: session.id, status: 'cancelled' })
       updateSession(session.id, { status: 'cancelled' })
     }
   }

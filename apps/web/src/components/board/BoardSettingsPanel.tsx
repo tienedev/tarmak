@@ -14,7 +14,9 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { useBoardStore } from '@/stores/board'
 import { useNotificationStore } from '@/stores/notifications'
-import { api, type InviteLink, type CustomField } from '@/lib/api'
+import { api } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { InviteLink, CustomField } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 import { cn } from '@/lib/utils'
 import {
@@ -120,7 +122,7 @@ function GeneralTab({ boardId }: { boardId: string }) {
     if (saving) return
     setSaving(true)
     try {
-      await api.updateBoard(boardId, { repo_url: repoUrl.trim() || null })
+      await trpcClient.board.update.mutate({ boardId, repoUrl: repoUrl.trim() || undefined })
       await fetchBoard(boardId)
       addNotification(t('settings.repoUrlUpdated'))
     } catch {
@@ -478,9 +480,10 @@ function FieldsTab() {
     if (!newName.trim() || !currentBoard || creating) return
     setCreating(true)
     try {
-      await api.createField(currentBoard.id, {
+      await trpcClient.customField.create.mutate({
+        boardId: currentBoard.id,
         name: newName.trim(),
-        field_type: newType,
+        fieldType: newType,
       })
       setNewName('')
       setNewType('text')
@@ -587,7 +590,7 @@ function WipTab({ boardId }: { boardId: string }) {
     const raw = values[columnId]?.trim()
     const val = raw === '' ? null : parseInt(raw, 10) || null
     try {
-      await api.updateColumn(boardId, columnId, { wip_limit: val })
+      await trpcClient.column.update.mutate({ columnId, wipLimit: val })
       await fetchBoard(boardId)
       addNotification(t('settings.wipUpdated'))
     } catch {

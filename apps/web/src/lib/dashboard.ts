@@ -1,4 +1,5 @@
-import { api, type Board, type Task, type ActivityEntry } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { Board, Task, ActivityEntry } from '@/lib/types'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ async function fetchBoardTasks(
   userId: string,
 ): Promise<DashboardTask[]> {
   try {
-    const tasks = await api.listTasks(board.id, { limit: 500 })
+    const tasks = await trpcClient.task.list.query({ boardId: board.id, limit: 500 }) as Task[]
     return tasks
       .filter((t) => t.assignee === userId && !t.archived)
       .map((t) => ({ ...t, boardName: board.name }))
@@ -62,7 +63,7 @@ async function fetchBoardTasks(
 
 async function fetchBoardActivity(board: Board): Promise<DashboardActivity[]> {
   try {
-    const entries = await api.listActivity(board.id, { limit: 10 })
+    const entries = await trpcClient.activity.list.query({ boardId: board.id, limit: 10 }) as ActivityEntry[]
     return entries.map((e) => ({ ...e, boardName: board.name }))
   } catch {
     return []
@@ -71,12 +72,14 @@ async function fetchBoardActivity(board: Board): Promise<DashboardActivity[]> {
 
 async function fetchBoardArchiveCount(board: Board): Promise<number> {
   try {
-    const entries = await api.listActivity(board.id, {
-      action: 'task_archived',
+    const entries = await trpcClient.activity.list.query({
+      boardId: board.id,
       limit: 50,
-    })
+    }) as ActivityEntry[]
     const cutoff = Date.now() - 7 * DAY_MS
-    return entries.filter((e) => new Date(e.created_at).getTime() >= cutoff).length
+    return entries
+      .filter((e) => e.action === 'task_archived')
+      .filter((e) => new Date(e.created_at).getTime() >= cutoff).length
   } catch {
     return 0
   }

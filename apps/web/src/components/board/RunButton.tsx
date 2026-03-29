@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import type { AgentStatus } from '@/hooks/useAgentStatus'
 import { agentApi } from '@/lib/agent'
-import { api } from '@/lib/api'
-import type { Task, Subtask } from '@/lib/api'
+import { trpcClient } from '@/lib/trpc'
+import type { Task, Subtask } from '@/lib/types'
 import { useAgentStore } from '@/stores/agent'
 import { useBoardStore } from '@/stores/board'
 
@@ -71,7 +71,7 @@ export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunB
 
     try {
       // Fetch subtasks for prompt construction
-      const subtasks = await api.listSubtasks(boardId, task.id)
+      const subtasks = await trpcClient.subtask.list.query({ taskId: task.id }) as Subtask[]
       const prompt = buildPrompt(task, subtasks, currentBoard.name)
 
       const result = await agentApi.run({

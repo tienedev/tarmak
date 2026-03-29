@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { ServerNotification } from '@/lib/api'
-import { api } from '@/lib/api'
+import type { ServerNotification } from '@/lib/types'
+import { trpcClient } from '@/lib/trpc'
 
 interface NotificationState {
   notifications: ServerNotification[]
@@ -30,7 +30,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   fetch: async () => {
     set({ loading: true })
     try {
-      const notifs = await api.listNotifications({ limit: 50 })
+      const notifs = await trpcClient.notification.list.query({ limit: 50 }) as ServerNotification[]
       set({ notifications: notifs, loading: false })
     } catch {
       set({ loading: false })
@@ -39,7 +39,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   fetchUnreadCount: async () => {
     try {
-      const { count } = await api.getUnreadCount()
+      const { count } = await trpcClient.notification.unreadCount.query()
       set({ unreadCount: count })
     } catch {
       // ignore
@@ -48,7 +48,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   markRead: async (id: string) => {
     try {
-      await api.markNotificationRead(id)
+      await trpcClient.notification.markRead.mutate({ id })
       set({
         notifications: get().notifications.map((n) =>
           n.id === id ? { ...n, read: true } : n,
@@ -62,7 +62,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   markAllRead: async () => {
     try {
-      await api.markAllNotificationsRead()
+      await trpcClient.notification.markAllRead.mutate()
       set({
         notifications: get().notifications.map((n) => ({ ...n, read: true })),
         unreadCount: 0,
@@ -76,7 +76,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Client-side only removal (maps to mark-as-read conceptually)
     const notif = get().notifications.find((n) => n.id === id)
     if (notif && !notif.read) {
-      api.markNotificationRead(id).catch(() => {})
+      trpcClient.notification.markRead.mutate({ id }).catch(() => {})
     }
     set({
       notifications: get().notifications.filter((n) => n.id !== id),
@@ -86,7 +86,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   connectSSE: () => {
     get().disconnectSSE()
-    api.getStreamTicket().then(({ ticket }) => {
+    trpcClient.notification.createStreamTicket.mutate().then(({ ticket }) => {
       const baseUrl = import.meta.env.VITE_API_URL || ''
       const es = new EventSource(`${baseUrl}/api/v1/notifications/stream?ticket=${ticket}`)
       es.addEventListener('notification', (event) => {
