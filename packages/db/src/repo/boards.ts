@@ -140,7 +140,7 @@ export function duplicateBoard(
 
     // Copy tasks if requested
     if (includeTasks) {
-      const oldTasks = tx.select().from(tasks).where(eq(tasks.board_id, boardId)).all();
+      const oldTasks = tx.select().from(tasks).where(and(eq(tasks.board_id, boardId), eq(tasks.archived, false))).all();
 
       for (const task of oldTasks) {
         const newColumnId = columnMap.get(task.column_id);
@@ -156,12 +156,12 @@ export function duplicateBoard(
             title: task.title,
             description: task.description,
             priority: task.priority,
-            assignee: task.assignee,
+            assignee: null, // Reset assignee
             position: task.position,
             created_at: now,
             updated_at: now,
-            due_date: task.due_date,
-            archived: task.archived,
+            due_date: null, // Reset due_date
+            archived: false,
           })
           .run();
 

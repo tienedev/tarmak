@@ -228,12 +228,13 @@ export function duplicateTask(db: DB, taskId: string, boardId: string) {
   return db.transaction((tx) => {
     const original = tx.select().from(tasks).where(eq(tasks.id, taskId)).get();
     if (!original) throw new Error(`Task ${taskId} not found`);
+    if (original.archived) throw new Error("Cannot duplicate an archived task");
 
     const newPosition = original.position + 1;
 
-    // Shift subsequent task positions +1
+    // Shift subsequent non-archived task positions +1
     tx.run(
-      sql`UPDATE tasks SET position = position + 1 WHERE column_id = ${original.column_id} AND position > ${original.position}`,
+      sql`UPDATE tasks SET position = position + 1 WHERE column_id = ${original.column_id} AND position > ${original.position} AND archived = 0`,
     );
 
     // Create the copy
