@@ -5,10 +5,14 @@ import type { Role } from "@tarmak/shared";
 import { boardsRepo } from "@tarmak/db";
 
 export function requireRole(minimumRole: Role) {
-  return middleware(async ({ ctx, next, rawInput }) => {
+  return middleware(async (opts) => {
+    const { ctx, next } = opts;
     if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
     // Extract boardId from input — procedures must include boardId
+    const rawInput = await ("getRawInput" in opts
+      ? (opts as { getRawInput: () => Promise<unknown> }).getRawInput()
+      : (opts as { rawInput: unknown }).rawInput);
     const input = rawInput as { boardId?: string } | undefined;
     const boardId = input?.boardId;
     if (!boardId) throw new TRPCError({ code: "BAD_REQUEST", message: "boardId required" });

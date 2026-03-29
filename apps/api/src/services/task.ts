@@ -17,9 +17,8 @@ export class TaskService {
     if (!task) throw new Error("Task not found");
     const cols = columnsRepo.listColumns(this.db, task.board_id);
     const lastColumn = cols.sort((a, b) => b.position - a.position)[0];
-    if (lastColumn) {
-      tasksRepo.moveTask(this.db, taskId, lastColumn.id, 0);
-    }
+    if (!lastColumn) throw new Error("Board has no columns");
+    tasksRepo.moveTask(this.db, taskId, lastColumn.id, 0);
   }
 
   decompose(boardId: string, tasks: DecomposeInput[]) {
@@ -44,14 +43,14 @@ export class TaskService {
   }
 }
 
-interface DecomposeInput {
+export interface DecomposeInput {
   title: string;
   description?: string;
   priority?: string;
   depends_on?: number[];
 }
 
-function validateDag(tasks: DecomposeInput[]): void {
+export function validateDag(tasks: DecomposeInput[]): void {
   const n = tasks.length;
   const inDegree = new Array(n).fill(0);
   const adj: number[][] = Array.from({ length: n }, () => []);
