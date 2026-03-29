@@ -1,11 +1,12 @@
 // agent/src/server.ts
-import Fastify from "fastify";
-import fastifyCors from "@fastify/cors";
-import fastifyWebsocket from "@fastify/websocket";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { WebSocket } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
+import type { IncomingMessage } from "node:http";
 
 import type { Session, RunRequest, RunResponse, HealthResponse, SessionInfo, ServerMessage } from "./types.js";
 import { generateToken, loadToken, saveToken } from "./token.js";
@@ -14,7 +15,7 @@ import { branchName, createWorktree, cleanupWorktree, cleanupOrphanedWorktrees }
 import { detectRepos } from "./detect.js";
 import { getConfig } from "./config.js";
 import { reportSessionCreated, reportSessionCompleted } from "./callback.js";
-import { transformMessageAll, sendMessage, waitForClientMessage } from "./sdk.js";
+import { transformMessageAll, sendMessage } from "./sdk.js";
 
 interface StartOptions {
   serverUrl: string;
@@ -51,11 +52,7 @@ export async function startServer(opts: StartOptions): Promise<void> {
     await cleanupOrphanedWorktrees(workdir);
   }
 
-  const app = Fastify({ logger: false });
-  await app.register(fastifyCors, { origin: opts.allowedOrigins });
-  await app.register(fastifyWebsocket);
-
-  // --- Auth middleware ---
+  // --- Auth helpers ---
   async function validateToken(token: string): Promise<boolean> {
     if (!token) return false;
     // Fast path: known tokens
@@ -83,34 +80,40 @@ export async function startServer(opts: StartOptions): Promise<void> {
     return false;
   }
 
-  function extractToken(authHeader: string | undefined): string {
+  function extractToken(authHeader: string | undefined | null): string {
     if (!authHeader) return "";
     return authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
   }
 
-  app.addHook("onRequest", async (request, reply) => {
-    // Skip auth for health and WebSocket upgrade
-    if (request.url === "/health") return;
-    if (request.url.startsWith("/ws/")) return; // WS auth handled in handler
+  const app = new Hono();
 
-    const token = extractToken(request.headers.authorization);
+  // CORS
+  app.use("*", cors({ origin: opts.allowedOrigins }));
+
+  // Auth middleware — skip health and WS routes
+  app.use("*", async (c, next) => {
+    if (c.req.path === "/health") return next();
+    if (c.req.path.startsWith("/ws/")) return next(); // WS auth handled in WS handler
+
+    const token = extractToken(c.req.header("authorization"));
     if (!(await validateToken(token))) {
-      reply.code(401).send({ error: "Unauthorized" });
+      return c.json({ error: "Unauthorized" }, 401);
     }
+    return next();
   });
 
   // --- GET /health ---
-  app.get("/health", async () => {
-    return {
+  app.get("/health", (c) => {
+    return c.json({
       status: "ok",
       version: "0.1.0",
       protocol_version: 2,
       sessions_active: sessions.size,
-    } satisfies HealthResponse;
+    } satisfies HealthResponse);
   });
 
   // --- GET /sessions ---
-  app.get("/sessions", async () => {
+  app.get("/sessions", (c) => {
     const list: SessionInfo[] = [];
     for (const [id, s] of sessions) {
       list.push({
@@ -120,14 +123,15 @@ export async function startServer(opts: StartOptions): Promise<void> {
         status: s.status,
       });
     }
-    return list;
+    return c.json(list);
   });
 
   // --- POST /run ---
-  app.post<{ Body: RunRequest }>("/run", async (request, reply) => {
-    const { board_id, task_id, prompt, repo_url } = request.body ?? {} as RunRequest;
+  app.post("/run", async (c) => {
+    const body = await c.req.json<RunRequest>();
+    const { board_id, task_id, prompt, repo_url } = body ?? {} as RunRequest;
     if (!board_id || !task_id || !prompt || !repo_url) {
-      return reply.code(400).send({ error: "Missing required fields: board_id, task_id, prompt, repo_url" });
+      return c.json({ error: "Missing required fields: board_id, task_id, prompt, repo_url" }, 400);
     }
 
     // Resolve workdir
@@ -137,10 +141,10 @@ export async function startServer(opts: StartOptions): Promise<void> {
       workdir = repoCache.get(repo_url);
     }
     if (!workdir) {
-      return reply.code(400).send({
+      return c.json({
         error: "Repository not found on this machine",
         hint: `Use POST /config/set-workdir to register the local path for ${repo_url}`,
-      });
+      }, 400);
     }
 
     const sessionId = uuidv4();
@@ -150,9 +154,9 @@ export async function startServer(opts: StartOptions): Promise<void> {
     try {
       worktreePath = await createWorktree(workdir, sessionId, branch);
     } catch (err) {
-      return reply.code(500).send({
+      return c.json({
         error: `Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`,
-      });
+      }, 500);
     }
 
     const session: Session = {
@@ -182,85 +186,38 @@ export async function startServer(opts: StartOptions): Promise<void> {
     });
 
     const wsUrl = `ws://localhost:${opts.port}/ws/${sessionId}`;
-    return {
+    return c.json({
       session_id: sessionId,
       status: "running",
       branch_name: branch,
       ws_url: wsUrl,
-    } satisfies RunResponse;
+    } satisfies RunResponse);
   });
 
   // --- POST /sessions/:id/cancel ---
-  app.post<{ Params: { id: string } }>("/sessions/:id/cancel", async (request, reply) => {
-    const session = sessions.get(request.params.id);
-    if (!session) return reply.code(404).send({ error: "Session not found" });
+  app.post("/sessions/:id/cancel", async (c) => {
+    const session = sessions.get(c.req.param("id"));
+    if (!session) return c.json({ error: "Session not found" }, 404);
     session.status = "cancelled";
     broadcastToSession(session.id, { type: "status", status: "cancelled" });
-    return { status: "cancelled" };
+    return c.json({ status: "cancelled" });
   });
 
   // --- GET /config ---
-  app.get("/config", async () => {
+  app.get("/config", (c) => {
     const workdirs = new Map<string, string>();
     for (const [url, dir] of repoCache.entries()) {
       workdirs.set(url, dir);
     }
-    return getConfig(workdirs);
+    return c.json(getConfig(workdirs));
   });
 
   // --- POST /config/set-workdir ---
-  app.post<{ Body: { repo_url: string; workdir: string } }>("/config/set-workdir", async (request) => {
-    const { repo_url, workdir } = request.body;
+  app.post("/config/set-workdir", async (c) => {
+    const { repo_url, workdir } = await c.req.json<{ repo_url: string; workdir: string }>();
     repoCache.set(repo_url, workdir);
     await repoCache.save();
-    return { status: "ok" };
-  });
-
-  // --- WS /ws/:sessionId ---
-  app.register(async (fastify) => {
-    fastify.get<{ Params: { sessionId: string } }>("/ws/:sessionId", { websocket: true }, async (socket, request) => {
-      const { sessionId } = request.params;
-
-      // Auth check
-      const token = extractToken(request.headers.authorization)
-        || new URL(request.url, "http://localhost").searchParams.get("token")
-        || "";
-      if (!(await validateToken(token))) {
-        socket.close(4001, "Unauthorized");
-        return;
-      }
-
-      const session = sessions.get(sessionId);
-      if (!session) {
-        socket.close(4004, "Session not found");
-        return;
-      }
-
-      // Register WebSocket for broadcasts
-      if (!sessionWs.has(sessionId)) sessionWs.set(sessionId, new Set());
-      sessionWs.get(sessionId)!.add(socket);
-
-      // Replay buffered messages
-      for (const msg of session.messages) {
-        sendMessage(socket, msg);
-      }
-
-      // Route incoming messages (approve/reject) to pending resolver
-      socket.on("message", (data) => {
-        try {
-          const parsed = JSON.parse(data.toString());
-          if ((parsed.type === "approve" || parsed.type === "reject") && approvalResolvers.has(sessionId)) {
-            const resolver = approvalResolvers.get(sessionId)!;
-            approvalResolvers.delete(sessionId);
-            resolver(parsed);
-          }
-        } catch { /* ignore malformed */ }
-      });
-
-      socket.on("close", () => {
-        sessionWs.get(sessionId)?.delete(socket);
-      });
-    });
+    return c.json({ status: "ok" });
   });
 
   // --- Helpers ---
@@ -392,8 +349,67 @@ export async function startServer(opts: StartOptions): Promise<void> {
     }
   }
 
-  // --- Start ---
-  await app.listen({ port: opts.port, host: "127.0.0.1" });
+  // --- Start HTTP server ---
+  const server = serve({ fetch: app.fetch, port: opts.port, hostname: "127.0.0.1" });
+
+  // --- WebSocket server (attached to the same HTTP server) ---
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", async (request: IncomingMessage, socket, head) => {
+    const url = new URL(request.url ?? "", `http://127.0.0.1:${opts.port}`);
+    const match = url.pathname.match(/^\/ws\/([^/]+)$/);
+    if (!match) {
+      socket.destroy();
+      return;
+    }
+
+    const sessionId = match[1];
+
+    // Auth check
+    const token = extractToken(request.headers.authorization)
+      || url.searchParams.get("token")
+      || "";
+    if (!(await validateToken(token))) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      // Register WebSocket for broadcasts
+      if (!sessionWs.has(sessionId)) sessionWs.set(sessionId, new Set());
+      sessionWs.get(sessionId)!.add(ws);
+
+      // Replay buffered messages
+      for (const msg of session.messages) {
+        sendMessage(ws, msg);
+      }
+
+      // Route incoming messages (approve/reject) to pending resolver
+      ws.on("message", (data) => {
+        try {
+          const parsed = JSON.parse(data.toString());
+          if ((parsed.type === "approve" || parsed.type === "reject") && approvalResolvers.has(sessionId)) {
+            const resolver = approvalResolvers.get(sessionId)!;
+            approvalResolvers.delete(sessionId);
+            resolver(parsed);
+          }
+        } catch { /* ignore malformed */ }
+      });
+
+      ws.on("close", () => {
+        sessionWs.get(sessionId)?.delete(ws);
+      });
+    });
+  });
+
   console.log(`Agent server listening on http://127.0.0.1:${opts.port}`);
   console.log(`Agent token: ${agentToken.slice(0, 8)}...`);
 }
