@@ -3,7 +3,10 @@ import { initReactI18next } from 'react-i18next'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
 
-const savedLang = localStorage.getItem('tarmak-language')
+const savedLang =
+  typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function'
+    ? localStorage.getItem('tarmak-language')
+    : null
 
 i18n.use(initReactI18next).init({
   resources: {

@@ -1,7 +1,6 @@
-/target
-node_modules
-dist
-.turbo
+node_modules/
+dist/
+.turbo/
 *.db
 *.db-journal
 *.db-shm

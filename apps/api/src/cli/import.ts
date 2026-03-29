@@ -91,7 +91,7 @@ interface ImportFieldValue {
 
 function importData(db: DB, data: ImportData) {
   return db.transaction((tx) => {
-    return importDataInner(tx, data);
+    return importDataInner(tx as unknown as DB, data);
   });
 }
 
