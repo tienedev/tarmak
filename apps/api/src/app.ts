@@ -25,5 +25,8 @@ export function createApp(dbPath?: string): { app: Hono; db: DB } {
   // Health check
   app.get("/health", (c) => c.json({ status: "ok" }));
 
+  // WebSocket sync: mounted at /ws/:boardId via @hono/node-server/ws
+  // See src/sync/ws.ts for the SyncServer implementation
+
   return { app, db };
 }
