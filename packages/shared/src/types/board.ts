@@ -52,7 +52,7 @@ export interface SubtaskCount {
 export interface Activity {
   id: string;
   board_id: string;
-  task_id: string;
+  task_id: string | null;
   user_id: string;
   action: string;
   details: string | null;

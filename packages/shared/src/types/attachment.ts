@@ -2,7 +2,7 @@ export interface Attachment {
   id: string;
   task_id: string;
   board_id: string;
-  uploaded_by: string;
+  uploaded_by: string | null;
   filename: string;
   mime_type: string;
   size_bytes: number;
