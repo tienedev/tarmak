@@ -4,3 +4,8 @@ export * from "./schema/index";
 export * as boardsRepo from "./repo/boards";
 export * as columnsRepo from "./repo/columns";
 export * as tasksRepo from "./repo/tasks";
+export * as labelsRepo from "./repo/labels";
+export * as commentsRepo from "./repo/comments";
+export * as subtasksRepo from "./repo/subtasks";
+export * as attachmentsRepo from "./repo/attachments";
+export * as customFieldsRepo from "./repo/custom-fields";
