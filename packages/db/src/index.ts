@@ -9,3 +9,8 @@ export * as commentsRepo from "./repo/comments";
 export * as subtasksRepo from "./repo/subtasks";
 export * as attachmentsRepo from "./repo/attachments";
 export * as customFieldsRepo from "./repo/custom-fields";
+export * as notificationsRepo from "./repo/notifications";
+export * as searchRepo from "./repo/search";
+export * as archiveRepo from "./repo/archive";
+export * as agentRepo from "./repo/agent";
+export * as crdtRepo from "./repo/crdt";
