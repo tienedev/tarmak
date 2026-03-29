@@ -7,6 +7,11 @@ import { commentRouter } from "./procedures/comments";
 import { subtaskRouter } from "./procedures/subtasks";
 import { attachmentRouter } from "./procedures/attachments";
 import { customFieldRouter } from "./procedures/custom-fields";
+import { notificationRouter } from "./procedures/notifications";
+import { searchRouter } from "./procedures/search";
+import { archiveRouter } from "./procedures/archive";
+import { agentRouter } from "./procedures/agent";
+import { activityRouter } from "./procedures/activity";
 
 export const appRouter = router({
   board: boardRouter,
@@ -17,6 +22,11 @@ export const appRouter = router({
   subtask: subtaskRouter,
   attachment: attachmentRouter,
   customField: customFieldRouter,
+  notification: notificationRouter,
+  search: searchRouter,
+  archive: archiveRouter,
+  agent: agentRouter,
+  activity: activityRouter,
 });
 
 export type AppRouter = typeof appRouter;
