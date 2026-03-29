@@ -6,7 +6,6 @@ export interface Notification {
   type: string;
   title: string;
   body: string | null;
-  link: string | null;
   created_at: string;
   read: boolean;
 }

@@ -96,6 +96,9 @@ importers:
       uuid:
         specifier: ^11.0.0
         version: 11.1.0
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
       yjs:
         specifier: ^13.6.0
         version: 13.6.30
@@ -109,6 +112,9 @@ importers:
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
+      '@types/ws':
+        specifier: ^8.0.0
+        version: 8.18.1
       pino-pretty:
         specifier: ^13.0.0
         version: 13.1.3

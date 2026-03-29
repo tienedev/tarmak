@@ -1,11 +1,18 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { securityHeaders } from "./middleware/security";
 import { rateLimit } from "./middleware/rate-limit";
 import { createDb, migrateDb, type DB } from "@tarmak/db";
 import { NotificationBroadcaster } from "./notifications/broadcaster";
 import { TicketStore } from "./notifications/ticket-store";
 import { setTicketStore } from "./trpc/procedures/notifications";
+import { appRouter } from "./trpc/router";
+import { resolveUser } from "./auth/resolve-user";
+import { authRoutes } from "./routes/auth";
+import { apiKeyRoutes } from "./routes/api-keys";
+import { inviteRoutes } from "./routes/invites";
+import { attachmentRoutes } from "./routes/attachments";
 
 export function createApp(dbPath?: string): {
   app: Hono;
@@ -107,8 +114,33 @@ export function createApp(dbPath?: string): {
     );
   });
 
-  // WebSocket sync: mounted at /ws/:boardId via @hono/node-server/ws
-  // See src/sync/ws.ts for the SyncServer implementation
+  // tRPC handler
+  app.use("/trpc/*", async (c) => {
+    return fetchRequestHandler({
+      endpoint: "/trpc",
+      req: c.req.raw,
+      router: appRouter,
+      createContext: () => {
+        const user = resolveUser(db, c.req.header("Authorization"));
+        return { db, user };
+      },
+    });
+  });
+
+  // REST auth routes
+  app.route("/api/v1/auth", authRoutes(db));
+
+  // REST API key routes
+  app.route("/api/v1/api-keys", apiKeyRoutes(db));
+
+  // REST invite routes (mounted at /api/v1/auth for invite + accept)
+  app.route("/api/v1/auth", inviteRoutes(db));
+
+  // REST attachment upload routes
+  app.route(
+    "/api/v1/boards/:boardId/tasks/:taskId/attachments",
+    attachmentRoutes(db),
+  );
 
   return { app, db, broadcaster, ticketStore };
 }

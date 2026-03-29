@@ -1,5 +1,9 @@
 import { serve } from "@hono/node-server";
+import { WebSocketServer } from "ws";
 import { createApp } from "./app";
+import { DocManager } from "./sync/doc-manager";
+import { SyncServer } from "./sync/ws";
+import type { SyncClient } from "./sync/ws";
 import { startDeadlineChecker } from "./background/deadlines";
 import { startSessionCleanup } from "./background/sessions";
 import { logger } from "./logger";
@@ -19,12 +23,43 @@ switch (command) {
     const sessionTimer = startSessionCleanup(db);
 
     logger.info(`tarmak api listening on port ${port}`);
-    serve({ fetch: app.fetch, port });
+    const server = serve({ fetch: app.fetch, port });
+
+    // WebSocket sync
+    const docManager = new DocManager(db);
+    const syncServer = new SyncServer(docManager);
+    const wss = new WebSocketServer({ noServer: true });
+
+    server.on("upgrade", (req, socket, head) => {
+      const url = new URL(req.url!, `http://localhost:${port}`);
+      const match = url.pathname.match(/^\/ws\/(.+)$/);
+      if (!match) {
+        socket.destroy();
+        return;
+      }
+      const boardId = match[1]!;
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        const client: SyncClient = {
+          boardId,
+          send: (data) => ws.send(data),
+        };
+        syncServer.join(client);
+        ws.on("message", (msg) => {
+          syncServer.handleMessage(
+            client,
+            new Uint8Array(msg as ArrayBuffer),
+          );
+        });
+        ws.on("close", () => syncServer.leave(client));
+      });
+    });
 
     // Graceful shutdown
     function shutdown() {
       clearInterval(deadlineTimer);
       clearInterval(sessionTimer);
+      wss.close();
       logger.info("Background jobs stopped");
       process.exit(0);
     }
