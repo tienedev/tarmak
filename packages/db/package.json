@@ -1,0 +1,29 @@
+{
+  "name": "@tarmak/db",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@tarmak/shared": "workspace:*",
+    "better-sqlite3": "^11.8.0",
+    "drizzle-orm": "^0.41.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "drizzle-kit": "^0.30.0",
+    "tsup": "^8.4.0",
+    "vitest": "^4.1.0"
+  }
+}

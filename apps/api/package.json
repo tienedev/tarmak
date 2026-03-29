@@ -1,0 +1,40 @@
+{
+  "name": "@tarmak/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": { "import": "./dist/index.js" },
+    "./trpc": { "types": "./dist/trpc/router.d.ts" }
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tarmak/shared": "workspace:*",
+    "@tarmak/db": "workspace:*",
+    "@tarmak/kbf": "workspace:*",
+    "hono": "^4.7.0",
+    "@hono/node-server": "^1.14.0",
+    "@trpc/server": "^11.1.0",
+    "better-auth": "^1.2.0",
+    "drizzle-orm": "^0.41.0",
+    "better-sqlite3": "^11.8.0",
+    "yjs": "^13.6.0",
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "zod": "^3.25.0",
+    "pino": "^9.6.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/uuid": "^10.0.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.0",
+    "vitest": "^4.1.0"
+  }
+}

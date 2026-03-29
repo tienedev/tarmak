@@ -1,6 +1,7 @@
 /target
-/frontend/node_modules
-/frontend/dist
+node_modules
+dist
+.turbo
 *.db
 *.db-journal
 *.db-shm
