@@ -6,32 +6,11 @@ import {
   columnsRepo,
   tasksRepo,
   labelsRepo,
-  subtasksRepo,
   searchRepo,
   archiveRepo,
 } from "@tarmak/db";
-import { Schema, encodeFull, rowFromMap } from "@tarmak/kbf";
-
-const TASK_SCHEMA = new Schema(
-  "task",
-  ["id", "col", "title", "desc", "pri", "who", "pos", "due", "labels", "subtasks"],
-  2,
-);
-
-function text(content: string) {
-  return { content: [{ type: "text" as const, text: content }] };
-}
-
-function getTaskLabelNames(db: DB, taskId: string): string[] {
-  const labels = labelsRepo.getTaskLabels(db, taskId);
-  return labels.map((l) => l.name);
-}
-
-function getSubtaskString(db: DB, taskId: string): string {
-  const subs = subtasksRepo.listSubtasks(db, taskId);
-  const done = subs.filter((s) => s.completed).length;
-  return `${done}/${subs.length}`;
-}
+import { encodeFull } from "@tarmak/kbf";
+import { text, TASK_SCHEMA, taskToRow } from "../shared";
 
 interface TaskRow {
   id: string;
@@ -48,10 +27,10 @@ interface TaskRow {
 
 function formatTaskText(task: TaskRow): string {
   const parts = [`- ${task.title}`];
-  if (task.assignee) parts.push(`(${task.assignee}`);
+  if (task.assignee) parts.push(` (${task.assignee}`);
   if (task.due_date) {
     if (task.assignee) parts.push(`, due: ${task.due_date})`);
-    else parts.push(`(due: ${task.due_date})`);
+    else parts.push(` (due: ${task.due_date})`);
   } else if (task.assignee) {
     parts.push(")");
   }
@@ -69,22 +48,7 @@ function formatTasksForOutput(
     case "json":
       return JSON.stringify(tasks, null, 2);
     case "kbf": {
-      const rows = tasks.map((t) => {
-        const labelNames = getTaskLabelNames(db, t.id);
-        const subtaskStr = getSubtaskString(db, t.id);
-        const map = new Map<string, string>();
-        map.set("id", t.id);
-        map.set("col", t.column_id);
-        map.set("title", t.title);
-        map.set("desc", t.description ?? "");
-        map.set("pri", t.priority);
-        map.set("who", t.assignee ?? "");
-        map.set("pos", String(t.position));
-        map.set("due", t.due_date ?? "");
-        map.set("labels", labelNames.join(","));
-        map.set("subtasks", subtaskStr);
-        return rowFromMap(TASK_SCHEMA, map);
-      });
+      const rows = tasks.map((t) => taskToRow(db, t));
       return encodeFull(TASK_SCHEMA, rows);
     }
     default: // text

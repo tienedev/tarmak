@@ -10,109 +10,12 @@ import {
   attachmentsRepo,
   searchRepo,
 } from "@tarmak/db";
-import { Schema, encodeFull, rowFromMap } from "@tarmak/kbf";
-
-const TASK_SCHEMA = new Schema(
-  "task",
-  ["id", "col", "title", "desc", "pri", "who", "pos", "due", "labels", "subtasks"],
-  2,
-);
-const COLUMN_SCHEMA = new Schema("column", ["id", "name", "pos", "wip", "color"], 1);
-const LABEL_SCHEMA = new Schema("label", ["id", "name", "color"], 1);
-
-function taskToRow(
-  task: {
-    id: string;
-    column_id: string;
-    title: string;
-    description: string | null;
-    priority: string;
-    assignee: string | null;
-    position: number;
-    due_date: string | null;
-  },
-  labelNames: string[],
-  subtaskStr: string,
-) {
-  const map = new Map<string, string>();
-  map.set("id", task.id);
-  map.set("col", task.column_id);
-  map.set("title", task.title);
-  map.set("desc", task.description ?? "");
-  map.set("pri", task.priority);
-  map.set("who", task.assignee ?? "");
-  map.set("pos", String(task.position));
-  map.set("due", task.due_date ?? "");
-  map.set("labels", labelNames.join(","));
-  map.set("subtasks", subtaskStr);
-  return rowFromMap(TASK_SCHEMA, map);
-}
-
-function columnToRow(col: {
-  id: string;
-  name: string;
-  position: number;
-  wip_limit: number | null;
-  color: string | null;
-}) {
-  const map = new Map<string, string>();
-  map.set("id", col.id);
-  map.set("name", col.name);
-  map.set("pos", String(col.position));
-  map.set("wip", col.wip_limit != null ? String(col.wip_limit) : "");
-  map.set("color", col.color ?? "");
-  return rowFromMap(COLUMN_SCHEMA, map);
-}
-
-function labelToRow(label: { id: string; name: string; color: string }) {
-  const map = new Map<string, string>();
-  map.set("id", label.id);
-  map.set("name", label.name);
-  map.set("color", label.color);
-  return rowFromMap(LABEL_SCHEMA, map);
-}
-
-function getTaskLabelNames(db: DB, taskId: string): string[] {
-  const labels = labelsRepo.getTaskLabels(db, taskId);
-  return labels.map((l) => l.name);
-}
-
-function getSubtaskString(db: DB, taskId: string): string {
-  const subs = subtasksRepo.listSubtasks(db, taskId);
-  const done = subs.filter((s) => s.completed).length;
-  return `${done}/${subs.length}`;
-}
-
-function formatTasksKbf(db: DB, boardId: string): string {
-  const allTasks = tasksRepo.listTasks(db, boardId);
-  const rows = allTasks.map((t) => {
-    const labelNames = getTaskLabelNames(db, t.id);
-    const subtaskStr = getSubtaskString(db, t.id);
-    return taskToRow(t, labelNames, subtaskStr);
-  });
-  return encodeFull(TASK_SCHEMA, rows);
-}
-
-function formatColumnsKbf(db: DB, boardId: string): string {
-  const cols = columnsRepo.listColumns(db, boardId);
-  const rows = cols.map(columnToRow);
-  return encodeFull(COLUMN_SCHEMA, rows);
-}
-
-function formatLabelsKbf(db: DB, boardId: string): string {
-  const lbls = labelsRepo.listLabels(db, boardId);
-  const rows = lbls.map(labelToRow);
-  return encodeFull(LABEL_SCHEMA, rows);
-}
-
-function formatTasksJson(db: DB, boardId: string): string {
-  const allTasks = tasksRepo.listTasks(db, boardId);
-  return JSON.stringify(allTasks, null, 2);
-}
-
-function text(content: string) {
-  return { content: [{ type: "text" as const, text: content }] };
-}
+import {
+  text,
+  formatTasksKbf,
+  formatColumnsKbf,
+  formatLabelsKbf,
+} from "../shared";
 
 export function registerBoardQueryTool(server: McpServer, db: DB) {
   server.tool(
@@ -151,7 +54,7 @@ export function registerBoardQueryTool(server: McpServer, db: DB) {
           if (format === "kbf") {
             return text(formatTasksKbf(db, board_id));
           }
-          return text(formatTasksJson(db, board_id));
+          return text(JSON.stringify(tasksRepo.listTasks(db, board_id), null, 2));
 
         case "columns":
           if (format === "kbf") {

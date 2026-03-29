@@ -12,10 +12,7 @@ import {
   customFieldsRepo,
   archiveRepo,
 } from "@tarmak/db";
-
-function text(content: string) {
-  return { content: [{ type: "text" as const, text: content }] };
-}
+import { text } from "../shared";
 
 type MutateData = Record<string, unknown>;
 
@@ -314,6 +311,13 @@ export function registerBoardMutateTool(server: McpServer, db: DB) {
     },
     async (args) => {
       try {
+        // Validate board exists (except for create_board which creates a new one)
+        if (args.action !== "create_board") {
+          const board = boardsRepo.getBoard(db, args.board_id);
+          if (!board) {
+            return text(`error: board ${args.board_id} not found`);
+          }
+        }
         const result = handleMutate(db, args.board_id, args.action, args.data as MutateData);
         return text(result);
       } catch (err) {

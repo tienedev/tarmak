@@ -1,23 +1,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  type DB,
-  boardsRepo,
-  columnsRepo,
-  tasksRepo,
-  labelsRepo,
-  subtasksRepo,
-} from "@tarmak/db";
-import { Schema, encodeFull, decodeDeltas, rowFromMap } from "@tarmak/kbf";
+import { type DB, boardsRepo, tasksRepo } from "@tarmak/db";
+import { decodeDeltas } from "@tarmak/kbf";
 import type { Delta } from "@tarmak/kbf";
-
-const TASK_SCHEMA = new Schema(
-  "task",
-  ["id", "col", "title", "desc", "pri", "who", "pos", "due", "labels", "subtasks"],
-  2,
-);
-const COLUMN_SCHEMA = new Schema("column", ["id", "name", "pos", "wip", "color"], 1);
-const LABEL_SCHEMA = new Schema("label", ["id", "name", "color"], 1);
+import { text, formatFullBoardKbf } from "../shared";
 
 // Maps KBF field names to DB field names for update deltas
 const TASK_FIELD_MAP: Record<string, string> = {
@@ -30,114 +16,26 @@ const TASK_FIELD_MAP: Record<string, string> = {
   col: "column_id",
 };
 
-function text(content: string) {
-  return { content: [{ type: "text" as const, text: content }] };
-}
-
-function getTaskLabelNames(db: DB, taskId: string): string[] {
-  const labels = labelsRepo.getTaskLabels(db, taskId);
-  return labels.map((l) => l.name);
-}
-
-function getSubtaskString(db: DB, taskId: string): string {
-  const subs = subtasksRepo.listSubtasks(db, taskId);
-  const done = subs.filter((s) => s.completed).length;
-  return `${done}/${subs.length}`;
-}
-
-function taskToRow(
-  db: DB,
-  task: {
-    id: string;
-    column_id: string;
-    title: string;
-    description: string | null;
-    priority: string;
-    assignee: string | null;
-    position: number;
-    due_date: string | null;
-  },
-) {
-  const labelNames = getTaskLabelNames(db, task.id);
-  const subtaskStr = getSubtaskString(db, task.id);
-  const map = new Map<string, string>();
-  map.set("id", task.id);
-  map.set("col", task.column_id);
-  map.set("title", task.title);
-  map.set("desc", task.description ?? "");
-  map.set("pri", task.priority);
-  map.set("who", task.assignee ?? "");
-  map.set("pos", String(task.position));
-  map.set("due", task.due_date ?? "");
-  map.set("labels", labelNames.join(","));
-  map.set("subtasks", subtaskStr);
-  return rowFromMap(TASK_SCHEMA, map);
-}
-
-function columnToRow(col: {
-  id: string;
-  name: string;
-  position: number;
-  wip_limit: number | null;
-  color: string | null;
-}) {
-  const map = new Map<string, string>();
-  map.set("id", col.id);
-  map.set("name", col.name);
-  map.set("pos", String(col.position));
-  map.set("wip", col.wip_limit != null ? String(col.wip_limit) : "");
-  map.set("color", col.color ?? "");
-  return rowFromMap(COLUMN_SCHEMA, map);
-}
-
-function labelToRow(label: { id: string; name: string; color: string }) {
-  const map = new Map<string, string>();
-  map.set("id", label.id);
-  map.set("name", label.name);
-  map.set("color", label.color);
-  return rowFromMap(LABEL_SCHEMA, map);
-}
-
-function formatFullBoardKbf(db: DB, boardId: string): string {
-  const board = boardsRepo.getBoard(db, boardId);
-  const info = JSON.stringify(board, null, 2);
-
-  const cols = columnsRepo.listColumns(db, boardId);
-  const colRows = cols.map(columnToRow);
-  const colsKbf = encodeFull(COLUMN_SCHEMA, colRows);
-
-  const allTasks = tasksRepo.listTasks(db, boardId);
-  const taskRows = allTasks.map((t) => taskToRow(db, t));
-  const tasksKbf = encodeFull(TASK_SCHEMA, taskRows);
-
-  const lbls = labelsRepo.listLabels(db, boardId);
-  const labelRows = lbls.map(labelToRow);
-  const labelsKbf = encodeFull(LABEL_SCHEMA, labelRows);
-
-  return [info, "", colsKbf, "", tasksKbf, "", labelsKbf].join("\n");
-}
-
 function applyDelta(db: DB, boardId: string, delta: Delta): string {
   switch (delta.type) {
     case "update": {
       const dbField = TASK_FIELD_MAP[delta.field];
       if (!dbField) {
-        // Handle labels specially
         if (delta.field === "labels") {
-          // Labels update not supported via delta — ignore
           return `skipped labels update for ${delta.id}`;
         }
         return `unknown field: ${delta.field}`;
       }
       if (dbField === "column_id") {
-        // Move task to a different column, keep current position
         const task = tasksRepo.getTask(db, delta.id);
         if (!task) return `task ${delta.id} not found`;
         tasksRepo.moveTask(db, delta.id, delta.value, task.position);
       } else if (dbField === "position") {
+        const pos = parseInt(delta.value, 10);
+        if (Number.isNaN(pos)) return `invalid position: ${delta.value}`;
         const task = tasksRepo.getTask(db, delta.id);
         if (!task) return `task ${delta.id} not found`;
-        tasksRepo.moveTask(db, delta.id, task.column_id, parseInt(delta.value, 10));
+        tasksRepo.moveTask(db, delta.id, task.column_id, pos);
       } else {
         const updateData: Record<string, string> = {};
         updateData[dbField] = delta.value;
@@ -146,7 +44,6 @@ function applyDelta(db: DB, boardId: string, delta: Delta): string {
       return `updated ${delta.id}.${delta.field}`;
     }
     case "create": {
-      // row format: colid|title|desc|pri|who|pos
       const row = delta.row;
       if (row.length < 2) return "error: create delta needs at least colid|title";
       const task = tasksRepo.createTask(db, {
@@ -182,7 +79,6 @@ export function registerBoardSyncTool(server: McpServer, db: DB) {
         return text(`Error: board ${board_id} not found`);
       }
 
-      // Apply deltas if provided
       if (delta) {
         try {
           const deltas = decodeDeltas(delta);
@@ -199,7 +95,6 @@ export function registerBoardSyncTool(server: McpServer, db: DB) {
         }
       }
 
-      // No delta — just return current state
       return text(formatFullBoardKbf(db, board_id));
     },
   );
