@@ -38,6 +38,12 @@ CREATE TRIGGER IF NOT EXISTS subtasks_ai AFTER INSERT ON subtasks BEGIN
   VALUES ('subtask', NEW.id, (SELECT board_id FROM tasks WHERE id = NEW.task_id), NEW.task_id, NEW.title);
 END;
 
+CREATE TRIGGER IF NOT EXISTS subtasks_au AFTER UPDATE ON subtasks BEGIN
+  DELETE FROM search_index WHERE entity_type = 'subtask' AND entity_id = OLD.id;
+  INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+  VALUES ('subtask', NEW.id, (SELECT board_id FROM tasks WHERE id = NEW.task_id), NEW.task_id, NEW.title);
+END;
+
 CREATE TRIGGER IF NOT EXISTS subtasks_ad AFTER DELETE ON subtasks BEGIN
   DELETE FROM search_index WHERE entity_type = 'subtask' AND entity_id = OLD.id;
 END;

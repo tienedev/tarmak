@@ -48,7 +48,7 @@ export function migrateDb(db: DB) {
       column_id TEXT NOT NULL REFERENCES columns(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       description TEXT,
-      priority TEXT NOT NULL DEFAULT 'medium',
+      priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
       assignee TEXT,
       position INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -76,7 +76,7 @@ export function migrateDb(db: DB) {
     CREATE TABLE IF NOT EXISTS board_members (
       board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role TEXT NOT NULL DEFAULT 'member',
+      role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'member', 'viewer')),
       PRIMARY KEY (board_id, user_id)
     )
   `);
@@ -86,7 +86,7 @@ export function migrateDb(db: DB) {
       id TEXT PRIMARY KEY,
       board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
       token TEXT NOT NULL UNIQUE,
-      role TEXT NOT NULL DEFAULT 'member',
+      role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'member', 'viewer')),
       expires_at TEXT,
       created_by TEXT NOT NULL REFERENCES users(id)
     )
@@ -184,7 +184,7 @@ export function migrateDb(db: DB) {
       id TEXT PRIMARY KEY,
       board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
-      field_type TEXT NOT NULL,
+      field_type TEXT NOT NULL CHECK (field_type IN ('text', 'number', 'url', 'enum', 'date')),
       config TEXT,
       position INTEGER NOT NULL DEFAULT 0
     )
@@ -299,8 +299,38 @@ export function migrateDb(db: DB) {
   `);
 
   db.run(sql`
+    CREATE TRIGGER IF NOT EXISTS subtasks_au AFTER UPDATE ON subtasks BEGIN
+      DELETE FROM search_index WHERE entity_type = 'subtask' AND entity_id = OLD.id;
+      INSERT INTO search_index(entity_type, entity_id, board_id, task_id, content)
+      VALUES ('subtask', NEW.id, (SELECT board_id FROM tasks WHERE id = NEW.task_id), NEW.task_id, NEW.title);
+    END
+  `);
+
+  db.run(sql`
     CREATE TRIGGER IF NOT EXISTS subtasks_ad AFTER DELETE ON subtasks BEGIN
       DELETE FROM search_index WHERE entity_type = 'subtask' AND entity_id = OLD.id;
     END
   `);
+
+  // Indexes
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_columns_board_id ON columns(board_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_board_id ON tasks(board_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_activity_board_id ON activity(board_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_comments_task_id ON comments(task_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_custom_fields_board ON custom_fields(board_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_tcfv_task_id ON task_custom_field_values(task_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_labels_board ON labels(board_id)`);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_labels_board_name ON labels(board_id, name)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_task_labels_task ON task_labels(task_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_task_labels_label ON task_labels(label_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_attachments_task ON attachments(task_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_attachments_board ON attachments(board_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_sessions_board ON agent_sessions(board_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions(status)`);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_sessions_running_per_task ON agent_sessions(task_id) WHERE status = 'running'`);
 }

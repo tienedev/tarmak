@@ -104,7 +104,7 @@ describe("createDb", () => {
       .run();
 
     db.insert(boardMembers)
-      .values({ board_id: "b1", user_id: "u1", role: "admin" })
+      .values({ board_id: "b1", user_id: "u1", role: "owner" })
       .run();
 
     const result = db.select().from(users).all();
