@@ -1,6 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { securityHeaders } from "./middleware/security";
 import { rateLimit } from "./middleware/rate-limit";
 import { createDb, migrateDb, type DB } from "@tarmak/db";
@@ -13,6 +17,12 @@ import { authRoutes } from "./routes/auth";
 import { apiKeyRoutes } from "./routes/api-keys";
 import { inviteRoutes } from "./routes/invites";
 import { attachmentRoutes } from "./routes/attachments";
+
+// Resolve the web dist path relative to this compiled file so it works
+// regardless of where the process is started from.
+const apiDistDir = path.dirname(fileURLToPath(import.meta.url));
+const webDistDir = path.resolve(apiDistDir, "../../web/dist");
+const webDistExists = fs.existsSync(webDistDir);
 
 export function createApp(dbPath?: string): {
   app: Hono;
@@ -141,6 +151,16 @@ export function createApp(dbPath?: string): {
     "/api/v1/boards/:boardId/tasks/:taskId/attachments",
     attachmentRoutes(db),
   );
+
+  // Serve frontend static files (only when built)
+  if (webDistExists) {
+    const relRoot = path.relative(process.cwd(), webDistDir);
+    app.use("*", serveStatic({ root: relRoot }));
+    // SPA fallback: serve index.html for any unmatched route
+    app.get("*", (c) => {
+      return c.html(fs.readFileSync(path.join(webDistDir, "index.html"), "utf-8"));
+    });
+  }
 
   return { app, db, broadcaster, ticketStore };
 }
