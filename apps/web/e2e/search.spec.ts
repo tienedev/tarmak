@@ -36,7 +36,7 @@ test.describe('Search', () => {
     await page.getByPlaceholder('Search tasks, comments...').fill('Alpha')
     await page.waitForTimeout(500)
 
-    await expect(page.getByText('Tasks')).toBeVisible()
+    await expect(page.locator('.absolute').getByText('Tasks')).toBeVisible()
     await expect(page.getByText('Alpha Report').last()).toBeVisible()
   })
 

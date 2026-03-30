@@ -29,7 +29,7 @@ test.describe('Activity panel', () => {
     // Open activity panel
     await main(page).getByRole('button', { name: 'Activity' }).click()
 
-    // Should have entries related to task creation
-    await expect(page.getByText(/created/).first()).toBeVisible()
+    // Should have entries related to task creation (scope to sheet to avoid hidden Select options)
+    await expect(page.getByRole('dialog').getByText(/created/).first()).toBeVisible()
   })
 })

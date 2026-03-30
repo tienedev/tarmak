@@ -18,7 +18,7 @@ export const boardRouter = router({
       return board;
     }),
 
-  list: protectedProcedure.query(({ ctx }) => boardsRepo.listBoards(ctx.db)),
+  list: protectedProcedure.query(({ ctx }) => boardsRepo.listBoards(ctx.db, ctx.user.id)),
 
   get: protectedProcedure
     .input(z.object({ boardId: z.string() }))

@@ -1,4 +1,4 @@
-import { eq, and, sql, isNull, asc } from "drizzle-orm";
+import { eq, and, sql, isNull, asc, inArray } from "drizzle-orm";
 import type { DB } from "../connection";
 import {
   tasks,
@@ -106,7 +106,25 @@ export function listTasks(db: DB, boardId: string, limit?: number, offset?: numb
     query = query.offset(offset);
   }
 
-  return query.all();
+  const taskRows = query.all();
+  if (taskRows.length === 0) return [];
+
+  const taskIds = taskRows.map((t) => t.id);
+  const labelRows = db
+    .select({ task_id: taskLabels.task_id, label: labels })
+    .from(taskLabels)
+    .innerJoin(labels, eq(taskLabels.label_id, labels.id))
+    .where(inArray(taskLabels.task_id, taskIds))
+    .all();
+
+  const labelMap = new Map<string, (typeof labelRows)[0]["label"][]>();
+  for (const row of labelRows) {
+    const arr = labelMap.get(row.task_id) ?? [];
+    arr.push(row.label);
+    labelMap.set(row.task_id, arr);
+  }
+
+  return taskRows.map((t) => ({ ...t, labels: labelMap.get(t.id) ?? [] }));
 }
 
 export function updateTask(
