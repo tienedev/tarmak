@@ -10,6 +10,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Configure git
+        run: |
+          git config --global user.email "ci@tarmak.dev"
+          git config --global user.name "CI"
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint

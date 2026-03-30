@@ -17,9 +17,10 @@ describe("worktree", () => {
     beforeEach(async () => {
       repoDir = path.join(os.tmpdir(), `tarmak-wt-test-${Date.now()}`);
       await fs.mkdir(repoDir, { recursive: true });
-      execSync("git init && git commit --allow-empty -m init", {
-        cwd: repoDir,
-      });
+      execSync(
+        "git init && git config user.email 'test@test.com' && git config user.name 'Test' && git commit --allow-empty -m init",
+        { cwd: repoDir },
+      );
     });
 
     afterEach(async () => {
