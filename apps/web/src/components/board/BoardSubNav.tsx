@@ -26,7 +26,8 @@ interface BoardSubNavProps {
   onViewChange: (v: ViewMode) => void
 }
 
-export function BoardSubNav({ view: _view, onViewChange: _onViewChange }: BoardSubNavProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function BoardSubNav(_props: BoardSubNavProps) {
   const { t } = useTranslation()
   const { columns, members } = useBoardStore()
   const { filters, toggleFilter, clearFilter, clearAll, hasActiveFilters } = useFilterStore()

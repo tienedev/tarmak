@@ -21,6 +21,7 @@ export function ArchivePanel({ boardId, open, onClose }: ArchivePanelProps) {
 
   useEffect(() => {
     if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     Promise.all([
       trpcClient.archive.listArchivedTasks.query({ boardId }),

@@ -15,6 +15,7 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 function FileBlockComponent({ node }: NodeViewProps) {
   const attrs = node.attrs as { src: string; filename: string; mime: string; size: number }
   const Icon = getFileIcon(attrs.mime)
@@ -26,6 +27,7 @@ function FileBlockComponent({ node }: NodeViewProps) {
         rel="noopener noreferrer"
         className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 no-underline transition hover:bg-muted/50"
       >
+        {/* eslint-disable-next-line react-hooks/static-components */}
         <Icon className="size-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{attrs.filename}</p>

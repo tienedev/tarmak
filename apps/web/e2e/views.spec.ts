@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin, createBoard, createColumn, main } from './helpers'
+import { registerAndLogin, createBoard, main } from './helpers'
 
 /** Create a column + task via API so the list view renders its table. */
 async function seedTask(page: import('@playwright/test').Page, boardId: string) {

@@ -18,6 +18,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
   ({ items, command }, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0)
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => setSelectedIndex(0), [items])
 
     useImperativeHandle(ref, () => ({

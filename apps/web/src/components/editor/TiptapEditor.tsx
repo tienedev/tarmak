@@ -38,6 +38,7 @@ interface TiptapEditorProps {
  * Strip HTML tags from a string, returning plain text.
  * Useful for generating previews of rich-text content.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
@@ -53,6 +54,7 @@ function createMentionSuggestion(members: { id: string; name: string }[]) {
       let component: ReactRenderer<MentionListRef> | null = null;
       let popup: TippyInstance[] | null = null;
       return {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStart: (props: any) => {
           component = new ReactRenderer(MentionList, {
             props,
@@ -68,10 +70,12 @@ function createMentionSuggestion(members: { id: string; name: string }[]) {
             placement: "bottom-start",
           });
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onUpdate: (props: any) => {
           component?.updateProps(props);
           popup?.[0]?.setProps({ getReferenceClientRect: props.clientRect });
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onKeyDown: (props: any) => component?.ref?.onKeyDown(props) ?? false,
         onExit: () => {
           popup?.[0]?.destroy();

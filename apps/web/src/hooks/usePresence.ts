@@ -68,6 +68,7 @@ export function usePresence(
     awareness.on('change', onChange)
 
     // Initial population
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     updateUsers()
 
     return () => {

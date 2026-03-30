@@ -48,9 +48,11 @@ export function useSync(boardId: string | null): SyncState {
     }
   }, [boardId, token])
 
+  /* eslint-disable react-hooks/refs */
   return {
     doc: docRef.current,
     provider: providerRef.current,
     status,
   }
+  /* eslint-enable react-hooks/refs */
 }

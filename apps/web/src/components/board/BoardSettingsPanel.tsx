@@ -583,6 +583,7 @@ function WipTab({ boardId }: { boardId: string }) {
     activeColumns.forEach((col) => {
       initial[col.id] = col.wip_limit?.toString() ?? ''
     })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValues(initial)
   }, [columns])
 

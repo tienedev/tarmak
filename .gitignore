@@ -1,6 +1,11 @@
 node_modules/
 dist/
 .turbo/
+**/.turbo/
+.cache/
+**/.cache/
+*.tsbuildinfo
+uploads/
 *.db
 *.db-journal
 *.db-shm

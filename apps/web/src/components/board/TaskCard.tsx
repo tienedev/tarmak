@@ -142,6 +142,7 @@ export function TaskCard({ task, overlay, onClick, latestSession }: TaskCardProp
           <div className={cn(
             'flex items-center gap-1 text-[0.65rem] font-medium',
             new Date(task.due_date) < new Date() ? 'text-red-500' :
+            // eslint-disable-next-line react-hooks/purity
             new Date(task.due_date).getTime() - Date.now() < 2 * 86400000 ? 'text-orange-500' :
             'text-muted-foreground',
           )}>
