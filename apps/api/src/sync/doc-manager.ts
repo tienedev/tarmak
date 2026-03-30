@@ -33,7 +33,11 @@ export class DocManager {
     const doc = this.docs.get(boardId);
     if (!doc) return;
     const state = Y.encodeStateAsUpdate(doc);
-    crdtRepo.saveState(this.db, boardId, state);
+    try {
+      crdtRepo.saveState(this.db, boardId, state);
+    } catch {
+      // Board may have been deleted before the persist timer fired — ignore
+    }
   }
 
   remove(boardId: string): void {
