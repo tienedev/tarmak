@@ -13,10 +13,14 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'cd .. && cargo run --bin tarmak',
-    url: 'http://localhost:4000/api/v1/health',
+    command: 'node ../api/dist/index.js',
+    url: 'http://localhost:4000/health',
     reuseExistingServer: true,
-    timeout: 120_000,
+    timeout: 60_000,
+    env: {
+      DATABASE_PATH: '/tmp/tarmak-e2e.db',
+      PORT: '4000',
+    },
   },
   projects: [
     {
