@@ -3,7 +3,7 @@ import {
   registerAndLogin,
   createBoard,
   createColumn,
-  getToken,
+  createTask,
   main,
 } from './helpers'
 
@@ -35,17 +35,8 @@ test.describe('Column management', () => {
     const board = await createBoard(page, 'Task Col Board')
     const col1 = await createColumn(page, board.id, 'Backlog')
     const col2 = await createColumn(page, board.id, 'Active')
-    const token = await getToken(page)
-
-    // Create tasks via API in specific columns
-    await page.request.post(`/api/v1/boards/${board.id}/tasks`, {
-      data: { title: 'Backlog Task', column_id: col1.id },
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    await page.request.post(`/api/v1/boards/${board.id}/tasks`, {
-      data: { title: 'Active Task', column_id: col2.id },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await createTask(page, board.id, col1.id, 'Backlog Task')
+    await createTask(page, board.id, col2.id, 'Active Task')
     await page.reload()
 
     await expect(main(page).getByText('Backlog Task')).toBeVisible()

@@ -1,18 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin, createBoard, main } from './helpers'
+import { registerAndLogin, createBoard, createColumn, createTask, main } from './helpers'
 
-/** Create a column + task via API so the list view renders its table. */
+/** Create a column + task via tRPC so the list view renders its table. */
 async function seedTask(page: import('@playwright/test').Page, boardId: string) {
-  const token = await page.evaluate(() => localStorage.getItem('token'))
-  const col = await page.request.post(`/api/v1/boards/${boardId}/columns`, {
-    data: { name: 'Backlog' },
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const { id: columnId } = await col.json()
-  await page.request.post(`/api/v1/boards/${boardId}/tasks`, {
-    data: { title: 'Seed task', column_id: columnId },
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  const col = await createColumn(page, boardId, 'Backlog')
+  await createTask(page, boardId, col.id, 'Seed task')
   await page.reload()
   await expect(main(page).getByText('Seed task')).toBeVisible()
 }

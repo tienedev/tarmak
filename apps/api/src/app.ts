@@ -49,8 +49,10 @@ export function createApp(dbPath?: string): {
   // Security headers
   app.use("*", securityHeaders());
 
-  // Rate limiting on API routes
-  app.use("/api/*", rateLimit({ max: 100, windowMs: 60_000 }));
+  // Rate limiting on API routes (disabled in CI — all workers share same IP)
+  if (!process.env.CI) {
+    app.use("/api/*", rateLimit({ max: 100, windowMs: 60_000 }));
+  }
 
   // Health check
   app.get("/health", (c) => c.json({ status: "ok" }));

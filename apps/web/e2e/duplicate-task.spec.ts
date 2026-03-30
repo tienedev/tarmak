@@ -4,6 +4,7 @@ import {
   createBoard,
   createColumn,
   createTask,
+  updateTask,
   createLabel,
   addTaskLabel,
   createSubtask,
@@ -98,13 +99,9 @@ test.describe('Duplicate task', () => {
   })
 
   test('duplicated task clears assignee and due date', async ({ page }) => {
-    // Create a task and set assignee + due date via API
+    // Create a task and set assignee + due date via tRPC
     const task = await createTask(page, boardId, columnId, 'Full Task')
-    const token = await page.evaluate(() => localStorage.getItem('token'))
-    await page.request.put(`/api/v1/boards/${boardId}/tasks/${task.id}`, {
-      data: { assignee: 'someone', due_date: '2026-12-31' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await updateTask(page, task.id, { assignee: 'someone', due_date: '2026-12-31' })
 
     await page.reload()
     await main(page).getByText('Full Task').click()

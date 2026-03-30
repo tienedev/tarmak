@@ -36,7 +36,7 @@ export async function registerAndLogin(page: Page, prefix: string) {
     password: 'testpassword123',
   }
 
-  // Retry registration if rate-limited (10 req/60s per IP)
+  // Retry registration if rate-limited
   let res: Awaited<ReturnType<typeof page.request.post>>
   for (let attempt = 0; attempt < 40; attempt++) {
     res = await page.request.post(`${API}/auth/register`, { data: user })
@@ -95,6 +95,22 @@ export async function createTask(
   )
 }
 
+/** Update a task via tRPC. */
+export async function updateTask(
+  page: Page,
+  taskId: string,
+  data: { title?: string; description?: string; priority?: string; assignee?: string; due_date?: string },
+) {
+  const token = await getToken(page)
+  return trpc<{ id: string }>(page, 'task.update', { taskId, ...data }, token)
+}
+
+/** Archive a task via tRPC. */
+export async function archiveTask(page: Page, taskId: string) {
+  const token = await getToken(page)
+  await trpc(page, 'archive.archiveTask', { taskId }, token)
+}
+
 /** Create a label via tRPC. Returns label with id. */
 export async function createLabel(page: Page, boardId: string, name: string, color: string) {
   const token = await getToken(page)
@@ -110,6 +126,12 @@ export async function addTaskLabel(
 ) {
   const token = await getToken(page)
   await trpc(page, 'label.addToTask', { taskId, labelId }, token)
+}
+
+/** Create a comment via tRPC. */
+export async function createComment(page: Page, taskId: string, content: string) {
+  const token = await getToken(page)
+  return trpc<{ id: string }>(page, 'comment.create', { taskId, content }, token)
 }
 
 /** Create a subtask via tRPC. */
@@ -131,7 +153,9 @@ export function main(page: Page) {
   return page.getByRole('main')
 }
 
-/** Returns the sidebar board button locator for a given board name. */
+/** Returns the sidebar board button locator for a given board name.
+ *  Uses .first() to avoid strict-mode errors when both the aside and the
+ *  mobile Sheet (always in DOM) contain the same button. */
 export function sidebarBoard(page: Page, name: string) {
-  return page.locator('aside, [data-slot="sheet-content"]').getByRole('button', { name })
+  return page.locator('aside, [data-slot="sheet-content"]').getByRole('button', { name }).first()
 }

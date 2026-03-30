@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin, createBoard, createColumn, main } from './helpers'
+import { registerAndLogin, createBoard, createColumn, createLabel, main } from './helpers'
 
 /** Open the Board Settings panel and navigate to the Labels tab */
 async function openLabelsSettings(page: import('@playwright/test').Page) {
@@ -24,17 +24,12 @@ test.describe('Labels', () => {
 
   test('can edit a board label', async ({ page }) => {
     await registerAndLogin(page, 'labels-edit')
-    await createBoard(page, 'Labels Board')
+    const board = await createBoard(page, 'Labels Board')
 
-    // Create label via API for speed
-    const token = await page.evaluate(() => localStorage.getItem('token'))
-    const boardId = page.url().match(/#\/boards\/([^?]+)/)?.[1]
-    await page.request.post(`/api/v1/boards/${boardId}/labels`, {
-      data: { name: 'Feature', color: '#3b82f6' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    // Create label via tRPC for speed
+    await createLabel(page, board.id, 'Feature', '#3b82f6')
 
-    // Reload so the UI picks up the API-created label, then open settings
+    // Reload so the UI picks up the label, then open settings
     await page.reload()
     await openLabelsSettings(page)
     await expect(page.getByText('Feature')).toBeVisible()
@@ -56,15 +51,10 @@ test.describe('Labels', () => {
 
   test('can delete a board label', async ({ page }) => {
     await registerAndLogin(page, 'labels-delete')
-    await createBoard(page, 'Labels Board')
+    const board = await createBoard(page, 'Labels Board')
 
-    // Create label via API
-    const token = await page.evaluate(() => localStorage.getItem('token'))
-    const boardId = page.url().match(/#\/boards\/([^?]+)/)?.[1]
-    await page.request.post(`/api/v1/boards/${boardId}/labels`, {
-      data: { name: 'ToDelete', color: '#ef4444' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    // Create label via tRPC
+    await createLabel(page, board.id, 'ToDelete', '#ef4444')
 
     await page.reload()
     await openLabelsSettings(page)
@@ -81,12 +71,8 @@ test.describe('Labels', () => {
     await registerAndLogin(page, 'labels-assign')
     const board = await createBoard(page, 'Labels Board')
 
-    // Create label + column via API
-    const token = await page.evaluate(() => localStorage.getItem('token'))
-    await page.request.post(`/api/v1/boards/${board.id}/labels`, {
-      data: { name: 'Critical', color: '#ef4444' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    // Create label + column via tRPC
+    await createLabel(page, board.id, 'Critical', '#ef4444')
     await createColumn(page, board.id, 'To Do')
     await page.reload()
     await expect(main(page).getByText('To Do')).toBeVisible()

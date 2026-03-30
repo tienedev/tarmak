@@ -5,6 +5,7 @@ import {
   createColumn,
   createTask,
   createTaskViaUI,
+  archiveTask,
   main,
 } from './helpers'
 
@@ -39,11 +40,8 @@ test.describe('Archive', () => {
   test('archived task appears in Archives panel', async ({ page }) => {
     const task = await createTask(page, boardId, columnId, 'Archived Item')
 
-    // Archive via API
-    const token = await page.evaluate(() => localStorage.getItem('token'))
-    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/archive`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    // Archive via tRPC
+    await archiveTask(page, task.id)
     await page.reload()
 
     // Task should not be visible on the board

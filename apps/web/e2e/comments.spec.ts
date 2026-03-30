@@ -4,7 +4,7 @@ import {
   createBoard,
   createColumn,
   createTask,
-  getToken,
+  createComment,
   main,
 } from './helpers'
 
@@ -71,13 +71,7 @@ test.describe('Comments', () => {
 
   test('shows existing comments from API', async ({ page }) => {
     const task = await createTask(page, boardId, columnId, 'Existing Cmt')
-    const token = await getToken(page)
-
-    // Create comment via API
-    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/comments`, {
-      data: { content: '<p>API comment</p>' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await createComment(page, task.id, '<p>API comment</p>')
 
     await page.reload()
     await main(page).getByText('Existing Cmt').click()
@@ -91,17 +85,8 @@ test.describe('Comments', () => {
 
   test('comment count badge shows after adding comments', async ({ page }) => {
     const task = await createTask(page, boardId, columnId, 'Badge Task')
-    const token = await getToken(page)
-
-    // Create 2 comments via API
-    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/comments`, {
-      data: { content: '<p>Comment 1</p>' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    await page.request.post(`/api/v1/boards/${boardId}/tasks/${task.id}/comments`, {
-      data: { content: '<p>Comment 2</p>' },
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await createComment(page, task.id, '<p>Comment 1</p>')
+    await createComment(page, task.id, '<p>Comment 2</p>')
 
     await page.reload()
     await main(page).getByText('Badge Task').click()
