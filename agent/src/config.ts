@@ -18,6 +18,13 @@ export interface SkillInfo {
   enabled: boolean;
 }
 
+export interface AgentInfo {
+  name: string;
+  description: string;
+  file: string;
+  plugin: string;
+}
+
 export interface ProjectConfig {
   repo_url: string;
   workdir: string;
@@ -25,6 +32,7 @@ export interface ProjectConfig {
   settings: Record<string, unknown> | null;
   mcp_servers: McpServer[];
   skills: SkillInfo[];
+  agents: AgentInfo[];
 }
 
 export interface AgentConfig {
@@ -34,6 +42,7 @@ export interface AgentConfig {
   };
   plugins: Record<string, unknown[]> | null;
   skills: SkillInfo[];
+  agents: AgentInfo[];
   hooks: Record<string, unknown[]> | null;
   projects: ProjectConfig[];
   stats: {
@@ -41,6 +50,18 @@ export interface AgentConfig {
     totalMessages: number | null;
     modelUsage: Record<string, unknown> | null;
   } | null;
+}
+
+interface PluginInstall {
+  scope: "user" | "project" | "local";
+  projectPath?: string;
+  installPath: string;
+  version: string;
+}
+
+interface InstalledPluginsV2 {
+  version: number;
+  plugins: Record<string, PluginInstall[]>;
 }
 
 export async function getConfig(
@@ -57,13 +78,29 @@ export async function getConfig(
   const globalMcp =
     (globalSettings?.mcpServers as Record<string, unknown>) ?? null;
 
-  // Installed plugins
-  const plugins = (await readJsonSafe(
-    path.join(claudeDir, "installed_plugins.json")
-  )) as Record<string, unknown[]> | null;
+  // Installed plugins (v2 format, lives in plugins/ subdir)
+  const pluginsData = (await readJsonSafe(
+    path.join(claudeDir, "plugins", "installed_plugins.json")
+  )) as InstalledPluginsV2 | null;
 
-  // Skills from plugins
-  const skills = await discoverSkills(claudeDir);
+  const pluginInstalls = pluginsData?.plugins ?? {};
+
+  // Discover skills & agents from all plugin installs
+  const allSkills: SkillInfo[] = [];
+  const allAgents: AgentInfo[] = [];
+
+  for (const [pluginKey, installs] of Object.entries(pluginInstalls)) {
+    for (const install of installs) {
+      const skills = await scanSkillsDir(install.installPath, pluginKey);
+      allSkills.push(...skills);
+      const agents = await scanAgentsDir(install.installPath, pluginKey);
+      allAgents.push(...agents);
+    }
+  }
+
+  // Deduplicate by dir/file (same installPath can appear for multiple project scopes)
+  const uniqueSkills = deduplicateBy(allSkills, (s) => s.dir);
+  const uniqueAgents = deduplicateBy(allAgents, (a) => a.file);
 
   // Per-project configs
   const projects: ProjectConfig[] = [];
@@ -75,7 +112,10 @@ export async function getConfig(
       path.join(workdir, ".claude", "settings.json")
     );
     const projectMcp = await discoverMcpServers(workdir);
-    const projectSkills = await discoverProjectSkills(workdir, claudeDir);
+
+    // Find skills & agents scoped to this project
+    const projectSkills = filterForProject(pluginInstalls, workdir, uniqueSkills);
+    const projectAgents = filterForProject(pluginInstalls, workdir, uniqueAgents);
 
     projects.push({
       repo_url: repoUrl,
@@ -84,57 +124,116 @@ export async function getConfig(
       settings: projectSettings,
       mcp_servers: projectMcp,
       skills: projectSkills,
+      agents: projectAgents,
     });
   }
 
   return {
     global: { settings: globalSettings, mcp_servers: globalMcp },
-    plugins,
-    skills,
+    plugins: pluginsData?.plugins ?? null,
+    skills: uniqueSkills,
+    agents: uniqueAgents,
     hooks: (globalSettings?.hooks as Record<string, unknown[]>) ?? null,
     projects,
     stats: null,
   };
 }
 
-async function discoverSkills(claudeDir: string): Promise<SkillInfo[]> {
+// Scan a plugin installPath for skills/ directory
+async function scanSkillsDir(
+  installPath: string,
+  pluginKey: string
+): Promise<SkillInfo[]> {
   const skills: SkillInfo[] = [];
-  const pluginsFile = path.join(claudeDir, "installed_plugins.json");
+  const skillsDir = path.join(installPath, "skills");
   try {
-    const raw = await fs.readFile(pluginsFile, "utf-8");
-    const installed = JSON.parse(raw) as Record<string, unknown[]>;
-    const cacheDir = path.join(claudeDir, "plugins", "cache");
-
-    for (const [pluginName, _] of Object.entries(installed)) {
-      const skillsDir = path.join(cacheDir, pluginName, "skills");
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillMd = path.join(skillsDir, entry.name, "SKILL.md");
       try {
-        const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
-          const skillMd = path.join(skillsDir, entry.name, "SKILL.md");
-          try {
-            const content = await fs.readFile(skillMd, "utf-8");
-            const nameLine = content.match(/^name:\s*(.+)$/m);
-            const descLine = content.match(/^description:\s*(.+)$/m);
-            skills.push({
-              name: nameLine?.[1]?.trim() ?? entry.name,
-              description: descLine?.[1]?.trim() ?? "",
-              dir: path.join(skillsDir, entry.name),
-              plugin: pluginName,
-              enabled: true,
-            });
-          } catch {
-            // no SKILL.md
-          }
-        }
+        const content = await fs.readFile(skillMd, "utf-8");
+        const nameLine = content.match(/^name:\s*(.+)$/m);
+        const descLine = content.match(/^description:\s*(.+)$/m);
+        skills.push({
+          name: nameLine?.[1]?.trim() ?? entry.name,
+          description: descLine?.[1]?.trim() ?? "",
+          dir: path.join(skillsDir, entry.name),
+          plugin: pluginKey,
+          enabled: true,
+        });
       } catch {
-        // no skills dir
+        // no SKILL.md
       }
     }
   } catch {
-    // no plugins file
+    // no skills dir
   }
   return skills;
+}
+
+// Scan a plugin installPath for agents/ directory
+async function scanAgentsDir(
+  installPath: string,
+  pluginKey: string
+): Promise<AgentInfo[]> {
+  const agents: AgentInfo[] = [];
+  const agentsDir = path.join(installPath, "agents");
+  try {
+    const entries = await fs.readdir(agentsDir);
+    for (const entry of entries) {
+      if (!entry.endsWith(".md")) continue;
+      const filePath = path.join(agentsDir, entry);
+      try {
+        const content = await fs.readFile(filePath, "utf-8");
+        const nameLine = content.match(/^name:\s*(.+)$/m);
+        const descLine = content.match(/^description:\s*(.+)$/m);
+        agents.push({
+          name: nameLine?.[1]?.trim() ?? entry.replace(/\.md$/, ""),
+          description: descLine?.[1]?.trim() ?? "",
+          file: filePath,
+          plugin: pluginKey,
+        });
+      } catch {
+        // unreadable
+      }
+    }
+  } catch {
+    // no agents dir
+  }
+  return agents;
+}
+
+// Filter skills/agents to those available for a given project workdir.
+// Includes user-scoped (global) + project/local scoped matching this workdir.
+function filterForProject<T extends { plugin: string }>(
+  pluginInstalls: Record<string, PluginInstall[]>,
+  workdir: string,
+  items: T[]
+): T[] {
+  // Collect plugin keys available for this project
+  const availablePlugins = new Set<string>();
+  for (const [pluginKey, installs] of Object.entries(pluginInstalls)) {
+    for (const install of installs) {
+      if (
+        install.scope === "user" ||
+        (install.projectPath && workdir.startsWith(install.projectPath))
+      ) {
+        availablePlugins.add(pluginKey);
+      }
+    }
+  }
+  return items.filter((item) => availablePlugins.has(item.plugin));
+}
+
+function deduplicateBy<T>(items: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const k = key(item);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 async function discoverMcpServers(workdir: string): Promise<McpServer[]> {
@@ -158,14 +257,6 @@ async function discoverMcpServers(workdir: string): Promise<McpServer[]> {
     // no settings
   }
   return servers;
-}
-
-async function discoverProjectSkills(
-  _workdir: string,
-  _claudeDir: string
-): Promise<SkillInfo[]> {
-  // Project-scoped skills discovery — simplified for now
-  return [];
 }
 
 async function readJsonSafe(

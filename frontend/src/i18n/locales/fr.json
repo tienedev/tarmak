@@ -351,6 +351,8 @@
     "noMcpServers": "Aucun serveur MCP configur\u00e9 pour ce projet.",
     "skills": "Skills",
     "noSkills": "Aucun skill install\u00e9.",
+    "agents": "Agents",
+    "noAgents": "Aucun agent install\u00e9.",
     "noClaudeMd": "Aucun CLAUDE.md trouv\u00e9 dans le projet.",
     "hooks": "Hooks",
     "noHooks": "Aucun hook configuré.",

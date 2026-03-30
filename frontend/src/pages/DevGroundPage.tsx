@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useBoardStore } from '@/stores/board'
-import { agentApi, type AgentConfig, type McpServer, type SkillInfo } from '@/lib/agent'
-import { ArrowLeft, Terminal, Server, Puzzle, FileText, Loader2, RefreshCw, AlertCircle, Zap } from 'lucide-react'
+import { agentApi, type AgentConfig, type AgentInfo, type McpServer, type SkillInfo } from '@/lib/agent'
+import { ArrowLeft, Terminal, Server, Puzzle, FileText, Loader2, RefreshCw, AlertCircle, Zap, Bot } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface DevGroundPageProps {
@@ -133,9 +133,9 @@ export function DevGroundPage({ boardId }: DevGroundPageProps) {
                 )}
               </ConfigCard>
 
-              {/* Skills — use project-level skills if available, fallback to global */}
+              {/* Skills — use project-level skills if non-empty, fallback to global */}
               {(() => {
-                const skills = projectConfig?.skills ?? config.skills
+                const skills = projectConfig?.skills?.length ? projectConfig.skills : config.skills
                 return (
                   <ConfigCard
                     icon={<Puzzle className="size-4" />}
@@ -153,6 +153,28 @@ export function DevGroundPage({ boardId }: DevGroundPageProps) {
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground py-2">{t('devGround.noSkills')}</p>
+                    )}
+                  </ConfigCard>
+                )
+              })()}
+
+              {/* Agents — use project-level agents if non-empty, fallback to global */}
+              {(() => {
+                const agents = projectConfig?.agents?.length ? projectConfig.agents : config.agents
+                return (
+                  <ConfigCard
+                    icon={<Bot className="size-4" />}
+                    title={t('devGround.agents')}
+                    count={agents.length}
+                  >
+                    {agents.length > 0 ? (
+                      <div className="max-h-64 overflow-y-auto space-y-2 -mx-1 px-1">
+                        {agents.map((agent) => (
+                          <AgentRow key={`${agent.plugin}-${agent.file}`} agent={agent} />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground py-2">{t('devGround.noAgents')}</p>
                     )}
                   </ConfigCard>
                 )
@@ -273,6 +295,26 @@ function SkillRow({ skill }: { skill: SkillInfo }) {
       </div>
       {skill.description && (
         <p className="mt-0.5 ml-3.5 text-xs text-muted-foreground line-clamp-2">{skill.description}</p>
+      )}
+    </div>
+  )
+}
+
+function AgentRow({ agent }: { agent: AgentInfo }) {
+  const pluginShort = agent.plugin?.split('@')[0] ?? ''
+  return (
+    <div className="rounded-lg bg-muted/30 px-3 py-2">
+      <div className="flex items-center gap-2">
+        <div className="size-1.5 rounded-full shrink-0 bg-blue-500" />
+        <span className="text-sm font-medium">{agent.name}</span>
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {pluginShort && (
+            <Badge variant="outline" className="text-[0.55rem]">{pluginShort}</Badge>
+          )}
+        </div>
+      </div>
+      {agent.description && (
+        <p className="mt-0.5 ml-3.5 text-xs text-muted-foreground line-clamp-2">{agent.description}</p>
       )}
     </div>
   )

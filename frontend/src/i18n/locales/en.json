@@ -351,6 +351,8 @@
     "noMcpServers": "No MCP servers configured for this project.",
     "skills": "Skills",
     "noSkills": "No skills installed.",
+    "agents": "Agents",
+    "noAgents": "No agents installed.",
     "noClaudeMd": "No CLAUDE.md found in the project.",
     "hooks": "Hooks",
     "noHooks": "No hooks configured.",

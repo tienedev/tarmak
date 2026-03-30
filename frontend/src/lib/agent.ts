@@ -26,6 +26,13 @@ export interface SkillInfo {
   enabled: boolean
 }
 
+export interface AgentInfo {
+  name: string
+  description: string
+  file: string
+  plugin: string
+}
+
 export interface HookEntry {
   command: string
   [key: string]: unknown
@@ -40,6 +47,7 @@ export interface ProjectConfig {
   settings: Record<string, unknown> | null
   mcp_servers: McpServer[]
   skills: SkillInfo[]
+  agents: AgentInfo[]
 }
 
 export interface AgentConfig {
@@ -49,6 +57,7 @@ export interface AgentConfig {
   }
   plugins: Record<string, unknown[]> | null
   skills: SkillInfo[]
+  agents: AgentInfo[]
   hooks: HooksConfig | null
   projects: ProjectConfig[]
   stats: {
