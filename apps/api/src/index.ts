@@ -53,7 +53,13 @@ switch (command) {
             logger.warn({ err }, "WebSocket message error");
           }
         });
-        ws.on("close", () => syncServer.leave(client));
+        ws.on("close", () => {
+          try {
+            syncServer.leave(client);
+          } catch (err) {
+            logger.warn({ err }, "WebSocket close error");
+          }
+        });
       });
     });
 
