@@ -7,6 +7,27 @@ interface AuthResult {
   user: { id: string; name: string; email: string }
 }
 
+/** Call a tRPC mutation via HTTP batch protocol. */
+async function trpc<T>(
+  page: Page,
+  procedure: string,
+  input: unknown,
+  token: string,
+): Promise<T> {
+  const res = await page.request.post(`/trpc/${procedure}?batch=1`, {
+    data: { '0': { json: input } },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  if (!res.ok()) {
+    throw new Error(`tRPC ${procedure} failed: ${res.status()} ${await res.text()}`)
+  }
+  const body = await res.json()
+  return body[0].result.data.json as T
+}
+
 /** Register a user via API and inject the token into the browser. */
 export async function registerAndLogin(page: Page, prefix: string) {
   const user = {
@@ -35,15 +56,15 @@ export async function registerAndLogin(page: Page, prefix: string) {
   return user
 }
 
-/** Create a board via API and navigate into it. */
+/** Get auth token from localStorage. */
+export async function getToken(page: Page): Promise<string> {
+  return (await page.evaluate(() => localStorage.getItem('token')))!
+}
+
+/** Create a board via tRPC and navigate into it. */
 export async function createBoard(page: Page, name: string, description?: string) {
-  const res = await page.request.post(`${API}/boards`, {
-    data: { name, description },
-    headers: {
-      Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('token'))}`,
-    },
-  })
-  const board: { id: string } = await res.json()
+  const token = await getToken(page)
+  const board = await trpc<{ id: string }>(page, 'board.create', { name, description }, token)
 
   await page.goto(`/#/boards/${board.id}`)
   await expect(page.getByRole('main').getByRole('heading', { name })).toBeVisible()
@@ -51,23 +72,13 @@ export async function createBoard(page: Page, name: string, description?: string
   return board
 }
 
-/** Create a column via API. */
+/** Create a column via tRPC. */
 export async function createColumn(page: Page, boardId: string, name: string, color?: string) {
-  const res = await page.request.post(`${API}/boards/${boardId}/columns`, {
-    data: { name, color },
-    headers: {
-      Authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('token'))}`,
-    },
-  })
-  return (await res.json()) as { id: string }
+  const token = await getToken(page)
+  return trpc<{ id: string }>(page, 'column.create', { boardId, name, color }, token)
 }
 
-/** Get auth token from localStorage. */
-export async function getToken(page: Page): Promise<string> {
-  return (await page.evaluate(() => localStorage.getItem('token')))!
-}
-
-/** Create a task via API. Returns task with id. */
+/** Create a task via tRPC. Returns task with id. */
 export async function createTask(
   page: Page,
   boardId: string,
@@ -76,55 +87,35 @@ export async function createTask(
   priority?: string,
 ) {
   const token = await getToken(page)
-  const res = await page.request.post(`${API}/boards/${boardId}/tasks`, {
-    data: { title, column_id: columnId, priority: priority ?? 'medium' },
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  return (await res.json()) as { id: string; title: string }
+  return trpc<{ id: string; title: string }>(
+    page,
+    'task.create',
+    { boardId, columnId, title, priority: priority ?? 'medium' },
+    token,
+  )
 }
 
-/** Create a label via API. Returns label with id. */
-export async function createLabel(
-  page: Page,
-  boardId: string,
-  name: string,
-  color: string,
-) {
+/** Create a label via tRPC. Returns label with id. */
+export async function createLabel(page: Page, boardId: string, name: string, color: string) {
   const token = await getToken(page)
-  const res = await page.request.post(`${API}/boards/${boardId}/labels`, {
-    data: { name, color },
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  return (await res.json()) as { id: string; name: string }
+  return trpc<{ id: string; name: string }>(page, 'label.create', { boardId, name, color }, token)
 }
 
-/** Assign a label to a task via API. */
+/** Assign a label to a task via tRPC. */
 export async function addTaskLabel(
   page: Page,
-  boardId: string,
+  _boardId: string,
   taskId: string,
   labelId: string,
 ) {
   const token = await getToken(page)
-  await page.request.post(`${API}/boards/${boardId}/tasks/${taskId}/labels`, {
-    data: { label_id: labelId },
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  await trpc(page, 'label.addToTask', { taskId, labelId }, token)
 }
 
-/** Create a subtask via API. */
-export async function createSubtask(
-  page: Page,
-  boardId: string,
-  taskId: string,
-  title: string,
-) {
+/** Create a subtask via tRPC. */
+export async function createSubtask(page: Page, _boardId: string, taskId: string, title: string) {
   const token = await getToken(page)
-  const res = await page.request.post(`${API}/boards/${boardId}/tasks/${taskId}/subtasks`, {
-    data: { title },
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  return (await res.json()) as { id: string; title: string }
+  return trpc<{ id: string; title: string }>(page, 'subtask.create', { taskId, title }, token)
 }
 
 /** Create a task via UI (requires being on a board page with a column). */
