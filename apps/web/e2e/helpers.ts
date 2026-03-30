@@ -7,7 +7,7 @@ interface AuthResult {
   user: { id: string; name: string; email: string }
 }
 
-/** Call a tRPC mutation via HTTP batch protocol (tRPC v11). */
+/** Call a tRPC mutation via HTTP batch protocol (tRPC v11, no transformer). */
 async function trpc<T>(
   page: Page,
   procedure: string,
@@ -15,7 +15,7 @@ async function trpc<T>(
   token: string,
 ): Promise<T> {
   const res = await page.request.post(`/trpc/${procedure}?batch=1`, {
-    data: [{ json: input }],
+    data: { 0: input },
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -25,7 +25,7 @@ async function trpc<T>(
     throw new Error(`tRPC ${procedure} failed: ${res.status()} ${await res.text()}`)
   }
   const body = await res.json()
-  return body[0].result.data.json as T
+  return body[0].result.data as T
 }
 
 /** Register a user via API and inject the token into the browser. */

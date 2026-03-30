@@ -46,10 +46,12 @@ switch (command) {
         };
         syncServer.join(client);
         ws.on("message", (msg) => {
-          syncServer.handleMessage(
-            client,
-            new Uint8Array(msg as ArrayBuffer),
-          );
+          try {
+            const data = Buffer.isBuffer(msg) ? msg : Buffer.from(msg as ArrayBuffer);
+            syncServer.handleMessage(client, new Uint8Array(data));
+          } catch (err) {
+            logger.warn({ err }, "WebSocket message error");
+          }
         });
         ws.on("close", () => syncServer.leave(client));
       });
