@@ -29,7 +29,7 @@ test.describe('Activity panel', () => {
     // Open activity panel
     await main(page).getByRole('button', { name: 'Activity' }).click()
 
-    // Should have entries related to task creation (scope to sheet to avoid hidden Select options)
-    await expect(page.getByRole('dialog').getByText(/created/).first()).toBeVisible()
+    // Wait for activity entries to load (async tRPC call), then check for "created" text
+    await expect(page.getByRole('dialog').getByText(/created/).first()).toBeVisible({ timeout: 10_000 })
   })
 })

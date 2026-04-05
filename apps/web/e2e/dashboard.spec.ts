@@ -25,12 +25,13 @@ test.describe('Dashboard', () => {
     await createBoard(page, 'Clickable Board')
     await page.goto('/#/')
 
-    // Board is already expanded from the previous navigation — click its "Board" sub-link
+    // Wait for the sidebar to load the board list
+    await expect(sidebarBoard(page, 'Clickable Board')).toBeVisible({ timeout: 10_000 })
+
+    // Expand the board in sidebar to reveal the "Board" sub-link
+    await sidebarBoard(page, 'Clickable Board').click()
     const boardLink = page.locator('aside a', { hasText: 'Board' }).first()
-    // If not visible (collapsed), expand first
-    if (!(await boardLink.isVisible())) {
-      await sidebarBoard(page, 'Clickable Board').click()
-    }
+    await expect(boardLink).toBeVisible({ timeout: 5_000 })
     await boardLink.click()
     await expect(page).toHaveURL(/#\/boards\//)
     await expect(main(page).getByRole('heading', { name: 'Clickable Board' })).toBeVisible()
