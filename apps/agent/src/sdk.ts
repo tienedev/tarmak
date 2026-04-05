@@ -1,100 +1,95 @@
+import type { WebSocket } from "ws";
 // agent/src/sdk.ts
 import type { ServerMessage } from "./types.js";
-import type { WebSocket } from "ws";
 
-// Transform SDK messages to our WebSocket protocol.
 // The SDK message types are loosely typed — we pattern-match on known shapes.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformMessage(message: any): ServerMessage | null {
+type SdkMessage = Record<string, unknown>;
+
+export function transformMessage(message: unknown): ServerMessage | null {
   if (!message || typeof message !== "object") return null;
+  const msg = message as SdkMessage;
 
-  // ResultMessage — has .result string
-  if ("result" in message && typeof message.result === "string") {
-    return { type: "result", content: message.result };
+  if (typeof msg.result === "string") {
+    return { type: "result", content: msg.result };
   }
 
-  // SystemMessage — init, ignore
-  if (message.type === "system") {
-    return null;
-  }
+  if (msg.type === "system") return null;
 
-  // ToolUseSummaryMessage — tool execution result
-  if (message.type === "tool_use_summary") {
+  if (msg.type === "tool_use_summary") {
     return {
       type: "tool_result",
-      tool: message.tool_name ?? "unknown",
-      output: typeof message.output === "string" ? message.output : JSON.stringify(message.output ?? ""),
+      tool: (msg.tool_name as string) ?? "unknown",
+      output: typeof msg.output === "string" ? msg.output : JSON.stringify(msg.output ?? ""),
     };
   }
 
-  // AssistantMessage — has .message.content array (Anthropic BetaMessage shape)
-  if (message.type === "assistant" && message.message?.content) {
-    const blocks = message.message.content;
+  const inner = msg.message as SdkMessage | undefined;
+  if (msg.type === "assistant" && inner?.content) {
+    const blocks = inner.content as SdkMessage[];
     const texts: string[] = [];
     const toolUses: ServerMessage[] = [];
 
     for (const block of blocks) {
-      if (block.type === "text" && block.text) {
+      if (block.type === "text" && typeof block.text === "string") {
         texts.push(block.text);
       } else if (block.type === "tool_use") {
         toolUses.push({
           type: "tool_use",
-          tool: block.name ?? "unknown",
-          input: block.input ?? {},
+          tool: (block.name as string) ?? "unknown",
+          input: (block.input as Record<string, unknown>) ?? {},
         });
       }
     }
 
-    // Return text first if present, tool uses get sent separately
     if (texts.length > 0) {
       return { type: "assistant", content: texts.join("\n") };
     }
     if (toolUses.length > 0) {
-      return toolUses[0]; // first tool_use; caller should handle multiple
+      return toolUses[0] ?? null;
     }
     return null;
   }
 
-  // PartialAssistantMessage (streaming) — simpler shape
-  if (message.type === "assistant" && typeof message.content === "string") {
-    return { type: "assistant", content: message.content };
+  if (msg.type === "assistant" && typeof msg.content === "string") {
+    return { type: "assistant", content: msg.content };
   }
 
-  // Ignore everything else (hooks, retries, status, etc.)
   return null;
 }
 
 // Extract all server messages from a single SDK message
 // (an assistant message can contain both text and multiple tool_use blocks)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformMessageAll(message: any): ServerMessage[] {
+export function transformMessageAll(message: unknown): ServerMessage[] {
   if (!message || typeof message !== "object") return [];
+  const msg = message as SdkMessage;
 
-  if ("result" in message && typeof message.result === "string") {
-    return [{ type: "result", content: message.result }];
+  if (typeof msg.result === "string") {
+    return [{ type: "result", content: msg.result }];
   }
 
-  if (message.type === "system") return [];
+  if (msg.type === "system") return [];
 
-  // ToolUseSummaryMessage — tool execution result
-  if (message.type === "tool_use_summary") {
-    return [{
-      type: "tool_result",
-      tool: message.tool_name ?? "unknown",
-      output: typeof message.output === "string" ? message.output : JSON.stringify(message.output ?? ""),
-    }];
+  if (msg.type === "tool_use_summary") {
+    return [
+      {
+        type: "tool_result",
+        tool: (msg.tool_name as string) ?? "unknown",
+        output: typeof msg.output === "string" ? msg.output : JSON.stringify(msg.output ?? ""),
+      },
+    ];
   }
 
-  if (message.type === "assistant" && message.message?.content) {
+  const inner = msg.message as SdkMessage | undefined;
+  if (msg.type === "assistant" && inner?.content) {
     const results: ServerMessage[] = [];
-    for (const block of message.message.content) {
-      if (block.type === "text" && block.text) {
+    for (const block of inner.content as SdkMessage[]) {
+      if (block.type === "text" && typeof block.text === "string") {
         results.push({ type: "assistant", content: block.text });
       } else if (block.type === "tool_use") {
         results.push({
           type: "tool_use",
-          tool: block.name ?? "unknown",
-          input: block.input ?? {},
+          tool: (block.name as string) ?? "unknown",
+          input: (block.input as Record<string, unknown>) ?? {},
         });
       }
     }
@@ -110,9 +105,7 @@ export function sendMessage(ws: WebSocket, msg: ServerMessage): void {
   }
 }
 
-export function waitForClientMessage(
-  ws: WebSocket
-): Promise<{ type: string }> {
+export function waitForClientMessage(ws: WebSocket): Promise<{ type: string }> {
   return new Promise((resolve, reject) => {
     const onMessage = (data: Buffer) => {
       try {

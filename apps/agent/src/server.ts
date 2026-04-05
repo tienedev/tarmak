@@ -1,22 +1,34 @@
+import fs from "node:fs";
+import type { IncomingMessage } from "node:http";
+import path from "node:path";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { serve } from "@hono/node-server";
 // agent/src/server.ts
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { serve } from "@hono/node-server";
-import fs from "fs";
-import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { WebSocketServer, type WebSocket } from "ws";
-import type { IncomingMessage } from "node:http";
+import { type WebSocket, WebSocketServer } from "ws";
 
-import type { Session, RunRequest, RunResponse, HealthResponse, SessionInfo, ServerMessage } from "./types.js";
-import { generateToken, loadToken, saveToken } from "./token.js";
-import { RepoCache } from "./repo-cache.js";
-import { branchName, createWorktree, cleanupWorktree, cleanupOrphanedWorktrees } from "./worktree.js";
-import { detectRepos } from "./detect.js";
+import { reportSessionCompleted, reportSessionCreated } from "./callback.js";
 import { getConfig } from "./config.js";
-import { reportSessionCreated, reportSessionCompleted } from "./callback.js";
-import { transformMessageAll, sendMessage } from "./sdk.js";
+import { detectRepos } from "./detect.js";
+import { RepoCache } from "./repo-cache.js";
+import { sendMessage, transformMessageAll } from "./sdk.js";
+import { generateToken, loadToken, saveToken } from "./token.js";
+import type {
+  HealthResponse,
+  RunRequest,
+  RunResponse,
+  ServerMessage,
+  Session,
+  SessionInfo,
+} from "./types.js";
+import {
+  branchName,
+  cleanupOrphanedWorktrees,
+  cleanupWorktree,
+  createWorktree,
+} from "./worktree.js";
 
 interface StartOptions {
   serverUrl: string;
@@ -78,7 +90,9 @@ export async function startServer(opts: StartOptions): Promise<void> {
         validatedTokens.set(token, now);
         return true;
       }
-    } catch { /* validation failed */ }
+    } catch {
+      /* validation failed */
+    }
     return false;
   }
 
@@ -131,7 +145,7 @@ export async function startServer(opts: StartOptions): Promise<void> {
   // --- POST /run ---
   app.post("/run", async (c) => {
     const body = await c.req.json<RunRequest>();
-    const { board_id, task_id, prompt, repo_url } = body ?? {} as RunRequest;
+    const { board_id, task_id, prompt, repo_url } = body ?? ({} as RunRequest);
     if (!board_id || !task_id || !prompt || !repo_url) {
       return c.json({ error: "Missing required fields: board_id, task_id, prompt, repo_url" }, 400);
     }
@@ -143,10 +157,13 @@ export async function startServer(opts: StartOptions): Promise<void> {
       workdir = repoCache.get(repo_url);
     }
     if (!workdir) {
-      return c.json({
-        error: "Repository not found on this machine",
-        hint: `Use POST /config/set-workdir to register the local path for ${repo_url}`,
-      }, 400);
+      return c.json(
+        {
+          error: "Repository not found on this machine",
+          hint: `Use POST /config/set-workdir to register the local path for ${repo_url}`,
+        },
+        400,
+      );
     }
 
     const sessionId = uuidv4();
@@ -156,9 +173,12 @@ export async function startServer(opts: StartOptions): Promise<void> {
     try {
       worktreePath = await createWorktree(workdir, sessionId, branch);
     } catch (err) {
-      return c.json({
-        error: `Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`,
-      }, 500);
+      return c.json(
+        {
+          error: `Failed to create worktree: ${err instanceof Error ? err.message : String(err)}`,
+        },
+        500,
+      );
     }
 
     const session: Session = {
@@ -243,7 +263,11 @@ export async function startServer(opts: StartOptions): Promise<void> {
       session.messages.push(msg);
       if (session.messages.length > MAX_SESSION_MESSAGES) {
         // Keep the first message (initial status) and the most recent messages
-        session.messages = [session.messages[0]!, ...session.messages.slice(-MAX_SESSION_MESSAGES + 1)];
+        session.messages = [
+          // biome-ignore lint/style/noNonNullAssertion: array is guaranteed non-empty here
+          session.messages[0]!,
+          ...session.messages.slice(-MAX_SESSION_MESSAGES + 1),
+        ];
       }
     }
 
@@ -359,10 +383,13 @@ export async function startServer(opts: StartOptions): Promise<void> {
     await reportSessionCompleted(opts.serverUrl, opts.serverToken, session);
 
     // Schedule message buffer cleanup (keep for 5 min after completion)
-    setTimeout(() => {
-      sessions.delete(session.id);
-      sessionWs.delete(session.id);
-    }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        sessions.delete(session.id);
+        sessionWs.delete(session.id);
+      },
+      5 * 60 * 1000,
+    );
 
     // Cleanup worktree
     try {
@@ -392,9 +419,8 @@ export async function startServer(opts: StartOptions): Promise<void> {
     const sessionId = match[1];
 
     // Auth check
-    const token = extractToken(request.headers.authorization)
-      || url.searchParams.get("token")
-      || "";
+    const token =
+      extractToken(request.headers.authorization) || url.searchParams.get("token") || "";
     if (!(await validateToken(token))) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
@@ -411,7 +437,7 @@ export async function startServer(opts: StartOptions): Promise<void> {
     wss.handleUpgrade(request, socket, head, (ws) => {
       // Register WebSocket for broadcasts
       if (!sessionWs.has(sessionId)) sessionWs.set(sessionId, new Set());
-      sessionWs.get(sessionId)!.add(ws);
+      sessionWs.get(sessionId)?.add(ws);
 
       // Replay buffered messages
       for (const msg of session.messages) {
@@ -422,12 +448,18 @@ export async function startServer(opts: StartOptions): Promise<void> {
       ws.on("message", (data) => {
         try {
           const parsed = JSON.parse(data.toString());
-          if ((parsed.type === "approve" || parsed.type === "reject") && approvalResolvers.has(sessionId)) {
+          if (
+            (parsed.type === "approve" || parsed.type === "reject") &&
+            approvalResolvers.has(sessionId)
+          ) {
+            // biome-ignore lint/style/noNonNullAssertion: checked by .has() above
             const resolver = approvalResolvers.get(sessionId)!;
             approvalResolvers.delete(sessionId);
             resolver(parsed);
           }
-        } catch { /* ignore malformed */ }
+        } catch {
+          /* ignore malformed */
+        }
       });
 
       ws.on("close", () => {

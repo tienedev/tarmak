@@ -1,6 +1,6 @@
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 export class RepoCache {
   private mappings: Map<string, string>;

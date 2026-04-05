@@ -1,7 +1,7 @@
 // agent/src/config.ts
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 export interface McpServer {
   name: string;
@@ -43,24 +43,20 @@ export interface AgentConfig {
   } | null;
 }
 
-export async function getConfig(
-  workdirs: Map<string, string>
-): Promise<AgentConfig> {
+export async function getConfig(workdirs: Map<string, string>): Promise<AgentConfig> {
   const claudeDir = path.join(os.homedir(), ".claude");
 
   // Global settings
-  const globalSettings = await readJsonSafe(
-    path.join(claudeDir, "settings.json")
-  );
+  const globalSettings = await readJsonSafe(path.join(claudeDir, "settings.json"));
 
   // Global MCP servers
-  const globalMcp =
-    (globalSettings?.mcpServers as Record<string, unknown>) ?? null;
+  const globalMcp = (globalSettings?.mcpServers as Record<string, unknown>) ?? null;
 
   // Installed plugins
-  const plugins = (await readJsonSafe(
-    path.join(claudeDir, "installed_plugins.json")
-  )) as Record<string, unknown[]> | null;
+  const plugins = (await readJsonSafe(path.join(claudeDir, "installed_plugins.json"))) as Record<
+    string,
+    unknown[]
+  > | null;
 
   // Skills from plugins
   const skills = await discoverSkills(claudeDir);
@@ -68,12 +64,8 @@ export async function getConfig(
   // Per-project configs
   const projects: ProjectConfig[] = [];
   for (const [repoUrl, workdir] of workdirs) {
-    const projectClaudeMd = await readFileSafe(
-      path.join(workdir, "CLAUDE.md")
-    );
-    const projectSettings = await readJsonSafe(
-      path.join(workdir, ".claude", "settings.json")
-    );
+    const projectClaudeMd = await readFileSafe(path.join(workdir, "CLAUDE.md"));
+    const projectSettings = await readJsonSafe(path.join(workdir, ".claude", "settings.json"));
     const projectMcp = await discoverMcpServers(workdir);
     const projectSkills = await discoverProjectSkills(workdir, claudeDir);
 
@@ -143,7 +135,9 @@ async function discoverMcpServers(workdir: string): Promise<McpServer[]> {
   try {
     const raw = await fs.readFile(settingsPath, "utf-8");
     const settings = JSON.parse(raw);
-    const mcp = settings?.mcpServers as Record<string, { command?: string; args?: string[] }> | undefined;
+    const mcp = settings?.mcpServers as
+      | Record<string, { command?: string; args?: string[] }>
+      | undefined;
     if (mcp) {
       for (const [name, cfg] of Object.entries(mcp)) {
         servers.push({
@@ -160,17 +154,12 @@ async function discoverMcpServers(workdir: string): Promise<McpServer[]> {
   return servers;
 }
 
-async function discoverProjectSkills(
-  _workdir: string,
-  _claudeDir: string
-): Promise<SkillInfo[]> {
+async function discoverProjectSkills(_workdir: string, _claudeDir: string): Promise<SkillInfo[]> {
   // Project-scoped skills discovery — simplified for now
   return [];
 }
 
-async function readJsonSafe(
-  filepath: string
-): Promise<Record<string, unknown> | null> {
+async function readJsonSafe(filepath: string): Promise<Record<string, unknown> | null> {
   try {
     const raw = await fs.readFile(filepath, "utf-8");
     return JSON.parse(raw);

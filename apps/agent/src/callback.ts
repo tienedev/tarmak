@@ -8,7 +8,7 @@ import type { Session } from "./types.js";
 export async function reportSessionCreated(
   serverUrl: string,
   serverToken: string,
-  session: Session
+  session: Session,
 ): Promise<void> {
   try {
     await fetch(`${serverUrl}/trpc/agent.create`, {
@@ -37,14 +37,10 @@ export async function reportSessionCreated(
 export async function reportSessionCompleted(
   serverUrl: string,
   serverToken: string,
-  session: Session
+  session: Session,
 ): Promise<void> {
   const status =
-    session.status === "cancelled"
-      ? "cancelled"
-      : session.exitCode === 0
-        ? "success"
-        : "failed";
+    session.status === "cancelled" ? "cancelled" : session.exitCode === 0 ? "success" : "failed";
 
   try {
     await fetch(`${serverUrl}/trpc/agent.update`, {
