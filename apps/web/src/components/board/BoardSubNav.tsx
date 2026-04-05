@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { Filter, X, ChevronDown } from 'lucide-react'
-import type { ViewMode } from '@/components/board/ViewSwitcher'
+import type { ViewMode } from '@/lib/types'
 
 const priorityOptions = [
   { value: 'urgent', labelKey: 'task.priorityUrgent', color: 'bg-red-500' },

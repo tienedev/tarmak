@@ -167,6 +167,8 @@ export interface Attachment {
   created_at: string
 }
 
+export type ViewMode = 'kanban' | 'list' | 'timeline' | 'sessions'
+
 export interface AgentSession {
   id: string
   board_id: string
