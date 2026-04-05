@@ -2,8 +2,6 @@ import { test, expect } from '@playwright/test'
 import {
   registerAndLogin,
   createBoard,
-  createColumn,
-  createTaskViaUI,
   main,
 } from './helpers'
 
