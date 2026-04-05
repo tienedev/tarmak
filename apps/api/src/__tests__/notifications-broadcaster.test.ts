@@ -1,27 +1,18 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb, notificationsRepo } from "@tarmak/db";
-import {
-  NotificationBroadcaster,
-  type NotificationEvent,
-} from "../notifications/broadcaster";
-import { TicketStore } from "../notifications/ticket-store";
+import { sql } from "drizzle-orm";
+import { beforeEach, describe, expect, it } from "vitest";
 import { checkDeadlines } from "../background/deadlines";
 import { cleanupSessions } from "../background/sessions";
+import { NotificationBroadcaster, type NotificationEvent } from "../notifications/broadcaster";
+import { TicketStore } from "../notifications/ticket-store";
 
 function createTestDb() {
   const db = createDb();
   migrateDb(db);
   // Seed board and user for foreign key constraints
-  db.run(
-    sql`INSERT INTO boards (id, name) VALUES ('board-1', 'Test Board')`,
-  );
-  db.run(
-    sql`INSERT INTO users (id, name, email) VALUES ('user-1', 'Alice', 'alice@test.com')`,
-  );
-  db.run(
-    sql`INSERT INTO users (id, name, email) VALUES ('user-2', 'Bob', 'bob@test.com')`,
-  );
+  db.run(sql`INSERT INTO boards (id, name) VALUES ('board-1', 'Test Board')`);
+  db.run(sql`INSERT INTO users (id, name, email) VALUES ('user-1', 'Alice', 'alice@test.com')`);
+  db.run(sql`INSERT INTO users (id, name, email) VALUES ('user-2', 'Bob', 'bob@test.com')`);
   db.run(
     sql`INSERT INTO columns (id, board_id, name, position) VALUES ('col-1', 'board-1', 'Todo', 0)`,
   );
@@ -68,9 +59,7 @@ describe("NotificationBroadcaster", () => {
 
   it("unsubscribe stops receiving events", () => {
     const received: NotificationEvent[] = [];
-    const unsubscribe = broadcaster.subscribe("user-1", (event) =>
-      received.push(event),
-    );
+    const unsubscribe = broadcaster.subscribe("user-1", (event) => received.push(event));
 
     broadcaster.send({
       userId: "user-1",
@@ -153,12 +142,12 @@ describe("checkDeadlines", () => {
     // Should have created a notification in the database
     const notifications = notificationsRepo.listNotifications(db, "user-1");
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]!.type).toBe("deadline_overdue");
-    expect(notifications[0]!.title).toContain("Overdue Task");
+    expect(notifications[0]?.type).toBe("deadline_overdue");
+    expect(notifications[0]?.title).toContain("Overdue Task");
 
     // Should have broadcast an event
     expect(received).toHaveLength(1);
-    expect(received[0]!.type).toBe("deadline_overdue");
+    expect(received[0]?.type).toBe("deadline_overdue");
   });
 
   it("deduplicates — does not re-notify for the same overdue task", () => {
@@ -287,16 +276,12 @@ describe("cleanupSessions", () => {
     cleanupSessions(db);
 
     // Stale session should be marked as failed
-    const stale = db.all(
-      sql`SELECT id, status FROM agent_sessions WHERE id = 'agent-1'`,
-    );
+    const stale = db.all(sql`SELECT id, status FROM agent_sessions WHERE id = 'agent-1'`);
     expect(stale).toHaveLength(1);
     expect((stale[0] as { status: string }).status).toBe("failed");
 
     // Recent session should still be running
-    const recent = db.all(
-      sql`SELECT id, status FROM agent_sessions WHERE id = 'agent-2'`,
-    );
+    const recent = db.all(sql`SELECT id, status FROM agent_sessions WHERE id = 'agent-2'`);
     expect(recent).toHaveLength(1);
     expect((recent[0] as { status: string }).status).toBe("running");
   });

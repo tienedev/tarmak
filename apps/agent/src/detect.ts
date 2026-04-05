@@ -1,10 +1,10 @@
-import { execFile } from "child_process";
-import { promisify } from "util";
-import fs from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
-import os from "os";
-import { RepoCache } from "./repo-cache.js";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+import type { RepoCache } from "./repo-cache.js";
 
 const exec = promisify(execFile);
 
@@ -23,10 +23,7 @@ export function normalizeUrl(url: string): string {
   return u;
 }
 
-export async function detectRepos(
-  repoUrls: string[],
-  cache: RepoCache
-): Promise<void> {
+export async function detectRepos(repoUrls: string[], cache: RepoCache): Promise<void> {
   // Prune stale entries (must be synchronous — retain() is not async)
   cache.retain((_, workdir) => existsSync(workdir));
 
@@ -34,9 +31,7 @@ export async function detectRepos(
   const needed = repoUrls.filter((url) => !cache.get(url));
   if (needed.length === 0) return;
 
-  const normalizedNeeded = new Map(
-    needed.map((url) => [normalizeUrl(url), url])
-  );
+  const normalizedNeeded = new Map(needed.map((url) => [normalizeUrl(url), url]));
 
   const gitDirs = await findGitDirs();
   for (const gitDir of gitDirs) {
@@ -88,14 +83,9 @@ async function findGitDirs(): Promise<string[]> {
 
   // Scan common directories
   const home = os.homedir();
-  const dirs = [
-    "Projects",
-    "Projets",
-    "Developer",
-    "code",
-    "repos",
-    "src",
-  ].map((d) => path.join(home, d));
+  const dirs = ["Projects", "Projets", "Developer", "code", "repos", "src"].map((d) =>
+    path.join(home, d),
+  );
 
   const results: string[] = [];
   for (const dir of dirs) {
@@ -104,11 +94,7 @@ async function findGitDirs(): Promise<string[]> {
   return results;
 }
 
-async function scanForGitDirs(
-  dir: string,
-  maxDepth: number,
-  results: string[]
-): Promise<void> {
+async function scanForGitDirs(dir: string, maxDepth: number, results: string[]): Promise<void> {
   if (maxDepth <= 0) return;
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });

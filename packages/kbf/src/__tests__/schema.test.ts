@@ -15,9 +15,9 @@ describe("Schema", () => {
   it("parses valid header", () => {
     const schema = Schema.parse("#task@v1:id,title,status");
     expect(schema).not.toBeNull();
-    expect(schema!.entity).toBe("task");
-    expect(schema!.version).toBe(1);
-    expect(schema!.fields).toEqual(["id", "title", "status"]);
+    expect(schema?.entity).toBe("task");
+    expect(schema?.version).toBe(1);
+    expect(schema?.fields).toEqual(["id", "title", "status"]);
   });
 
   it("returns null for missing #", () => {

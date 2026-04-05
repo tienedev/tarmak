@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
-import { eq, and, gt } from "drizzle-orm";
 import type { DB } from "@tarmak/db";
 import { sessions, users } from "@tarmak/db";
+import { and, eq, gt } from "drizzle-orm";
 
 export function resolveUser(db: DB, authHeader: string | undefined) {
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -12,10 +12,7 @@ export function resolveUser(db: DB, authHeader: string | undefined) {
     .select()
     .from(sessions)
     .where(
-      and(
-        eq(sessions.token_hash, tokenHash),
-        gt(sessions.expires_at, new Date().toISOString()),
-      ),
+      and(eq(sessions.token_hash, tokenHash), gt(sessions.expires_at, new Date().toISOString())),
     )
     .get();
   if (!session) return null;

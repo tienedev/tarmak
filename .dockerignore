@@ -1,0 +1,17 @@
+node_modules/
+.git/
+.worktrees/
+.turbo/
+dist/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.env
+.mcp.json
+.claude/
+.superpowers/
+frontend/
+test-results/
+playwright-report/
+docs/

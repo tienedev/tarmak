@@ -1,4 +1,5 @@
-import { eq, and, sql } from "drizzle-orm";
+import type { FieldType } from "@tarmak/shared";
+import { and, eq, sql } from "drizzle-orm";
 import type { DB } from "../connection";
 import { customFields, taskCustomFieldValues } from "../schema/index";
 
@@ -6,7 +7,7 @@ export function createCustomField(
   db: DB,
   boardId: string,
   name: string,
-  fieldType: string,
+  fieldType: FieldType,
   config?: string,
 ) {
   const id = crypto.randomUUID();
@@ -81,10 +82,7 @@ export function deleteFieldValue(db: DB, taskId: string, fieldId: string) {
   const result = db
     .delete(taskCustomFieldValues)
     .where(
-      and(
-        eq(taskCustomFieldValues.task_id, taskId),
-        eq(taskCustomFieldValues.field_id, fieldId),
-      ),
+      and(eq(taskCustomFieldValues.task_id, taskId), eq(taskCustomFieldValues.field_id, fieldId)),
     )
     .run();
   return result.changes > 0;

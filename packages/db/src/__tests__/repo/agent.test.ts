@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
+import type { DB } from "../../connection";
 import {
   createAgentSession,
   getAgentSession,
-  updateAgentSession,
-  listBoardSessions,
   getRunningSession,
+  listBoardSessions,
+  updateAgentSession,
 } from "../../repo/agent";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
 import { createTask } from "../../repo/tasks";
 import { users } from "../../schema/users";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -85,7 +85,7 @@ describe("agent repo", () => {
 
       const found = getAgentSession(db, session.id);
       expect(found).not.toBeNull();
-      expect(found!.id).toBe(session.id);
+      expect(found?.id).toBe(session.id);
     });
 
     it("returns null for non-existent session", () => {
@@ -107,10 +107,10 @@ describe("agent repo", () => {
 
       const updated = updateAgentSession(db, session.id, { status: "success", exitCode: 0 });
       expect(updated).not.toBeNull();
-      expect(updated!.status).toBe("success");
-      expect(updated!.exit_code).toBe(0);
-      expect(updated!.finished_at).toBeDefined();
-      expect(updated!.finished_at).not.toBeNull();
+      expect(updated?.status).toBe("success");
+      expect(updated?.exit_code).toBe(0);
+      expect(updated?.finished_at).toBeDefined();
+      expect(updated?.finished_at).not.toBeNull();
     });
 
     it("updates status to failed and sets finished_at", () => {
@@ -128,10 +128,10 @@ describe("agent repo", () => {
         exitCode: 1,
         log: "Error occurred",
       });
-      expect(updated!.status).toBe("failed");
-      expect(updated!.exit_code).toBe(1);
-      expect(updated!.log).toBe("Error occurred");
-      expect(updated!.finished_at).not.toBeNull();
+      expect(updated?.status).toBe("failed");
+      expect(updated?.exit_code).toBe(1);
+      expect(updated?.log).toBe("Error occurred");
+      expect(updated?.finished_at).not.toBeNull();
     });
 
     it("updates status to cancelled and sets finished_at", () => {
@@ -145,8 +145,8 @@ describe("agent repo", () => {
       });
 
       const updated = updateAgentSession(db, session.id, { status: "cancelled" });
-      expect(updated!.status).toBe("cancelled");
-      expect(updated!.finished_at).not.toBeNull();
+      expect(updated?.status).toBe("cancelled");
+      expect(updated?.finished_at).not.toBeNull();
     });
 
     it("updates branch name without setting finished_at", () => {
@@ -160,9 +160,9 @@ describe("agent repo", () => {
       });
 
       const updated = updateAgentSession(db, session.id, { branchName: "feat/new-branch" });
-      expect(updated!.branch_name).toBe("feat/new-branch");
-      expect(updated!.finished_at).toBeNull();
-      expect(updated!.status).toBe("running");
+      expect(updated?.branch_name).toBe("feat/new-branch");
+      expect(updated?.finished_at).toBeNull();
+      expect(updated?.status).toBe("running");
     });
 
     it("returns null for non-existent session", () => {
@@ -241,8 +241,8 @@ describe("agent repo", () => {
 
       const running = getRunningSession(db, task.id);
       expect(running).not.toBeNull();
-      expect(running!.id).toBe(session.id);
-      expect(running!.status).toBe("running");
+      expect(running?.id).toBe(session.id);
+      expect(running?.status).toBe("running");
     });
 
     it("returns null when no running session", () => {

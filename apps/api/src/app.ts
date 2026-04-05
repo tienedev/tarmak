@@ -1,22 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { type DB, createDb, migrateDb } from "@tarmak/db";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { serveStatic } from "@hono/node-server/serve-static";
-import { securityHeaders } from "./middleware/security";
+import { resolveUser } from "./auth/resolve-user";
 import { rateLimit } from "./middleware/rate-limit";
-import { createDb, migrateDb, type DB } from "@tarmak/db";
+import { securityHeaders } from "./middleware/security";
 import { NotificationBroadcaster } from "./notifications/broadcaster";
 import { TicketStore } from "./notifications/ticket-store";
+import { apiKeyRoutes } from "./routes/api-keys";
+import { attachmentRoutes } from "./routes/attachments";
+import { authRoutes } from "./routes/auth";
+import { inviteRoutes } from "./routes/invites";
 import { setTicketStore } from "./trpc/procedures/notifications";
 import { appRouter } from "./trpc/router";
-import { resolveUser } from "./auth/resolve-user";
-import { authRoutes } from "./routes/auth";
-import { apiKeyRoutes } from "./routes/api-keys";
-import { inviteRoutes } from "./routes/invites";
-import { attachmentRoutes } from "./routes/attachments";
 
 // Resolve the web dist path relative to this compiled file so it works
 // regardless of where the process is started from.
@@ -41,9 +41,7 @@ export function createApp(dbPath?: string): {
   setTicketStore(ticketStore);
 
   // CORS
-  const origins = (
-    process.env.TARMAK_ALLOWED_ORIGINS ?? "http://localhost:3000"
-  ).split(",");
+  const origins = (process.env.TARMAK_ALLOWED_ORIGINS ?? "http://localhost:3000").split(",");
   app.use("*", cors({ origin: origins, credentials: true }));
 
   // Security headers
@@ -74,17 +72,13 @@ export function createApp(dbPath?: string): {
           let closed = false;
 
           // Send connected confirmation
-          controller.enqueue(
-            encoder.encode("event: connected\ndata: {}\n\n"),
-          );
+          controller.enqueue(encoder.encode("event: connected\ndata: {}\n\n"));
 
           const unsubscribe = broadcaster.subscribe(userId, (event) => {
             if (closed) return;
             try {
               controller.enqueue(
-                encoder.encode(
-                  `event: notification\ndata: ${JSON.stringify(event)}\n\n`,
-                ),
+                encoder.encode(`event: notification\ndata: ${JSON.stringify(event)}\n\n`),
               );
             } catch {
               // Stream already closed — ignore
@@ -147,10 +141,7 @@ export function createApp(dbPath?: string): {
   app.route("/api/v1/auth", inviteRoutes(db));
 
   // REST attachment upload routes
-  app.route(
-    "/api/v1/boards/:boardId/tasks/:taskId/attachments",
-    attachmentRoutes(db),
-  );
+  app.route("/api/v1/boards/:boardId/tasks/:taskId/attachments", attachmentRoutes(db));
 
   // Serve frontend static files (only when built)
   if (webDistExists) {

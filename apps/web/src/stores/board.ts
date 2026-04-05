@@ -181,6 +181,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     position: number,
   ) => {
     const updated = await trpcClient.task.move.mutate({
+      boardId,
       taskId,
       columnId,
       position,
@@ -188,8 +189,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     set({
       tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
     })
-    // boardId kept in signature for API compatibility
-    void boardId
   },
 
   updateTask: async (
@@ -198,6 +197,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     data: Partial<Omit<Task, 'id' | 'board_id' | 'created_at' | 'updated_at'>>,
   ) => {
     const updated = await trpcClient.task.update.mutate({
+      boardId,
       taskId,
       title: data.title,
       description: data.description,
@@ -208,20 +208,17 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     set({
       tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...updated } : t)),
     })
-    // boardId kept in signature for API compatibility
-    void boardId
   },
 
   deleteTask: async (boardId: string, taskId: string) => {
     try {
-      await trpcClient.task.delete.mutate({ taskId })
+      await trpcClient.task.delete.mutate({ boardId, taskId })
       set({ tasks: get().tasks.filter((t) => t.id !== taskId) })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete task'
       set({ error: message })
       throw err
     }
-    void boardId
   },
 
   duplicateTask: async (boardId: string, taskId: string) => {
@@ -251,23 +248,21 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   },
 
   updateLabel: async (boardId: string, labelId: string, data: { name?: string; color?: string }) => {
-    await trpcClient.label.update.mutate({ labelId, ...data })
+    await trpcClient.label.update.mutate({ boardId, labelId, ...data })
     set({
       labels: get().labels.map((l) =>
         l.id === labelId ? { ...l, ...data } : l,
       ),
     })
-    void boardId
   },
 
   deleteLabel: async (boardId: string, labelId: string) => {
-    await trpcClient.label.delete.mutate({ labelId })
+    await trpcClient.label.delete.mutate({ boardId, labelId })
     set({ labels: get().labels.filter((l) => l.id !== labelId) })
-    void boardId
   },
 
   addTaskLabel: async (boardId: string, taskId: string, labelId: string) => {
-    await trpcClient.label.addToTask.mutate({ taskId, labelId })
+    await trpcClient.label.addToTask.mutate({ boardId, taskId, labelId })
     const label = get().labels.find((l) => l.id === labelId)
     if (!label) return
     set({
@@ -277,11 +272,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           : t,
       ),
     })
-    void boardId
   },
 
   removeTaskLabel: async (boardId: string, taskId: string, labelId: string) => {
-    await trpcClient.label.removeFromTask.mutate({ taskId, labelId })
+    await trpcClient.label.removeFromTask.mutate({ boardId, taskId, labelId })
     set({
       tasks: get().tasks.map((t) =>
         t.id === taskId
@@ -289,24 +283,23 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           : t,
       ),
     })
-    void boardId
   },
 
   archiveTask: async (boardId: string, taskId: string) => {
-    await trpcClient.archive.archiveTask.mutate({ taskId })
+    await trpcClient.archive.archiveTask.mutate({ boardId, taskId })
     set({ tasks: get().tasks.filter((t) => t.id !== taskId) })
     notify('Task archived')
-    void boardId
   },
 
   unarchiveTask: async (boardId: string, taskId: string) => {
-    await trpcClient.archive.unarchiveTask.mutate({ taskId })
+    await trpcClient.archive.unarchiveTask.mutate({ boardId, taskId })
     await get().fetchBoard(boardId)
     notify('Task restored')
   },
 
   updateColumn: async (boardId: string, columnId: string, data: { name?: string; color?: string | null }) => {
     await trpcClient.column.update.mutate({
+      boardId,
       columnId,
       name: data.name,
       color: data.color,
@@ -317,38 +310,35 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         c.id === columnId ? { ...c, ...patch } : c,
       ),
     })
-    void boardId
   },
 
   deleteColumn: async (boardId: string, columnId: string) => {
     const column = get().columns.find((c) => c.id === columnId)
-    await trpcClient.column.delete.mutate({ columnId })
+    await trpcClient.column.delete.mutate({ boardId, columnId })
     set({
       columns: get().columns.filter((c) => c.id !== columnId),
       tasks: get().tasks.filter((t) => t.column_id !== columnId),
     })
     if (column) notify(`Column "${column.name}" deleted`)
-    void boardId
   },
 
   moveColumn: async (boardId: string, columnId: string, position: number) => {
-    await trpcClient.column.move.mutate({ columnId, position })
+    await trpcClient.column.move.mutate({ boardId, columnId, position })
     await get().fetchBoard(boardId)
   },
 
   archiveColumn: async (boardId: string, columnId: string) => {
     const column = get().columns.find((c) => c.id === columnId)
-    await trpcClient.column.archive.mutate({ columnId })
+    await trpcClient.column.archive.mutate({ boardId, columnId })
     set({
       columns: get().columns.filter((c) => c.id !== columnId),
       tasks: get().tasks.filter((t) => t.column_id !== columnId),
     })
     if (column) notify(`Column "${column.name}" archived`)
-    void boardId
   },
 
   unarchiveColumn: async (boardId: string, columnId: string) => {
-    await trpcClient.column.unarchive.mutate({ columnId })
+    await trpcClient.column.unarchive.mutate({ boardId, columnId })
     await get().fetchBoard(boardId)
     notify('Column restored')
   },

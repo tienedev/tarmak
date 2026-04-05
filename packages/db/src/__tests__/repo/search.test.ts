@@ -1,12 +1,12 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import { search } from "../../repo/search";
+import type { DB } from "../../connection";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
+import { search } from "../../repo/search";
 import { createTask } from "../../repo/tasks";
 import { tasks } from "../../schema/tasks";
-import { eq } from "drizzle-orm";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();

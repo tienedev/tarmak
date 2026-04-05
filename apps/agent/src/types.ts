@@ -21,9 +21,7 @@ export type SessionStreamStatus =
 
 // --- WebSocket Protocol: Client → Server ---
 
-export type ClientMessage =
-  | { type: "approve" }
-  | { type: "reject" };
+export type ClientMessage = { type: "approve" } | { type: "reject" };
 
 // --- Session ---
 

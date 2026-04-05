@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { notificationsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import type { TicketStore } from "../../notifications/ticket-store";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
-import { notificationsRepo } from "@tarmak/db";
-import type { TicketStore } from "../../notifications/ticket-store";
 
 let _ticketStore: TicketStore | null = null;
 
@@ -13,7 +13,8 @@ export function setTicketStore(store: TicketStore): void {
 
 export const notificationRouter = router({
   createStreamTicket: protectedProcedure.mutation(({ ctx }) => {
-    if (!_ticketStore) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "SSE not configured" });
+    if (!_ticketStore)
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "SSE not configured" });
     const ticket = _ticketStore.create(ctx.user.id);
     return { ticket };
   }),
@@ -37,26 +38,22 @@ export const notificationRouter = router({
       );
     }),
 
-  markRead: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(({ ctx, input }) => {
-      const ok = notificationsRepo.markRead(ctx.db, input.id, ctx.user.id);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND" });
-      return { success: true };
-    }),
+  markRead: protectedProcedure.input(z.object({ id: z.string() })).mutation(({ ctx, input }) => {
+    const ok = notificationsRepo.markRead(ctx.db, input.id, ctx.user.id);
+    if (!ok) throw new TRPCError({ code: "NOT_FOUND" });
+    return { success: true };
+  }),
 
   markAllRead: protectedProcedure.mutation(({ ctx }) => {
     const count = notificationsRepo.markAllRead(ctx.db, ctx.user.id);
     return { count };
   }),
 
-  delete: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(({ ctx, input }) => {
-      const ok = notificationsRepo.deleteNotification(ctx.db, input.id, ctx.user.id);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND" });
-      return { success: true };
-    }),
+  delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(({ ctx, input }) => {
+    const ok = notificationsRepo.deleteNotification(ctx.db, input.id, ctx.user.id);
+    if (!ok) throw new TRPCError({ code: "NOT_FOUND" });
+    return { success: true };
+  }),
 
   unreadCount: protectedProcedure.query(({ ctx }) => {
     return { count: notificationsRepo.getUnreadCount(ctx.db, ctx.user.id) };

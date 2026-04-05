@@ -2,6 +2,10 @@
   "name": "tarmak",
   "private": true,
   "packageManager": "pnpm@10.6.2",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",

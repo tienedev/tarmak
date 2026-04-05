@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { generateToken, saveToken, loadToken, tokenPath } from "../src/token.js";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { generateToken, loadToken, saveToken, tokenPath } from "../src/token.js";
 
 describe("token", () => {
   const testDir = path.join(os.tmpdir(), "tarmak-token-test");

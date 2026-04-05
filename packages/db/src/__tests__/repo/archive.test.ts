@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
+import type { DB } from "../../connection";
 import {
   archiveTask,
-  unarchiveTask,
-  listArchivedTasks,
   listArchivedColumns,
+  listArchivedTasks,
+  unarchiveTask,
 } from "../../repo/archive";
 import { createBoard } from "../../repo/boards";
-import { createColumn, archiveColumn } from "../../repo/columns";
+import { archiveColumn, createColumn } from "../../repo/columns";
 import { createTask, getTask } from "../../repo/tasks";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -34,8 +34,8 @@ describe("archive repo", () => {
       expect(result).toBe(true);
 
       const archived = getTask(db, task.id);
-      expect(archived!.archived).toBe(true);
-      expect(archived!.updated_at).toBeDefined();
+      expect(archived?.archived).toBe(true);
+      expect(archived?.updated_at).toBeDefined();
     });
 
     it("returns false for non-existent task", () => {
@@ -55,8 +55,8 @@ describe("archive repo", () => {
       expect(result).toBe(true);
 
       const restored = getTask(db, task.id);
-      expect(restored!.archived).toBe(false);
-      expect(restored!.column_id).toBe(col.id);
+      expect(restored?.archived).toBe(false);
+      expect(restored?.column_id).toBe(col.id);
     });
 
     it("moves task to first active column if parent column is archived", () => {
@@ -73,8 +73,8 @@ describe("archive repo", () => {
       expect(result).toBe(true);
 
       const restored = getTask(db, task.id);
-      expect(restored!.archived).toBe(false);
-      expect(restored!.column_id).toBe(col2.id);
+      expect(restored?.archived).toBe(false);
+      expect(restored?.column_id).toBe(col2.id);
     });
 
     it("returns false for non-existent task", () => {

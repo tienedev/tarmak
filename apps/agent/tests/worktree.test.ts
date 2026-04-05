@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { branchName, createWorktree, cleanupWorktree } from "../src/worktree.js";
-import { execSync } from "child_process";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
+import { execSync } from "node:child_process";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { branchName, cleanupWorktree, createWorktree } from "../src/worktree.js";
 
 describe("worktree", () => {
   it("generates correct branch name", () => {

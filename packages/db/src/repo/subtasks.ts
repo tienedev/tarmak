@@ -1,4 +1,4 @@
-import { eq, sql, asc } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { DB } from "../connection";
 import { subtasks } from "../schema/index";
 
@@ -34,10 +34,7 @@ export function toggleSubtask(db: DB, id: string) {
   const existing = db.select().from(subtasks).where(eq(subtasks.id, id)).get();
   if (!existing) return null;
 
-  db.update(subtasks)
-    .set({ completed: !existing.completed })
-    .where(eq(subtasks.id, id))
-    .run();
+  db.update(subtasks).set({ completed: !existing.completed }).where(eq(subtasks.id, id)).run();
 
   return db.select().from(subtasks).where(eq(subtasks.id, id)).get()!;
 }
@@ -46,10 +43,7 @@ export function updateSubtask(db: DB, id: string, title: string) {
   const existing = db.select().from(subtasks).where(eq(subtasks.id, id)).get();
   if (!existing) return null;
 
-  db.update(subtasks)
-    .set({ title })
-    .where(eq(subtasks.id, id))
-    .run();
+  db.update(subtasks).set({ title }).where(eq(subtasks.id, id)).run();
 
   return db.select().from(subtasks).where(eq(subtasks.id, id)).get()!;
 }
@@ -68,15 +62,18 @@ export function moveSubtask(db: DB, id: string, newPosition: number) {
   return result.changes > 0;
 }
 
-export function getSubtaskCount(db: DB, taskId: string) {
-  const rows = db
-    .select()
+export function getSubtaskCount(db: DB, taskId: string): { completed: number; total: number } {
+  const result = db
+    .select({
+      total: sql<number>`count(*)`,
+      completed: sql<number>`sum(case when ${subtasks.completed} then 1 else 0 end)`,
+    })
     .from(subtasks)
     .where(eq(subtasks.task_id, taskId))
-    .all();
+    .get();
 
   return {
-    completed: rows.filter((r) => r.completed).length,
-    total: rows.length,
+    total: result?.total ?? 0,
+    completed: result?.completed ?? 0,
   };
 }

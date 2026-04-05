@@ -1,12 +1,12 @@
+import { boardsRepo, columnsRepo, createDb, migrateDb } from "@tarmak/db";
 import { describe, expect, it } from "vitest";
-import { createDb, migrateDb, columnsRepo, boardsRepo } from "@tarmak/db";
-import { router, publicProcedure } from "../trpc/context";
+import { z } from "zod";
+import { BoardService } from "../services/board";
+import { TaskService } from "../services/task";
+import { publicProcedure, router } from "../trpc/context";
+import type { Context } from "../trpc/context";
 import { protectedProcedure } from "../trpc/middleware/auth";
 import { requireRole } from "../trpc/middleware/roles";
-import { TaskService } from "../services/task";
-import { BoardService } from "../services/board";
-import type { Context } from "../trpc/context";
-import { z } from "zod";
 
 function createTestContext(user?: Context["user"] | null): Context {
   const db = createDb();
@@ -56,7 +56,7 @@ describe("TaskService", () => {
       taskService.decompose(board.id, [
         { title: "A", depends_on: [1] },
         { title: "B", depends_on: [0] },
-      ])
+      ]),
     ).toThrow("Cycle detected");
   });
 });
@@ -73,7 +73,7 @@ describe("BoardService", () => {
 
     const result = boardService.getBoardWithColumns(board.id);
     expect(result).not.toBeNull();
-    expect(result!.columns).toHaveLength(2);
+    expect(result?.columns).toHaveLength(2);
   });
 });
 
@@ -103,7 +103,8 @@ describe("requireRole", () => {
 
     // Seed user and add as board member
     ctx.db.run(
-      require("drizzle-orm").sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+      require("drizzle-orm")
+        .sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
     );
     boardsRepo.addMember(ctx.db, board.id, ctx.user!.id, role);
 
@@ -143,7 +144,8 @@ describe("requireRole", () => {
     const ctx = createTestContext();
     const board = boardsRepo.createBoard(ctx.db, "Test Board");
     ctx.db.run(
-      require("drizzle-orm").sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+      require("drizzle-orm")
+        .sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
     );
 
     const appRouter = router({

@@ -32,9 +32,7 @@ describe("app", () => {
   it("SSE stream accepts valid ticket", async () => {
     const { ticketStore, app } = createApp();
     const ticket = ticketStore.create("user-1");
-    const res = await app.request(
-      `/api/notifications/stream?ticket=${ticket}`,
-    );
+    const res = await app.request(`/api/notifications/stream?ticket=${ticket}`);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
   });

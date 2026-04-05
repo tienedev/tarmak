@@ -98,17 +98,18 @@ export async function createTask(
 /** Update a task via tRPC. */
 export async function updateTask(
   page: Page,
+  boardId: string,
   taskId: string,
   data: { title?: string; description?: string; priority?: string; assignee?: string; due_date?: string },
 ) {
   const token = await getToken(page)
-  return trpc<{ id: string }>(page, 'task.update', { taskId, ...data }, token)
+  return trpc<{ id: string }>(page, 'task.update', { boardId, taskId, ...data }, token)
 }
 
 /** Archive a task via tRPC. */
-export async function archiveTask(page: Page, taskId: string) {
+export async function archiveTask(page: Page, boardId: string, taskId: string) {
   const token = await getToken(page)
-  await trpc(page, 'archive.archiveTask', { taskId }, token)
+  await trpc(page, 'archive.archiveTask', { boardId, taskId }, token)
 }
 
 /** Create a label via tRPC. Returns label with id. */
@@ -120,24 +121,24 @@ export async function createLabel(page: Page, boardId: string, name: string, col
 /** Assign a label to a task via tRPC. */
 export async function addTaskLabel(
   page: Page,
-  _boardId: string,
+  boardId: string,
   taskId: string,
   labelId: string,
 ) {
   const token = await getToken(page)
-  await trpc(page, 'label.addToTask', { taskId, labelId }, token)
+  await trpc(page, 'label.addToTask', { boardId, taskId, labelId }, token)
 }
 
 /** Create a comment via tRPC. */
-export async function createComment(page: Page, taskId: string, content: string) {
+export async function createComment(page: Page, boardId: string, taskId: string, content: string) {
   const token = await getToken(page)
-  return trpc<{ id: string }>(page, 'comment.create', { taskId, content }, token)
+  return trpc<{ id: string }>(page, 'comment.create', { boardId, taskId, content }, token)
 }
 
 /** Create a subtask via tRPC. */
-export async function createSubtask(page: Page, _boardId: string, taskId: string, title: string) {
+export async function createSubtask(page: Page, boardId: string, taskId: string, title: string) {
   const token = await getToken(page)
-  return trpc<{ id: string; title: string }>(page, 'subtask.create', { taskId, title }, token)
+  return trpc<{ id: string; title: string }>(page, 'subtask.create', { boardId, taskId, title }, token)
 }
 
 /** Create a task via UI (requires being on a board page with a column). */

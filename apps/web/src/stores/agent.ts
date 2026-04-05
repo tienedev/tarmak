@@ -36,7 +36,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
     try {
       const sessions = await trpcClient.agent.list.query({
         boardId,
-        status: taskId ? undefined : undefined,
       }) as AgentSession[]
       // If taskId was given, filter client-side (the tRPC procedure filters by boardId + optional status)
       const filtered = taskId ? sessions.filter((s) => s.task_id === taskId) : sessions

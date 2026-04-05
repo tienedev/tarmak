@@ -101,7 +101,7 @@ test.describe('Duplicate task', () => {
   test('duplicated task clears assignee and due date', async ({ page }) => {
     // Create a task and set assignee + due date via tRPC
     const task = await createTask(page, boardId, columnId, 'Full Task')
-    await updateTask(page, task.id, { assignee: 'someone', due_date: '2026-12-31' })
+    await updateTask(page, boardId, task.id, { assignee: 'someone', due_date: '2026-12-31' })
 
     await page.reload()
     await main(page).getByText('Full Task').click()

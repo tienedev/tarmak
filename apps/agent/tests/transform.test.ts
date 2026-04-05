@@ -1,5 +1,5 @@
 // agent/tests/transform.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { transformMessage, transformMessageAll } from "../src/sdk.js";
 
 describe("transformMessage", () => {
@@ -23,7 +23,11 @@ describe("transformMessage", () => {
       output: "File edited successfully",
     };
     const result = transformMessage(msg);
-    expect(result).toEqual({ type: "tool_result", tool: "Edit", output: "File edited successfully" });
+    expect(result).toEqual({
+      type: "tool_result",
+      tool: "Edit",
+      output: "File edited successfully",
+    });
   });
 
   it("returns null for unknown message types", () => {

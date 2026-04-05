@@ -1,5 +1,5 @@
-import { sqliteTable, text, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { boards } from "./boards";
 import { tasks } from "./tasks";
 
@@ -10,9 +10,7 @@ export const labels = sqliteTable("labels", {
     .references(() => boards.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   color: text("color").notNull(),
-  created_at: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
+  created_at: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
 export const taskLabels = sqliteTable(

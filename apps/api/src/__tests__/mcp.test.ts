@@ -1,16 +1,14 @@
-import { describe, expect, it, beforeEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createDb, migrateDb, type DB } from "@tarmak/db";
+import { type DB, createDb, migrateDb } from "@tarmak/db";
 import { sql } from "drizzle-orm";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createMcpServer } from "../mcp/server";
 
 function createTestDb(): DB {
   const db = createDb();
   migrateDb(db);
-  db.run(
-    sql`INSERT INTO users (id, name, email) VALUES ('u1', 'Alice', 'alice@test.com')`,
-  );
+  db.run(sql`INSERT INTO users (id, name, email) VALUES ('u1', 'Alice', 'alice@test.com')`);
   return db;
 }
 
@@ -62,10 +60,7 @@ async function createTestClient(db: DB) {
   const mcpServer = createMcpServer(db);
   const client = new Client({ name: "test-client", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await Promise.all([
-    mcpServer.connect(serverTransport),
-    client.connect(clientTransport),
-  ]);
+  await Promise.all([mcpServer.connect(serverTransport), client.connect(clientTransport)]);
   return { client, mcpServer };
 }
 

@@ -90,14 +90,14 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     setComments([])
 
     if (currentBoard) {
-      trpcClient.customField.getTaskValues.query({ taskId: task.id })
+      trpcClient.customField.getTaskValues.query({ boardId: currentBoard.id, taskId: task.id })
         .then((vals) => {
           const map: Record<string, string> = {}
           for (const v of vals) map[v.field_id] = v.value
           setFieldValues(map)
         })
         .catch(() => {})
-      trpcClient.comment.list.query({ taskId: task.id }).then((c) => setComments(c as Comment[])).catch(() => {
+      trpcClient.comment.list.query({ boardId: currentBoard.id, taskId: task.id }).then((c) => setComments(c as Comment[])).catch(() => {
         addNotification(t('errors.commentLoadFailed'))
       })
     }
@@ -171,7 +171,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     (fieldId: string, value: string) => {
       setFieldValues((prev) => ({ ...prev, [fieldId]: value }))
       if (!currentBoard) return
-      trpcClient.customField.setTaskValue.mutate({ taskId: task.id, fieldId, value }).catch(() => {
+      trpcClient.customField.setTaskValue.mutate({ boardId: currentBoard.id, taskId: task.id, fieldId, value }).catch(() => {
         addNotification(t('errors.fieldSaveFailed'))
       })
     },
@@ -185,6 +185,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     setSubmittingComment(true)
     try {
       const comment = await trpcClient.comment.create.mutate({
+        boardId: currentBoard.id,
         taskId: task.id,
         content: newCommentHtml,
       }) as Comment
@@ -202,6 +203,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     if (isEmptyHtml(editingCommentHtml) || !currentBoard) return
     try {
       const updated = await trpcClient.comment.update.mutate({
+        boardId: currentBoard.id,
         commentId,
         content: editingCommentHtml,
       }) as Comment
@@ -217,7 +219,7 @@ export function TaskEditor({ task, onClose }: TaskEditorProps) {
     if (!currentBoard) return
     if (!window.confirm(t('task.deleteCommentConfirm'))) return
     try {
-      await trpcClient.comment.delete.mutate({ commentId })
+      await trpcClient.comment.delete.mutate({ boardId: currentBoard.id, commentId })
       setComments((prev) => prev.filter((c) => c.id !== commentId))
     } catch {
       addNotification(t('errors.commentDeleteFailed'))

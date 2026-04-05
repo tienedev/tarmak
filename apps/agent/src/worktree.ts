@@ -1,7 +1,7 @@
-import { execFile } from "child_process";
-import { promisify } from "util";
-import fs from "fs/promises";
-import path from "path";
+import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 
@@ -14,7 +14,7 @@ export function branchName(taskId: string, sessionId: string): string {
 export async function createWorktree(
   repoDir: string,
   sessionId: string,
-  branch: string
+  branch: string,
 ): Promise<string> {
   const wtDir = path.join(repoDir, ".worktrees", sessionId);
   await ensureGitignore(repoDir);
@@ -27,7 +27,7 @@ export async function createWorktree(
 export async function cleanupWorktree(
   repoDir: string,
   sessionId: string,
-  branch: string
+  branch: string,
 ): Promise<void> {
   const wtDir = path.join(repoDir, ".worktrees", sessionId);
   try {
@@ -44,9 +44,7 @@ export async function cleanupWorktree(
   }
 }
 
-export async function cleanupOrphanedWorktrees(
-  repoDir: string
-): Promise<void> {
+export async function cleanupOrphanedWorktrees(repoDir: string): Promise<void> {
   const wtBase = path.join(repoDir, ".worktrees");
   try {
     const entries = await fs.readdir(wtBase);

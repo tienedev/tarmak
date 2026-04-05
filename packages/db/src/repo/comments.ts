@@ -1,4 +1,4 @@
-import { eq, asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { DB } from "../connection";
 import { comments, users } from "../schema/index";
 
@@ -36,10 +36,7 @@ export function updateComment(db: DB, id: string, content: string) {
   if (!existing) return null;
 
   const now = new Date().toISOString();
-  db.update(comments)
-    .set({ content, updated_at: now })
-    .where(eq(comments.id, id))
-    .run();
+  db.update(comments).set({ content, updated_at: now }).where(eq(comments.id, id)).run();
 
   return db.select().from(comments).where(eq(comments.id, id)).get()!;
 }

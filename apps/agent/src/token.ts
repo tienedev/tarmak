@@ -1,7 +1,7 @@
-import crypto from "crypto";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 export function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");

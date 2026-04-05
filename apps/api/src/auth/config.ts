@@ -1,6 +1,6 @@
+import type { DB } from "@tarmak/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import type { DB } from "@tarmak/db";
 
 // Better Auth is used ONLY for authentication (email/password + sessions).
 // Plugins intentionally omitted:

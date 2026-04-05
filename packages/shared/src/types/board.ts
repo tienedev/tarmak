@@ -68,7 +68,7 @@ export interface SearchResult {
   entity_type: string;
   entity_id: string;
   board_id: string;
-  task_id: string;
+  task_id: string | null;
   snippet: string;
   rank: number;
   archived: boolean;

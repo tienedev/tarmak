@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
+import type { DB } from "../../connection";
 import {
-  createAttachment,
-  listAttachments,
-  getAttachment,
-  deleteAttachment,
   countAttachments,
+  createAttachment,
+  deleteAttachment,
+  getAttachment,
+  listAttachments,
 } from "../../repo/attachments";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
 import { createTask } from "../../repo/tasks";
 import { users } from "../../schema/users";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -176,7 +176,7 @@ describe("attachments repo", () => {
 
       const found = getAttachment(db, att.id);
       expect(found).not.toBeNull();
-      expect(found!.filename).toBe("file.txt");
+      expect(found?.filename).toBe("file.txt");
     });
 
     it("returns null for non-existent attachment", () => {

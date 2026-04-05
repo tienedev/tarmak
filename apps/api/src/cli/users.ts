@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { createDb, type DB } from "@tarmak/db";
+import { type DB, createDb } from "@tarmak/db";
 import { users } from "@tarmak/db";
 import { eq } from "drizzle-orm";
 
@@ -18,10 +18,7 @@ function resetPassword(db: DB, email: string, newPassword: string): boolean {
   if (!user) return false;
 
   const hash = hashPassword(newPassword);
-  db.update(users)
-    .set({ password_hash: hash })
-    .where(eq(users.email, email))
-    .run();
+  db.update(users).set({ password_hash: hash }).where(eq(users.email, email)).run();
 
   return true;
 }

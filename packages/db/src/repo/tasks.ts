@@ -1,12 +1,13 @@
-import { eq, and, sql, isNull, asc, inArray } from "drizzle-orm";
+import { PRIORITY_ORDER } from "@tarmak/shared";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { DB } from "../connection";
 import {
-  tasks,
-  labels,
-  taskLabels,
-  subtasks,
   attachments,
+  labels,
+  subtasks,
   taskCustomFieldValues,
+  taskLabels,
+  tasks,
 } from "../schema/index";
 
 export function createTask(
@@ -68,11 +69,7 @@ export function getTaskWithRelations(db: DB, id: string) {
   const labelList = taskLabelRows.map((r) => r.label);
 
   // Get subtask counts
-  const subtaskRows = db
-    .select()
-    .from(subtasks)
-    .where(eq(subtasks.task_id, id))
-    .all();
+  const subtaskRows = db.select().from(subtasks).where(eq(subtasks.task_id, id)).all();
   const total = subtaskRows.length;
   const completed = subtaskRows.filter((s) => s.completed).length;
 
@@ -170,13 +167,6 @@ export function moveTask(db: DB, id: string, columnId: string, position: number)
   return db.select().from(tasks).where(eq(tasks.id, id)).get()!;
 }
 
-const PRIORITY_ORDER: Record<string, number> = {
-  urgent: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-};
-
 export function claimTask(db: DB, boardId: string, agentId: string) {
   // Find all unlocked ai-ready tasks for this board
   const candidates = db
@@ -198,9 +188,9 @@ export function claimTask(db: DB, boardId: string, agentId: string) {
 
   // Sort by priority order (urgent > high > medium > low), then by due_date ASC (nulls last)
   candidates.sort((a, b) => {
-    const prioA = PRIORITY_ORDER[a.task.priority] ?? 2;
-    const prioB = PRIORITY_ORDER[b.task.priority] ?? 2;
-    if (prioA !== prioB) return prioA - prioB;
+    const prioA = PRIORITY_ORDER[a.task.priority ?? "low"] ?? -1;
+    const prioB = PRIORITY_ORDER[b.task.priority ?? "low"] ?? -1;
+    if (prioA !== prioB) return prioB - prioA;
 
     // due_date ASC, nulls last
     if (a.task.due_date && b.task.due_date) return a.task.due_date.localeCompare(b.task.due_date);
@@ -236,10 +226,7 @@ export function claimTask(db: DB, boardId: string, agentId: string) {
 }
 
 export function releaseTask(db: DB, taskId: string) {
-  db.update(tasks)
-    .set({ locked_by: null, locked_at: null })
-    .where(eq(tasks.id, taskId))
-    .run();
+  db.update(tasks).set({ locked_by: null, locked_at: null }).where(eq(tasks.id, taskId)).run();
 }
 
 export function duplicateTask(db: DB, taskId: string, boardId: string) {
@@ -277,21 +264,13 @@ export function duplicateTask(db: DB, taskId: string, boardId: string) {
       .run();
 
     // Copy task_labels
-    const originalLabels = tx
-      .select()
-      .from(taskLabels)
-      .where(eq(taskLabels.task_id, taskId))
-      .all();
+    const originalLabels = tx.select().from(taskLabels).where(eq(taskLabels.task_id, taskId)).all();
     for (const tl of originalLabels) {
       tx.insert(taskLabels).values({ task_id: newTaskId, label_id: tl.label_id }).run();
     }
 
     // Copy subtasks (completed=false)
-    const originalSubtasks = tx
-      .select()
-      .from(subtasks)
-      .where(eq(subtasks.task_id, taskId))
-      .all();
+    const originalSubtasks = tx.select().from(subtasks).where(eq(subtasks.task_id, taskId)).all();
     for (const st of originalSubtasks) {
       tx.insert(subtasks)
         .values({
@@ -327,11 +306,7 @@ export function duplicateTask(db: DB, taskId: string, boardId: string) {
       .all()
       .map((r) => r.label);
 
-    const newSubtasks = tx
-      .select()
-      .from(subtasks)
-      .where(eq(subtasks.task_id, newTaskId))
-      .all();
+    const newSubtasks = tx.select().from(subtasks).where(eq(subtasks.task_id, newTaskId)).all();
 
     const attachmentCount = tx
       .select({ count: sql<number>`COUNT(*)` })

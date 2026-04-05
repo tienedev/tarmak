@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +18,7 @@ interface AddTaskFormProps {
 }
 
 export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState('none')
@@ -65,7 +67,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
         className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-all hover:bg-foreground/[5%] hover:text-foreground"
       >
         <Plus className="size-3.5" />
-        <span>Add task</span>
+        <span>{t('board.addTask')}</span>
       </button>
     )
   }
@@ -74,7 +76,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
     <div ref={formRef} className="flex flex-col gap-2 rounded-xl glass-border bg-card p-2 backdrop-blur-md shadow-sm">
       <Input
         ref={inputRef}
-        placeholder="Task title..."
+        placeholder={t('task.titlePlaceholder')}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -83,14 +85,14 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
       <div className="flex items-center gap-1.5">
         <Select value={priority} onValueChange={(v) => setPriority(v ?? 'none')}>
           <SelectTrigger size="sm" className="h-6 min-w-0 gap-1 border-[var(--glass-border)] px-1.5 text-xs">
-            <SelectValue placeholder="Priority" />
+            <SelectValue placeholder={t('task.priority')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="urgent">Urgent</SelectItem>
+            <SelectItem value="none">{t('task.priorityNone')}</SelectItem>
+            <SelectItem value="low">{t('task.priorityLow')}</SelectItem>
+            <SelectItem value="medium">{t('task.priorityMedium')}</SelectItem>
+            <SelectItem value="high">{t('task.priorityHigh')}</SelectItem>
+            <SelectItem value="urgent">{t('task.priorityUrgent')}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex-1" />
@@ -104,7 +106,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
           }}
           className="h-6 text-xs text-muted-foreground"
         >
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button
           size="xs"
@@ -113,7 +115,7 @@ export function AddTaskForm({ boardId, columnId }: AddTaskFormProps) {
           className="h-6 text-xs"
         >
           {submitting && <Loader2 className="size-3 animate-spin" />}
-          {submitting ? 'Adding…' : 'Add'}
+          {submitting ? t('common.adding') : t('common.add')}
         </Button>
       </div>
     </div>

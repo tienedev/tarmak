@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DB } from "../connection";
 import { labels, taskLabels } from "../schema/index";
 
@@ -6,19 +6,13 @@ export function createLabel(db: DB, boardId: string, name: string, color: string
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  db.insert(labels)
-    .values({ id, board_id: boardId, name, color, created_at: now })
-    .run();
+  db.insert(labels).values({ id, board_id: boardId, name, color, created_at: now }).run();
 
   return db.select().from(labels).where(eq(labels.id, id)).get()!;
 }
 
 export function listLabels(db: DB, boardId: string) {
-  return db
-    .select()
-    .from(labels)
-    .where(eq(labels.board_id, boardId))
-    .all();
+  return db.select().from(labels).where(eq(labels.board_id, boardId)).all();
 }
 
 export function updateLabel(db: DB, id: string, data: { name?: string; color?: string }) {
@@ -38,9 +32,7 @@ export function deleteLabel(db: DB, id: string) {
 }
 
 export function attachLabel(db: DB, taskId: string, labelId: string) {
-  db.insert(taskLabels)
-    .values({ task_id: taskId, label_id: labelId })
-    .run();
+  db.insert(taskLabels).values({ task_id: taskId, label_id: labelId }).onConflictDoNothing().run();
 }
 
 export function detachLabel(db: DB, taskId: string, labelId: string) {

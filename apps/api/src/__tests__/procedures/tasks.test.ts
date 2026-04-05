@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -91,19 +91,21 @@ describe("task procedures", () => {
         columnId: column.id,
         title: "Task",
       });
-      const fetched = await caller.task.get({ taskId: task.id });
+      const fetched = await caller.task.get({ boardId: board.id, taskId: task.id });
       expect(fetched.title).toBe("Task");
       expect(fetched.labels).toEqual([]);
       expect(fetched.subtask_count).toEqual({ completed: 0, total: 0 });
       expect(fetched.attachment_count).toBe(0);
     });
 
-    it("throws NOT_FOUND for non-existent task", async () => {
+    it("throws FORBIDDEN for non-member board", async () => {
       const ctx = createTestContext();
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.task.get({ taskId: "nonexistent" })).rejects.toThrow("NOT_FOUND");
+      await expect(
+        caller.task.get({ boardId: "nonexistent", taskId: "nonexistent" }),
+      ).rejects.toThrow("Not a board member");
     });
   });
 
@@ -165,6 +167,7 @@ describe("task procedures", () => {
       });
 
       const updated = await caller.task.update({
+        boardId: board.id,
         taskId: task.id,
         title: "New Title",
         description: "Added description",
@@ -177,11 +180,11 @@ describe("task procedures", () => {
 
     it("throws NOT_FOUND for non-existent task", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardAndColumn(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.task.update({ taskId: "nonexistent", title: "X" }),
+        caller.task.update({ boardId: board.id, taskId: "nonexistent", title: "X" }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });
@@ -197,7 +200,7 @@ describe("task procedures", () => {
         columnId: column.id,
         title: "Task",
       });
-      const result = await caller.task.delete({ taskId: task.id });
+      const result = await caller.task.delete({ boardId: board.id, taskId: task.id });
       expect(result.success).toBe(true);
 
       const tasks = await caller.task.list({ boardId: board.id });
@@ -206,10 +209,12 @@ describe("task procedures", () => {
 
     it("throws NOT_FOUND for non-existent task", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardAndColumn(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.task.delete({ taskId: "nonexistent" })).rejects.toThrow("NOT_FOUND");
+      await expect(
+        caller.task.delete({ boardId: board.id, taskId: "nonexistent" }),
+      ).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -227,6 +232,7 @@ describe("task procedures", () => {
       });
 
       const moved = await caller.task.move({
+        boardId: board.id,
         taskId: task.id,
         columnId: column2.id,
         position: 0,
@@ -237,11 +243,16 @@ describe("task procedures", () => {
 
     it("throws NOT_FOUND for non-existent task", async () => {
       const ctx = createTestContext();
-      const { column } = await seedBoardAndColumn(ctx);
+      const { board, column } = await seedBoardAndColumn(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.task.move({ taskId: "nonexistent", columnId: column.id, position: 0 }),
+        caller.task.move({
+          boardId: board.id,
+          taskId: "nonexistent",
+          columnId: column.id,
+          position: 0,
+        }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });
@@ -301,9 +312,7 @@ describe("task procedures", () => {
       ctx.db.run(
         sql`INSERT INTO labels (id, board_id, name, color) VALUES (${labelId}, ${board.id}, 'ai-ready', '#00ff00')`,
       );
-      ctx.db.run(
-        sql`INSERT INTO task_labels (task_id, label_id) VALUES (${task.id}, ${labelId})`,
-      );
+      ctx.db.run(sql`INSERT INTO task_labels (task_id, label_id) VALUES (${task.id}, ${labelId})`);
 
       const claimed = await caller.task.claim({ boardId: board.id, agentId: "agent-1" });
       expect(claimed.task.id).toBe(task.id);
@@ -311,7 +320,7 @@ describe("task procedures", () => {
       expect(claimed.labels).toContain("ai-ready");
 
       // Release the task
-      const released = await caller.task.release({ taskId: task.id });
+      const released = await caller.task.release({ boardId: board.id, taskId: task.id });
       expect(released.success).toBe(true);
     });
 
@@ -320,9 +329,9 @@ describe("task procedures", () => {
       const { board } = await seedBoardAndColumn(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(
-        caller.task.claim({ boardId: board.id, agentId: "agent-1" }),
-      ).rejects.toThrow("No claimable task found");
+      await expect(caller.task.claim({ boardId: board.id, agentId: "agent-1" })).rejects.toThrow(
+        "No claimable task found",
+      );
     });
   });
 });

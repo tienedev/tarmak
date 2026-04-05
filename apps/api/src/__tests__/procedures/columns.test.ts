@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -81,7 +81,7 @@ describe("column procedures", () => {
       const col = await caller.column.create({ boardId: board.id, name: "Old" });
       await caller.column.create({ boardId: board.id, name: "Active" });
 
-      await caller.column.archive({ columnId: col.id });
+      await caller.column.archive({ boardId: board.id, columnId: col.id });
 
       const cols = await caller.column.list({ boardId: board.id });
       expect(cols).toHaveLength(1);
@@ -96,18 +96,22 @@ describe("column procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const col = await caller.column.create({ boardId: board.id, name: "Old" });
-      const result = await caller.column.update({ columnId: col.id, name: "New" });
+      const result = await caller.column.update({
+        boardId: board.id,
+        columnId: col.id,
+        name: "New",
+      });
       expect(result.success).toBe(true);
     });
 
     it("throws NOT_FOUND for missing column", async () => {
       const ctx = createTestContext();
-      await seedBoard(ctx);
+      const board = await seedBoard(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.column.update({ columnId: "none", name: "X" })).rejects.toThrow(
-        "NOT_FOUND",
-      );
+      await expect(
+        caller.column.update({ boardId: board.id, columnId: "none", name: "X" }),
+      ).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -118,7 +122,7 @@ describe("column procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const col = await caller.column.create({ boardId: board.id, name: "Todo" });
-      const result = await caller.column.delete({ columnId: col.id });
+      const result = await caller.column.delete({ boardId: board.id, columnId: col.id });
       expect(result.success).toBe(true);
 
       const cols = await caller.column.list({ boardId: board.id });
@@ -133,7 +137,11 @@ describe("column procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const col = await caller.column.create({ boardId: board.id, name: "Todo" });
-      const result = await caller.column.move({ columnId: col.id, position: 10 });
+      const result = await caller.column.move({
+        boardId: board.id,
+        columnId: col.id,
+        position: 10,
+      });
       expect(result.success).toBe(true);
     });
   });
@@ -146,11 +154,11 @@ describe("column procedures", () => {
 
       const col = await caller.column.create({ boardId: board.id, name: "Todo" });
 
-      await caller.column.archive({ columnId: col.id });
+      await caller.column.archive({ boardId: board.id, columnId: col.id });
       let cols = await caller.column.list({ boardId: board.id });
       expect(cols).toHaveLength(0);
 
-      await caller.column.unarchive({ columnId: col.id });
+      await caller.column.unarchive({ boardId: board.id, columnId: col.id });
       cols = await caller.column.list({ boardId: board.id });
       expect(cols).toHaveLength(1);
     });

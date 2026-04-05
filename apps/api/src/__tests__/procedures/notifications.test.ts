@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb, notificationsRepo } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
-import type { Context } from "../../trpc/context";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { TicketStore } from "../../notifications/ticket-store";
+import type { Context } from "../../trpc/context";
 import { setTicketStore } from "../../trpc/procedures/notifications";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -182,9 +182,7 @@ describe("notification procedures", () => {
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.notification.delete({ id: "nonexistent" })).rejects.toThrow(
-        "NOT_FOUND",
-      );
+      await expect(caller.notification.delete({ id: "nonexistent" })).rejects.toThrow("NOT_FOUND");
     });
   });
 

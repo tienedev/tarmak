@@ -1,7 +1,7 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
-import { tasks } from "./tasks";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { boards } from "./boards";
+import { tasks } from "./tasks";
 import { users } from "./users";
 
 export const attachments = sqliteTable("attachments", {
@@ -17,7 +17,5 @@ export const attachments = sqliteTable("attachments", {
   size_bytes: integer("size_bytes").notNull(),
   storage_key: text("storage_key").notNull(),
   uploaded_by: text("uploaded_by").references(() => users.id),
-  created_at: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
+  created_at: text("created_at").notNull().default(sql`(datetime('now'))`),
 });

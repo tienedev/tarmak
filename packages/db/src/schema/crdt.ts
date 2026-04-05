@@ -1,5 +1,5 @@
-import { sqliteTable, text, blob } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { blob, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { boards } from "./boards";
 
 export const boardCrdtState = sqliteTable("board_crdt_state", {

@@ -1,16 +1,16 @@
-import { z } from "zod";
-import { TRPCError } from "@trpc/server";
-import { router } from "../context";
-import { protectedProcedure } from "../middleware/auth";
 import { customFieldsRepo } from "@tarmak/db";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { router } from "../context";
+import { memberProcedure, ownerProcedure, writerProcedure } from "../middleware/roles";
 
 export const customFieldRouter = router({
-  create: protectedProcedure
+  create: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
         name: z.string().min(1).max(100),
-        fieldType: z.string().min(1),
+        fieldType: z.enum(["text", "number", "url", "enum", "date"]),
         config: z.string().optional(),
       }),
     )
@@ -24,13 +24,14 @@ export const customFieldRouter = router({
       );
     }),
 
-  list: protectedProcedure
+  list: memberProcedure
     .input(z.object({ boardId: z.string() }))
     .query(({ ctx, input }) => customFieldsRepo.listCustomFields(ctx.db, input.boardId)),
 
-  update: protectedProcedure
+  update: ownerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         fieldId: z.string(),
         name: z.string().min(1).max(100).optional(),
         config: z.string().optional(),
@@ -47,17 +48,18 @@ export const customFieldRouter = router({
       return { success: true };
     }),
 
-  delete: protectedProcedure
-    .input(z.object({ fieldId: z.string() }))
+  delete: ownerProcedure
+    .input(z.object({ boardId: z.string(), fieldId: z.string() }))
     .mutation(({ ctx, input }) => {
       const deleted = customFieldsRepo.deleteCustomField(ctx.db, input.fieldId);
       if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
     }),
 
-  setTaskValue: protectedProcedure
+  setTaskValue: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         taskId: z.string(),
         fieldId: z.string(),
         value: z.string(),
@@ -68,7 +70,7 @@ export const customFieldRouter = router({
       return { success: true };
     }),
 
-  getTaskValues: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
+  getTaskValues: memberProcedure
+    .input(z.object({ boardId: z.string(), taskId: z.string() }))
     .query(({ ctx, input }) => customFieldsRepo.getFieldValues(ctx.db, input.taskId)),
 });

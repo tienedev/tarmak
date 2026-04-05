@@ -18,7 +18,7 @@ export class SyncServer {
       this.rooms.set(boardId, new Set());
       this.docManager.initFromDb(boardId);
     }
-    this.rooms.get(boardId)!.add(client);
+    this.rooms.get(boardId)?.add(client);
 
     // Send full state as sync step 1
     const state = this.docManager.encodeFullState(boardId);

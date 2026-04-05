@@ -8,6 +8,7 @@ import { BoardPage } from '@/pages/BoardPage'
 import { InvitePage } from '@/pages/InvitePage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { DevGroundPage } from '@/pages/DevGroundPage'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Loader2 } from 'lucide-react'
 
 function useHashRoute() {
@@ -95,5 +96,9 @@ export default function App() {
     return <LoginPage />
   }
 
-  return <Router />
+  return (
+    <ErrorBoundary>
+      <Router />
+    </ErrorBoundary>
+  )
 }

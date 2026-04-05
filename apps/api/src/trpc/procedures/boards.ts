@@ -1,8 +1,9 @@
-import { z } from "zod";
+import { boardsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
-import { boardsRepo } from "@tarmak/db";
+import { memberProcedure, ownerProcedure } from "../middleware/roles";
 
 export const boardRouter = router({
   create: protectedProcedure
@@ -20,15 +21,13 @@ export const boardRouter = router({
 
   list: protectedProcedure.query(({ ctx }) => boardsRepo.listBoards(ctx.db, ctx.user.id)),
 
-  get: protectedProcedure
-    .input(z.object({ boardId: z.string() }))
-    .query(({ ctx, input }) => {
-      const board = boardsRepo.getBoard(ctx.db, input.boardId);
-      if (!board) throw new TRPCError({ code: "NOT_FOUND" });
-      return board;
-    }),
+  get: memberProcedure.input(z.object({ boardId: z.string() })).query(({ ctx, input }) => {
+    const board = boardsRepo.getBoard(ctx.db, input.boardId);
+    if (!board) throw new TRPCError({ code: "NOT_FOUND" });
+    return board;
+  }),
 
-  update: protectedProcedure
+  update: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -47,15 +46,13 @@ export const boardRouter = router({
       return board;
     }),
 
-  delete: protectedProcedure
-    .input(z.object({ boardId: z.string() }))
-    .mutation(({ ctx, input }) => {
-      const deleted = boardsRepo.deleteBoard(ctx.db, input.boardId);
-      if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
-      return { success: true };
-    }),
+  delete: ownerProcedure.input(z.object({ boardId: z.string() })).mutation(({ ctx, input }) => {
+    const deleted = boardsRepo.deleteBoard(ctx.db, input.boardId);
+    if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+    return { success: true };
+  }),
 
-  duplicate: protectedProcedure
+  duplicate: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -73,7 +70,7 @@ export const boardRouter = router({
       );
     }),
 
-  addMember: protectedProcedure
+  addMember: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -86,7 +83,7 @@ export const boardRouter = router({
       return { success: true };
     }),
 
-  removeMember: protectedProcedure
+  removeMember: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -99,7 +96,7 @@ export const boardRouter = router({
       return { success: true };
     }),
 
-  listMembers: protectedProcedure
+  listMembers: memberProcedure
     .input(z.object({ boardId: z.string() }))
     .query(({ ctx, input }) => boardsRepo.listMembers(ctx.db, input.boardId)),
 });

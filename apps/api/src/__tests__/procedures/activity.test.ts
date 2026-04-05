@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { boardsRepo, createDb, migrateDb } from "@tarmak/db";
 import { sql } from "drizzle-orm";
-import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -20,6 +20,7 @@ function seedBoard(ctx: Context) {
   ctx.db.run(
     sql`INSERT INTO boards (id, name, created_at, updated_at) VALUES ('b1', 'Board', datetime('now'), datetime('now'))`,
   );
+  boardsRepo.addMember(ctx.db, "b1", ctx.user!.id, "owner");
 }
 
 function seedActivity(ctx: Context, action: string, index: number) {

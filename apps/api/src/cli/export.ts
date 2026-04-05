@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  createDb,
+  type DB,
   boardsRepo,
   columnsRepo,
-  tasksRepo,
+  createDb,
+  customFieldsRepo,
   labelsRepo,
   subtasksRepo,
-  customFieldsRepo,
-  type DB,
+  tasksRepo,
 } from "@tarmak/db";
 
 function exportAllData(db: DB) {

@@ -1,11 +1,12 @@
-import { z } from "zod";
+import { agentRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
-import { agentRepo } from "@tarmak/db";
+import { memberProcedure, writerProcedure } from "../middleware/roles";
 
 export const agentRouter = router({
-  create: protectedProcedure
+  create: writerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -24,8 +25,8 @@ export const agentRouter = router({
       });
     }),
 
-  get: protectedProcedure
-    .input(z.object({ id: z.string() }))
+  get: memberProcedure
+    .input(z.object({ boardId: z.string(), id: z.string() }))
     .query(({ ctx, input }) => {
       const session = agentRepo.getAgentSession(ctx.db, input.id);
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
@@ -53,7 +54,7 @@ export const agentRouter = router({
       return session;
     }),
 
-  list: protectedProcedure
+  list: memberProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -64,9 +65,7 @@ export const agentRouter = router({
       return agentRepo.listBoardSessions(ctx.db, input.boardId, input.status);
     }),
 
-  getRunning: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
-    .query(({ ctx, input }) => {
-      return agentRepo.getRunningSession(ctx.db, input.taskId);
-    }),
+  getRunning: protectedProcedure.input(z.object({ taskId: z.string() })).query(({ ctx, input }) => {
+    return agentRepo.getRunningSession(ctx.db, input.taskId);
+  }),
 });

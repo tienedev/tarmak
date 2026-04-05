@@ -1,8 +1,8 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
-import { users } from "./users";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { boards } from "./boards";
 import { tasks } from "./tasks";
+import { users } from "./users";
 
 export const notifications = sqliteTable("notifications", {
   id: text("id").primaryKey(),

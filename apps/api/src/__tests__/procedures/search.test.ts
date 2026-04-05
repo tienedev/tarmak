@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -88,7 +88,7 @@ describe("search procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       // Archive the first task
-      await caller.archive.archiveTask({ taskId: tasks[0].id });
+      await caller.archive.archiveTask({ boardId: board.id, taskId: tasks[0].id });
 
       const results = await caller.search.query({
         boardId: board.id,
@@ -103,7 +103,7 @@ describe("search procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       // Archive the first task
-      await caller.archive.archiveTask({ taskId: tasks[0].id });
+      await caller.archive.archiveTask({ boardId: board.id, taskId: tasks[0].id });
 
       const results = await caller.search.query({
         boardId: board.id,

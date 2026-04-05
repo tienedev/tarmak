@@ -1,6 +1,6 @@
-import { eq, and, sql, asc } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { DB } from "../connection";
-import { tasks, columns } from "../schema/index";
+import { columns, tasks } from "../schema/index";
 
 export function archiveTask(db: DB, taskId: string) {
   const now = new Date().toISOString();

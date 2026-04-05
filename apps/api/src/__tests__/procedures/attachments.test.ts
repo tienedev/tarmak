@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { attachmentsRepo, createDb, migrateDb } from "@tarmak/db";
 import { sql } from "drizzle-orm";
-import { createDb, migrateDb, attachmentsRepo } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -51,16 +51,16 @@ describe("attachment procedures", () => {
       seedAttachment(ctx, task.id, board.id);
       seedAttachment(ctx, task.id, board.id);
 
-      const attachments = await caller.attachment.list({ taskId: task.id });
+      const attachments = await caller.attachment.list({ boardId: board.id, taskId: task.id });
       expect(attachments).toHaveLength(2);
     });
 
     it("returns empty list for task with no attachments", async () => {
       const ctx = createTestContext();
-      const { task } = await seedBoardColumnTask(ctx);
+      const { board, task } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      const attachments = await caller.attachment.list({ taskId: task.id });
+      const attachments = await caller.attachment.list({ boardId: board.id, taskId: task.id });
       expect(attachments).toHaveLength(0);
     });
   });
@@ -72,7 +72,10 @@ describe("attachment procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const attachment = seedAttachment(ctx, task.id, board.id);
-      const fetched = await caller.attachment.get({ attachmentId: attachment.id });
+      const fetched = await caller.attachment.get({
+        boardId: board.id,
+        attachmentId: attachment.id,
+      });
       expect(fetched.filename).toBe("test.png");
       expect(fetched.mime_type).toBe("image/png");
       expect(fetched.size_bytes).toBe(1024);
@@ -80,11 +83,11 @@ describe("attachment procedures", () => {
 
     it("throws NOT_FOUND for non-existent attachment", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.attachment.get({ attachmentId: "nonexistent" }),
+        caller.attachment.get({ boardId: board.id, attachmentId: "nonexistent" }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });
@@ -96,20 +99,23 @@ describe("attachment procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const attachment = seedAttachment(ctx, task.id, board.id);
-      const result = await caller.attachment.delete({ attachmentId: attachment.id });
+      const result = await caller.attachment.delete({
+        boardId: board.id,
+        attachmentId: attachment.id,
+      });
       expect(result.success).toBe(true);
 
-      const attachments = await caller.attachment.list({ taskId: task.id });
+      const attachments = await caller.attachment.list({ boardId: board.id, taskId: task.id });
       expect(attachments).toHaveLength(0);
     });
 
     it("throws NOT_FOUND for non-existent attachment", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.attachment.delete({ attachmentId: "nonexistent" }),
+        caller.attachment.delete({ boardId: board.id, attachmentId: "nonexistent" }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });

@@ -1,27 +1,27 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
+import type { DB } from "../../connection";
 import {
+  addMember,
   createBoard,
-  getBoard,
-  listBoards,
-  updateBoard,
   deleteBoard,
   duplicateBoard,
-  addMember,
-  removeMember,
-  listMembers,
+  getBoard,
   getMemberRole,
+  listBoards,
+  listMembers,
+  removeMember,
+  updateBoard,
 } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
 import { createTask } from "../../repo/tasks";
-import { eq } from "drizzle-orm";
-import { labels, taskLabels } from "../../schema/labels";
-import { customFields, taskCustomFieldValues } from "../../schema/custom-fields";
-import { subtasks } from "../../schema/subtasks";
-import { users } from "../../schema/users";
 import { columns } from "../../schema/columns";
+import { customFields, taskCustomFieldValues } from "../../schema/custom-fields";
+import { labels, taskLabels } from "../../schema/labels";
+import { subtasks } from "../../schema/subtasks";
 import { tasks } from "../../schema/tasks";
-import type { DB } from "../../connection";
+import { users } from "../../schema/users";
 
 function setup() {
   const db = createDb();
@@ -66,7 +66,7 @@ describe("boards repo", () => {
       const board = createBoard(db, "Test Board");
       const found = getBoard(db, board.id);
       expect(found).not.toBeNull();
-      expect(found!.name).toBe("Test Board");
+      expect(found?.name).toBe("Test Board");
     });
 
     it("returns null for non-existent board", () => {
@@ -105,7 +105,7 @@ describe("boards repo", () => {
       const board = createBoard(db, "Old Name");
       const updated = updateBoard(db, board.id, { name: "New Name" });
       expect(updated).not.toBeNull();
-      expect(updated!.name).toBe("New Name");
+      expect(updated?.name).toBe("New Name");
     });
 
     it("updates description and repo_url", () => {
@@ -115,8 +115,8 @@ describe("boards repo", () => {
         description: "Desc",
         repo_url: "https://github.com/example",
       });
-      expect(updated!.description).toBe("Desc");
-      expect(updated!.repo_url).toBe("https://github.com/example");
+      expect(updated?.description).toBe("Desc");
+      expect(updated?.repo_url).toBe("https://github.com/example");
     });
 
     it("returns null for non-existent board", () => {
@@ -130,7 +130,7 @@ describe("boards repo", () => {
       const board = createBoard(db, "Board");
       const updated = updateBoard(db, board.id, { name: "Updated" });
       // updated_at should be set (may be same or later than created_at in fast tests)
-      expect(updated!.updated_at).toBeDefined();
+      expect(updated?.updated_at).toBeDefined();
     });
   });
 
@@ -158,7 +158,9 @@ describe("boards repo", () => {
 
       // Add labels
       db.insert(labels).values({ id: "l1", board_id: board.id, name: "Bug", color: "#f00" }).run();
-      db.insert(labels).values({ id: "l2", board_id: board.id, name: "Feature", color: "#0f0" }).run();
+      db.insert(labels)
+        .values({ id: "l2", board_id: board.id, name: "Feature", color: "#0f0" })
+        .run();
 
       // Add custom fields
       db.insert(customFields)
@@ -170,21 +172,19 @@ describe("boards repo", () => {
       expect(dup.id).not.toBe(board.id);
 
       // Verify columns were copied
-      const dupCols = db.select().from(columns).where(
-        eq(columns.board_id, dup.id)
-      ).all();
+      const dupCols = db.select().from(columns).where(eq(columns.board_id, dup.id)).all();
       expect(dupCols).toHaveLength(2);
 
       // Verify labels were copied
-      const dupLabels = db.select().from(labels).where(
-        eq(labels.board_id, dup.id)
-      ).all();
+      const dupLabels = db.select().from(labels).where(eq(labels.board_id, dup.id)).all();
       expect(dupLabels).toHaveLength(2);
 
       // Verify custom fields were copied
-      const dupFields = db.select().from(customFields).where(
-        eq(customFields.board_id, dup.id)
-      ).all();
+      const dupFields = db
+        .select()
+        .from(customFields)
+        .where(eq(customFields.board_id, dup.id))
+        .all();
       expect(dupFields).toHaveLength(1);
     });
 
@@ -204,7 +204,9 @@ describe("boards repo", () => {
       db.insert(taskLabels).values({ task_id: task.id, label_id: "l1" }).run();
 
       // Add subtask
-      db.insert(subtasks).values({ id: "st1", task_id: task.id, title: "Sub 1", completed: true }).run();
+      db.insert(subtasks)
+        .values({ id: "st1", task_id: task.id, title: "Sub 1", completed: true })
+        .run();
 
       // Add custom field + value
       db.insert(customFields)
@@ -217,29 +219,33 @@ describe("boards repo", () => {
       const dup = duplicateBoard(db, board.id, "Copy", true, user.id);
 
       // Check tasks were copied
-      const dupTasks = db.select().from(tasks).where(
-        eq(tasks.board_id, dup.id)
-      ).all();
+      const dupTasks = db.select().from(tasks).where(eq(tasks.board_id, dup.id)).all();
       expect(dupTasks).toHaveLength(1);
       expect(dupTasks[0].title).toBe("Task 1");
 
       // Check task labels remapped
-      const dupTaskLabels = db.select().from(taskLabels).where(
-        eq(taskLabels.task_id, dupTasks[0].id)
-      ).all();
+      const dupTaskLabels = db
+        .select()
+        .from(taskLabels)
+        .where(eq(taskLabels.task_id, dupTasks[0].id))
+        .all();
       expect(dupTaskLabels).toHaveLength(1);
 
       // Check subtasks copied (completed reset)
-      const dupSubtasks = db.select().from(subtasks).where(
-        eq(subtasks.task_id, dupTasks[0].id)
-      ).all();
+      const dupSubtasks = db
+        .select()
+        .from(subtasks)
+        .where(eq(subtasks.task_id, dupTasks[0].id))
+        .all();
       expect(dupSubtasks).toHaveLength(1);
       expect(dupSubtasks[0].completed).toBe(false);
 
       // Check custom field values remapped
-      const dupValues = db.select().from(taskCustomFieldValues).where(
-        eq(taskCustomFieldValues.task_id, dupTasks[0].id)
-      ).all();
+      const dupValues = db
+        .select()
+        .from(taskCustomFieldValues)
+        .where(eq(taskCustomFieldValues.task_id, dupTasks[0].id))
+        .all();
       expect(dupValues).toHaveLength(1);
       expect(dupValues[0].value).toBe("5");
     });
@@ -252,15 +258,10 @@ describe("boards repo", () => {
       const archived = createColumn(db, board.id, "Archived");
 
       // Archive a column
-      db.update(columns)
-        .set({ archived: true })
-        .where(eq(columns.id, archived.id))
-        .run();
+      db.update(columns).set({ archived: true }).where(eq(columns.id, archived.id)).run();
 
       const dup = duplicateBoard(db, board.id, "Copy", false, user.id);
-      const dupCols = db.select().from(columns).where(
-        eq(columns.board_id, dup.id)
-      ).all();
+      const dupCols = db.select().from(columns).where(eq(columns.board_id, dup.id)).all();
       expect(dupCols).toHaveLength(1);
       expect(dupCols[0].name).toBe("Active");
     });

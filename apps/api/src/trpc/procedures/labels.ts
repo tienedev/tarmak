@@ -1,11 +1,11 @@
-import { z } from "zod";
-import { TRPCError } from "@trpc/server";
-import { router } from "../context";
-import { protectedProcedure } from "../middleware/auth";
 import { labelsRepo } from "@tarmak/db";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { router } from "../context";
+import { memberProcedure, writerProcedure } from "../middleware/roles";
 
 export const labelRouter = router({
-  create: protectedProcedure
+  create: writerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -17,13 +17,14 @@ export const labelRouter = router({
       return labelsRepo.createLabel(ctx.db, input.boardId, input.name, input.color);
     }),
 
-  list: protectedProcedure
+  list: memberProcedure
     .input(z.object({ boardId: z.string() }))
     .query(({ ctx, input }) => labelsRepo.listLabels(ctx.db, input.boardId)),
 
-  update: protectedProcedure
+  update: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         labelId: z.string(),
         name: z.string().min(1).max(50).optional(),
         color: z.string().min(1).max(30).optional(),
@@ -38,17 +39,18 @@ export const labelRouter = router({
       return { success: true };
     }),
 
-  delete: protectedProcedure
-    .input(z.object({ labelId: z.string() }))
+  delete: writerProcedure
+    .input(z.object({ boardId: z.string(), labelId: z.string() }))
     .mutation(({ ctx, input }) => {
       const deleted = labelsRepo.deleteLabel(ctx.db, input.labelId);
       if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
     }),
 
-  addToTask: protectedProcedure
+  addToTask: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         taskId: z.string(),
         labelId: z.string(),
       }),
@@ -58,9 +60,10 @@ export const labelRouter = router({
       return { success: true };
     }),
 
-  removeFromTask: protectedProcedure
+  removeFromTask: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         taskId: z.string(),
         labelId: z.string(),
       }),
@@ -70,7 +73,7 @@ export const labelRouter = router({
       return { success: true };
     }),
 
-  listForTask: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
+  listForTask: memberProcedure
+    .input(z.object({ boardId: z.string(), taskId: z.string() }))
     .query(({ ctx, input }) => labelsRepo.getTaskLabels(ctx.db, input.taskId)),
 });

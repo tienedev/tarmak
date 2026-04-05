@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -84,16 +84,18 @@ describe("agent procedures", () => {
         boardId: board.id,
         taskId: task.id,
       });
-      const fetched = await caller.agent.get({ id: session.id });
+      const fetched = await caller.agent.get({ boardId: board.id, id: session.id });
       expect(fetched.id).toBe(session.id);
     });
 
-    it("throws NOT_FOUND for non-existent session", async () => {
+    it("throws FORBIDDEN for non-member board", async () => {
       const ctx = createTestContext();
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.agent.get({ id: "nonexistent" })).rejects.toThrow("NOT_FOUND");
+      await expect(caller.agent.get({ boardId: "nonexistent", id: "nonexistent" })).rejects.toThrow(
+        "Not a board member",
+      );
     });
   });
 
@@ -157,9 +159,9 @@ describe("agent procedures", () => {
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(
-        caller.agent.update({ id: "nonexistent", status: "failed" }),
-      ).rejects.toThrow("NOT_FOUND");
+      await expect(caller.agent.update({ id: "nonexistent", status: "failed" })).rejects.toThrow(
+        "NOT_FOUND",
+      );
     });
   });
 
@@ -227,7 +229,7 @@ describe("agent procedures", () => {
 
       const running = await caller.agent.getRunning({ taskId: task.id });
       expect(running).not.toBeNull();
-      expect(running!.id).toBe(session.id);
+      expect(running?.id).toBe(session.id);
     });
 
     it("returns null when no running session", async () => {

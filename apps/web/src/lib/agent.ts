@@ -58,7 +58,19 @@ export interface AgentConfig {
   } | null
 }
 
-const AGENT_DEFAULT_URL = 'http://localhost:9876'
+function getAgentBaseUrl(): string {
+  if (import.meta.env.VITE_AGENT_URL) {
+    return import.meta.env.VITE_AGENT_URL as string
+  }
+  if (import.meta.env.DEV) {
+    return 'http://localhost:9876'
+  }
+  return location.origin
+}
+
+function getAgentWsUrl(): string {
+  return getAgentBaseUrl().replace(/^http/, 'ws')
+}
 
 function getToken(): string | null {
   return useAuthStore.getState().token
@@ -73,7 +85,7 @@ export const agentApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
-    const res = await fetch(`${AGENT_DEFAULT_URL}${path}`, {
+    const res = await fetch(`${getAgentBaseUrl()}${path}`, {
       ...options,
       headers: { ...headers, ...options?.headers },
     })
@@ -86,7 +98,7 @@ export const agentApi = {
 
   health(): Promise<{ status: string; version: string; protocol_version: number; sessions_active: number }> {
     // Health is unauthenticated — no token needed
-    return fetch(`${AGENT_DEFAULT_URL}/health`).then((r) => {
+    return fetch(`${getAgentBaseUrl()}/health`).then((r) => {
       if (!r.ok) throw new Error('Agent not reachable')
       return r.json()
     })
@@ -123,6 +135,6 @@ export const agentApi = {
   getWsUrl(sessionId: string): string {
     const token = getToken()
     const query = token ? `?token=${encodeURIComponent(token)}` : ''
-    return `ws://localhost:9876/ws/${sessionId}${query}`
+    return `${getAgentWsUrl()}/ws/${sessionId}${query}`
   },
 }

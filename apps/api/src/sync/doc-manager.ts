@@ -1,6 +1,6 @@
-import * as Y from "yjs";
 import type { DB } from "@tarmak/db";
 import { crdtRepo } from "@tarmak/db";
+import * as Y from "yjs";
 
 export class DocManager {
   private docs = new Map<string, Y.Doc>();

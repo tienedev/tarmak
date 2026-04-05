@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { decodeDeltas, decodeFull } from "../decode";
+import { encodeDelta, encodeFull } from "../encode";
 import { Schema } from "../schema";
-import { encodeFull, encodeDelta } from "../encode";
-import { decodeFull, decodeDeltas } from "../decode";
 
 describe("roundtrip", () => {
   it("full encode → decode", () => {
     const schema = new Schema("task", ["id", "title", "status"]);
-    const rows = [["t1", "Build UI", "doing"], ["t2", "Write tests", "todo"]];
+    const rows = [
+      ["t1", "Build UI", "doing"],
+      ["t2", "Write tests", "todo"],
+    ];
     const decoded = decodeFull(encodeFull(schema, rows));
     expect(decoded.schema).toEqual(schema);
     expect(decoded.rows).toEqual(rows);

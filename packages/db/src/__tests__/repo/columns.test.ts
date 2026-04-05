@@ -1,19 +1,19 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import {
-  createColumn,
-  listColumns,
-  updateColumn,
-  deleteColumn,
-  moveColumn,
-  archiveColumn,
-  unarchiveColumn,
-} from "../../repo/columns";
 import { createBoard } from "../../repo/boards";
+import {
+  archiveColumn,
+  createColumn,
+  deleteColumn,
+  listColumns,
+  moveColumn,
+  unarchiveColumn,
+  updateColumn,
+} from "../../repo/columns";
 import { createTask } from "../../repo/tasks";
-import { tasks } from "../../schema/tasks";
 import { columns } from "../../schema/columns";
-import { eq } from "drizzle-orm";
+import { tasks } from "../../schema/tasks";
 
 function setup() {
   const db = createDb();
@@ -97,7 +97,7 @@ describe("columns repo", () => {
       expect(updateColumn(db, col.id, { name: "New" })).toBe(true);
 
       const updated = db.select().from(columns).where(eq(columns.id, col.id)).get();
-      expect(updated!.name).toBe("New");
+      expect(updated?.name).toBe("New");
     });
 
     it("updates wip_limit and color", () => {
@@ -107,8 +107,8 @@ describe("columns repo", () => {
       updateColumn(db, col.id, { wipLimit: 5, color: "#00f" });
 
       const updated = db.select().from(columns).where(eq(columns.id, col.id)).get();
-      expect(updated!.wip_limit).toBe(5);
-      expect(updated!.color).toBe("#00f");
+      expect(updated?.wip_limit).toBe(5);
+      expect(updated?.color).toBe("#00f");
     });
 
     it("returns false for non-existent column", () => {
@@ -142,7 +142,7 @@ describe("columns repo", () => {
       expect(moveColumn(db, col.id, 5)).toBe(true);
 
       const updated = db.select().from(columns).where(eq(columns.id, col.id)).get();
-      expect(updated!.position).toBe(5);
+      expect(updated?.position).toBe(5);
     });
 
     it("returns false for non-existent column", () => {
@@ -166,7 +166,7 @@ describe("columns repo", () => {
 
       // Column should be archived
       const updatedCol = db.select().from(columns).where(eq(columns.id, col.id)).get();
-      expect(updatedCol!.archived).toBe(true);
+      expect(updatedCol?.archived).toBe(true);
 
       // All tasks should be archived
       const archivedTasks = db.select().from(tasks).where(eq(tasks.column_id, col.id)).all();
@@ -182,7 +182,7 @@ describe("columns repo", () => {
 
       // Column itself should still be archived
       const updatedCol = db.select().from(columns).where(eq(columns.id, col.id)).get();
-      expect(updatedCol!.archived).toBe(true);
+      expect(updatedCol?.archived).toBe(true);
     });
   });
 
@@ -201,7 +201,7 @@ describe("columns repo", () => {
 
       // Column should be unarchived
       const updatedCol = db.select().from(columns).where(eq(columns.id, col.id)).get();
-      expect(updatedCol!.archived).toBe(false);
+      expect(updatedCol?.archived).toBe(false);
 
       // All tasks should be unarchived
       const unarchivedTasks = db.select().from(tasks).where(eq(tasks.column_id, col.id)).all();

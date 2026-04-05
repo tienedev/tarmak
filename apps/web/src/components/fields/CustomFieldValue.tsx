@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { CustomField } from '@/lib/types'
 import { Input } from '@/components/ui/input'
 
@@ -9,11 +8,9 @@ interface CustomFieldValueProps {
 }
 
 export function CustomFieldValue({ field, value: controlledValue, onChange }: CustomFieldValueProps) {
-  const [localValue, setLocalValue] = useState(controlledValue ?? '')
-  const value = controlledValue ?? localValue
+  const value = controlledValue ?? ''
 
   function handleChange(next: string) {
-    setLocalValue(next)
     onChange?.(next)
   }
 

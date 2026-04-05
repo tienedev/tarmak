@@ -1,11 +1,11 @@
 import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
 import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema/index";
 
 export type DB = ReturnType<typeof createDb>;
 
-export function createDb(path: string = ":memory:") {
+export function createDb(path = ":memory:") {
   const sqlite = new Database(path);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
@@ -328,9 +328,13 @@ export function migrateDb(db: DB) {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_attachments_task ON attachments(task_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_attachments_board ON attachments(board_id)`);
-  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read)`);
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read)`,
+  );
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_sessions_board ON agent_sessions(board_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_sessions_task ON agent_sessions(task_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions(status)`);
-  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_sessions_running_per_task ON agent_sessions(task_id) WHERE status = 'running'`);
+  db.run(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_sessions_running_per_task ON agent_sessions(task_id) WHERE status = 'running'`,
+  );
 }
