@@ -68,7 +68,11 @@ pub async fn create_session(db: &Db, user_id: &str) -> anyhow::Result<String> {
     let raw_token = generate_token();
     let token_hash = hash_token(&raw_token);
     let id = Uuid::new_v4().to_string();
-    let expires_at = (Utc::now() + Duration::days(30)).to_rfc3339();
+    let session_days: i64 = std::env::var("TARMAK_SESSION_DAYS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30);
+    let expires_at = (Utc::now() + Duration::days(session_days)).to_rfc3339();
 
     let id_owned = id;
     let user_id_owned = user_id.to_string();
@@ -136,7 +140,11 @@ pub async fn create_invite_link(
     let raw_token = generate_token();
     let token_hash = hash_token(&raw_token);
     let id = Uuid::new_v4().to_string();
-    let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
+    let invite_days: i64 = std::env::var("TARMAK_INVITE_DAYS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7);
+    let expires_at = (Utc::now() + Duration::days(invite_days)).to_rfc3339();
 
     let board_id = board_id.to_string();
     let role = role.to_string();

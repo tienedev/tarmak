@@ -121,7 +121,12 @@ pub async fn run_http_server() -> anyhow::Result<()> {
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("content-security-policy"),
-            HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss: http://localhost:* ws://localhost:*"),
+            HeaderValue::from_str(
+                &std::env::var("TARMAK_CSP").unwrap_or_else(|_| {
+                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss: http://localhost:* ws://localhost:*".to_string()
+                }),
+            )
+            .expect("invalid CSP header value"),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("strict-transport-security"),
@@ -154,8 +159,9 @@ pub async fn reset_password(email: &str) -> anyhow::Result<()> {
     db.set_password_hash(&user.id, &password_hash).await?;
     db.delete_user_sessions(&user.id).await?;
 
-    println!("Password reset for: {} ({})", user.name, email);
-    println!("New password: {temp_password}");
+    eprintln!("Password reset for: {} ({})", user.name, email);
+    eprintln!("Temporary password: {temp_password}");
+    eprintln!("⚠ Change this password after first login.");
 
     Ok(())
 }

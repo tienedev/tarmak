@@ -7,7 +7,9 @@ The developer's kanban board — built for humans and AI agents.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/ghcr.io-tarmak-blue)](https://ghcr.io/tienedev/tarmak)
 
-<!-- Screenshot coming soon — board view with an agent session running in the terminal drawer -->
+<p align="center">
+  <img src="docs/screenshot-board.png" alt="Tarmak kanban board with tasks organized across Backlog, In Progress, Review, and Done columns" width="800" />
+</p>
 
 AI-assisted development is powerful but locked behind the terminal. Tarmak gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code. Click "Run" on a task, watch the agent work in a live terminal, get production-quality code.
 
