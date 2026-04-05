@@ -41,7 +41,7 @@ test.describe('Archive', () => {
     const task = await createTask(page, boardId, columnId, 'Archived Item')
 
     // Archive via tRPC
-    await archiveTask(page, task.id)
+    await archiveTask(page, boardId, task.id)
     await page.reload()
 
     // Task should not be visible on the board

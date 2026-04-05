@@ -71,7 +71,7 @@ test.describe('Comments', () => {
 
   test('shows existing comments from API', async ({ page }) => {
     const task = await createTask(page, boardId, columnId, 'Existing Cmt')
-    await createComment(page, task.id, '<p>API comment</p>')
+    await createComment(page, boardId, task.id, '<p>API comment</p>')
 
     await page.reload()
     await main(page).getByText('Existing Cmt').click()
@@ -85,8 +85,8 @@ test.describe('Comments', () => {
 
   test('comment count badge shows after adding comments', async ({ page }) => {
     const task = await createTask(page, boardId, columnId, 'Badge Task')
-    await createComment(page, task.id, '<p>Comment 1</p>')
-    await createComment(page, task.id, '<p>Comment 2</p>')
+    await createComment(page, boardId, task.id, '<p>Comment 1</p>')
+    await createComment(page, boardId, task.id, '<p>Comment 2</p>')
 
     await page.reload()
     await main(page).getByText('Badge Task').click()
