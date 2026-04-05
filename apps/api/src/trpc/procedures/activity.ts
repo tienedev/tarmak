@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { router } from "../context";
-import { protectedProcedure } from "../middleware/auth";
+import { memberProcedure } from "../middleware/roles";
 import { activity } from "@tarmak/db";
 
 export const activityRouter = router({
-  list: protectedProcedure
+  list: memberProcedure
     .input(
       z.object({
         boardId: z.string(),

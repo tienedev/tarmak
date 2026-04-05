@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { router } from "../context";
-import { protectedProcedure } from "../middleware/auth";
+import { memberProcedure } from "../middleware/roles";
 import { searchRepo } from "@tarmak/db";
 
 export const searchRouter = router({
-  query: protectedProcedure
+  query: memberProcedure
     .input(
       z.object({
         boardId: z.string(),

@@ -84,16 +84,16 @@ describe("agent procedures", () => {
         boardId: board.id,
         taskId: task.id,
       });
-      const fetched = await caller.agent.get({ id: session.id });
+      const fetched = await caller.agent.get({ boardId: board.id, id: session.id });
       expect(fetched.id).toBe(session.id);
     });
 
-    it("throws NOT_FOUND for non-existent session", async () => {
+    it("throws FORBIDDEN for non-member board", async () => {
       const ctx = createTestContext();
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.agent.get({ id: "nonexistent" })).rejects.toThrow("NOT_FOUND");
+      await expect(caller.agent.get({ boardId: "nonexistent", id: "nonexistent" })).rejects.toThrow("Not a board member");
     });
   });
 

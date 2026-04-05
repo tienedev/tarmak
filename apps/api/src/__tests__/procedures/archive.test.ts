@@ -36,7 +36,7 @@ describe("archive procedures", () => {
       const { board, task } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      const result = await caller.archive.archiveTask({ taskId: task.id });
+      const result = await caller.archive.archiveTask({ boardId: board.id, taskId: task.id });
       expect(result.success).toBe(true);
 
       const archived = await caller.archive.listArchivedTasks({ boardId: board.id });
@@ -46,10 +46,10 @@ describe("archive procedures", () => {
 
     it("throws NOT_FOUND for non-existent task", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.archive.archiveTask({ taskId: "nonexistent" })).rejects.toThrow(
+      await expect(caller.archive.archiveTask({ boardId: board.id, taskId: "nonexistent" })).rejects.toThrow(
         "NOT_FOUND",
       );
     });
@@ -61,9 +61,9 @@ describe("archive procedures", () => {
       const { board, task } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await caller.archive.archiveTask({ taskId: task.id });
+      await caller.archive.archiveTask({ boardId: board.id, taskId: task.id });
 
-      const result = await caller.archive.unarchiveTask({ taskId: task.id });
+      const result = await caller.archive.unarchiveTask({ boardId: board.id, taskId: task.id });
       expect(result.success).toBe(true);
 
       const archived = await caller.archive.listArchivedTasks({ boardId: board.id });
@@ -72,10 +72,10 @@ describe("archive procedures", () => {
 
     it("throws NOT_FOUND for non-existent task", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.archive.unarchiveTask({ taskId: "nonexistent" })).rejects.toThrow(
+      await expect(caller.archive.unarchiveTask({ boardId: board.id, taskId: "nonexistent" })).rejects.toThrow(
         "NOT_FOUND",
       );
     });
@@ -103,7 +103,7 @@ describe("archive procedures", () => {
       });
 
       // Archive only the second task
-      await caller.archive.archiveTask({ taskId: task2.id });
+      await caller.archive.archiveTask({ boardId: board.id, taskId: task2.id });
 
       const archived = await caller.archive.listArchivedTasks({ boardId: board.id });
       expect(archived).toHaveLength(1);

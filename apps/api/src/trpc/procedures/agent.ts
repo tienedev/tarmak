@@ -2,10 +2,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
+import { memberProcedure, writerProcedure } from "../middleware/roles";
 import { agentRepo } from "@tarmak/db";
 
 export const agentRouter = router({
-  create: protectedProcedure
+  create: writerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -24,8 +25,8 @@ export const agentRouter = router({
       });
     }),
 
-  get: protectedProcedure
-    .input(z.object({ id: z.string() }))
+  get: memberProcedure
+    .input(z.object({ boardId: z.string(), id: z.string() }))
     .query(({ ctx, input }) => {
       const session = agentRepo.getAgentSession(ctx.db, input.id);
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
@@ -53,7 +54,7 @@ export const agentRouter = router({
       return session;
     }),
 
-  list: protectedProcedure
+  list: memberProcedure
     .input(
       z.object({
         boardId: z.string(),

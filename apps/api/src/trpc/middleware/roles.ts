@@ -3,6 +3,7 @@ import { middleware } from "../context";
 import { ROLE_HIERARCHY } from "@tarmak/shared";
 import type { Role } from "@tarmak/shared";
 import { boardsRepo } from "@tarmak/db";
+import { protectedProcedure } from "./auth";
 
 export function requireRole(minimumRole: Role) {
   return middleware(async (opts) => {
@@ -29,3 +30,12 @@ export function requireRole(minimumRole: Role) {
     return next({ ctx: { ...ctx, boardRole: role as Role } });
   });
 }
+
+/** Viewer+ — can read board data */
+export const memberProcedure = protectedProcedure.use(requireRole("viewer"));
+
+/** Member+ — can mutate board data */
+export const writerProcedure = protectedProcedure.use(requireRole("member"));
+
+/** Owner only — can manage board settings, members, delete */
+export const ownerProcedure = protectedProcedure.use(requireRole("owner"));

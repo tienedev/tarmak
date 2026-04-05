@@ -116,7 +116,7 @@ describe("custom field procedures", () => {
         name: "Old Name",
         fieldType: "text",
       });
-      const result = await caller.customField.update({ fieldId: field.id, name: "New Name" });
+      const result = await caller.customField.update({ boardId: board.id, fieldId: field.id, name: "New Name" });
       expect(result.success).toBe(true);
     });
 
@@ -130,17 +130,17 @@ describe("custom field procedures", () => {
         name: "Field",
         fieldType: "text",
       });
-      const result = await caller.customField.update({ fieldId: field.id, position: 5 });
+      const result = await caller.customField.update({ boardId: board.id, fieldId: field.id, position: 5 });
       expect(result.success).toBe(true);
     });
 
     it("throws NOT_FOUND for non-existent field", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.customField.update({ fieldId: "nonexistent", name: "X" }),
+        caller.customField.update({ boardId: board.id, fieldId: "nonexistent", name: "X" }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });
@@ -156,7 +156,7 @@ describe("custom field procedures", () => {
         name: "Field",
         fieldType: "text",
       });
-      const result = await caller.customField.delete({ fieldId: field.id });
+      const result = await caller.customField.delete({ boardId: board.id, fieldId: field.id });
       expect(result.success).toBe(true);
 
       const fields = await caller.customField.list({ boardId: board.id });
@@ -165,11 +165,11 @@ describe("custom field procedures", () => {
 
     it("throws NOT_FOUND for non-existent field", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.customField.delete({ fieldId: "nonexistent" }),
+        caller.customField.delete({ boardId: board.id, fieldId: "nonexistent" }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });
@@ -187,12 +187,13 @@ describe("custom field procedures", () => {
       });
 
       await caller.customField.setTaskValue({
+        boardId: board.id,
         taskId: task.id,
         fieldId: field.id,
         value: "42",
       });
 
-      const values = await caller.customField.getTaskValues({ taskId: task.id });
+      const values = await caller.customField.getTaskValues({ boardId: board.id, taskId: task.id });
       expect(values).toHaveLength(1);
       expect(values[0].field_id).toBe(field.id);
       expect(values[0].value).toBe("42");
@@ -210,27 +211,29 @@ describe("custom field procedures", () => {
       });
 
       await caller.customField.setTaskValue({
+        boardId: board.id,
         taskId: task.id,
         fieldId: field.id,
         value: "10",
       });
       await caller.customField.setTaskValue({
+        boardId: board.id,
         taskId: task.id,
         fieldId: field.id,
         value: "20",
       });
 
-      const values = await caller.customField.getTaskValues({ taskId: task.id });
+      const values = await caller.customField.getTaskValues({ boardId: board.id, taskId: task.id });
       expect(values).toHaveLength(1);
       expect(values[0].value).toBe("20");
     });
 
     it("returns empty list for task with no values", async () => {
       const ctx = createTestContext();
-      const { task } = await seedBoardColumnTask(ctx);
+      const { board, task } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      const values = await caller.customField.getTaskValues({ taskId: task.id });
+      const values = await caller.customField.getTaskValues({ boardId: board.id, taskId: task.id });
       expect(values).toHaveLength(0);
     });
   });

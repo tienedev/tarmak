@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
+import { memberProcedure, ownerProcedure } from "../middleware/roles";
 import { boardsRepo } from "@tarmak/db";
 
 export const boardRouter = router({
@@ -20,7 +21,7 @@ export const boardRouter = router({
 
   list: protectedProcedure.query(({ ctx }) => boardsRepo.listBoards(ctx.db, ctx.user.id)),
 
-  get: protectedProcedure
+  get: memberProcedure
     .input(z.object({ boardId: z.string() }))
     .query(({ ctx, input }) => {
       const board = boardsRepo.getBoard(ctx.db, input.boardId);
@@ -28,7 +29,7 @@ export const boardRouter = router({
       return board;
     }),
 
-  update: protectedProcedure
+  update: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -47,7 +48,7 @@ export const boardRouter = router({
       return board;
     }),
 
-  delete: protectedProcedure
+  delete: ownerProcedure
     .input(z.object({ boardId: z.string() }))
     .mutation(({ ctx, input }) => {
       const deleted = boardsRepo.deleteBoard(ctx.db, input.boardId);
@@ -55,7 +56,7 @@ export const boardRouter = router({
       return { success: true };
     }),
 
-  duplicate: protectedProcedure
+  duplicate: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -73,7 +74,7 @@ export const boardRouter = router({
       );
     }),
 
-  addMember: protectedProcedure
+  addMember: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -86,7 +87,7 @@ export const boardRouter = router({
       return { success: true };
     }),
 
-  removeMember: protectedProcedure
+  removeMember: ownerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -99,7 +100,7 @@ export const boardRouter = router({
       return { success: true };
     }),
 
-  listMembers: protectedProcedure
+  listMembers: memberProcedure
     .input(z.object({ boardId: z.string() }))
     .query(({ ctx, input }) => boardsRepo.listMembers(ctx.db, input.boardId)),
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { createDb, migrateDb } from "@tarmak/db";
+import { createDb, migrateDb, boardsRepo } from "@tarmak/db";
 import { appRouter } from "../../trpc/router";
 import type { Context } from "../../trpc/context";
 
@@ -67,12 +67,12 @@ describe("board procedures", () => {
       expect(fetched.name).toBe("Board");
     });
 
-    it("throws NOT_FOUND for missing board", async () => {
+    it("throws FORBIDDEN for non-member board", async () => {
       const ctx = createTestContext();
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.board.get({ boardId: "nonexistent" })).rejects.toThrow("NOT_FOUND");
+      await expect(caller.board.get({ boardId: "nonexistent" })).rejects.toThrow("Not a board member");
     });
   });
 
@@ -87,13 +87,13 @@ describe("board procedures", () => {
       expect(updated.name).toBe("New Name");
     });
 
-    it("throws NOT_FOUND for missing board", async () => {
+    it("throws FORBIDDEN for non-member board", async () => {
       const ctx = createTestContext();
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(caller.board.update({ boardId: "none", name: "X" })).rejects.toThrow(
-        "NOT_FOUND",
+        "Not a board member",
       );
     });
   });

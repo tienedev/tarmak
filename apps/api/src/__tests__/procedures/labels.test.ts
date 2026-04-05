@@ -77,7 +77,7 @@ describe("label procedures", () => {
         name: "Old",
         color: "#000",
       });
-      const result = await caller.label.update({ labelId: label.id, name: "New" });
+      const result = await caller.label.update({ boardId: board.id, labelId: label.id, name: "New" });
       expect(result.success).toBe(true);
     });
 
@@ -91,17 +91,17 @@ describe("label procedures", () => {
         name: "Bug",
         color: "#000",
       });
-      const result = await caller.label.update({ labelId: label.id, color: "#fff" });
+      const result = await caller.label.update({ boardId: board.id, labelId: label.id, color: "#fff" });
       expect(result.success).toBe(true);
     });
 
     it("throws NOT_FOUND for non-existent label", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoard(ctx);
       const caller = appRouter.createCaller(ctx);
 
       await expect(
-        caller.label.update({ labelId: "nonexistent", name: "X" }),
+        caller.label.update({ boardId: board.id, labelId: "nonexistent", name: "X" }),
       ).rejects.toThrow("NOT_FOUND");
     });
   });
@@ -117,7 +117,7 @@ describe("label procedures", () => {
         name: "Bug",
         color: "#ff0000",
       });
-      const result = await caller.label.delete({ labelId: label.id });
+      const result = await caller.label.delete({ boardId: board.id, labelId: label.id });
       expect(result.success).toBe(true);
 
       const labels = await caller.label.list({ boardId: board.id });
@@ -126,10 +126,10 @@ describe("label procedures", () => {
 
     it("throws NOT_FOUND for non-existent label", async () => {
       const ctx = createTestContext();
-      seedUser(ctx);
+      const { board } = await seedBoard(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.label.delete({ labelId: "nonexistent" })).rejects.toThrow("NOT_FOUND");
+      await expect(caller.label.delete({ boardId: board.id, labelId: "nonexistent" })).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -150,8 +150,8 @@ describe("label procedures", () => {
         color: "#ff0000",
       });
 
-      await caller.label.addToTask({ taskId: task.id, labelId: label.id });
-      const taskLabels = await caller.label.listForTask({ taskId: task.id });
+      await caller.label.addToTask({ boardId: board.id, taskId: task.id, labelId: label.id });
+      const taskLabels = await caller.label.listForTask({ boardId: board.id, taskId: task.id });
       expect(taskLabels).toHaveLength(1);
       expect(taskLabels[0].name).toBe("Bug");
     });
@@ -172,10 +172,10 @@ describe("label procedures", () => {
         color: "#ff0000",
       });
 
-      await caller.label.addToTask({ taskId: task.id, labelId: label.id });
-      await caller.label.removeFromTask({ taskId: task.id, labelId: label.id });
+      await caller.label.addToTask({ boardId: board.id, taskId: task.id, labelId: label.id });
+      await caller.label.removeFromTask({ boardId: board.id, taskId: task.id, labelId: label.id });
 
-      const taskLabels = await caller.label.listForTask({ taskId: task.id });
+      const taskLabels = await caller.label.listForTask({ boardId: board.id, taskId: task.id });
       expect(taskLabels).toHaveLength(0);
     });
 
@@ -190,7 +190,7 @@ describe("label procedures", () => {
         title: "Task 1",
       });
 
-      const taskLabels = await caller.label.listForTask({ taskId: task.id });
+      const taskLabels = await caller.label.listForTask({ boardId: board.id, taskId: task.id });
       expect(taskLabels).toHaveLength(0);
     });
   });

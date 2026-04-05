@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../context";
-import { protectedProcedure } from "../middleware/auth";
+import { memberProcedure, writerProcedure } from "../middleware/roles";
 import { tasksRepo } from "@tarmak/db";
 
 export const taskRouter = router({
-  create: protectedProcedure
+  create: writerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -27,15 +27,15 @@ export const taskRouter = router({
       });
     }),
 
-  get: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
+  get: memberProcedure
+    .input(z.object({ boardId: z.string(), taskId: z.string() }))
     .query(({ ctx, input }) => {
       const task = tasksRepo.getTaskWithRelations(ctx.db, input.taskId);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       return task;
     }),
 
-  list: protectedProcedure
+  list: memberProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -47,9 +47,10 @@ export const taskRouter = router({
       return tasksRepo.listTasks(ctx.db, input.boardId, input.limit, input.offset);
     }),
 
-  update: protectedProcedure
+  update: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         taskId: z.string(),
         title: z.string().min(1).max(500).optional(),
         description: z.string().optional(),
@@ -59,23 +60,24 @@ export const taskRouter = router({
       }),
     )
     .mutation(({ ctx, input }) => {
-      const { taskId, ...data } = input;
+      const { taskId, boardId: _, ...data } = input;
       const task = tasksRepo.updateTask(ctx.db, taskId, data);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       return task;
     }),
 
-  delete: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
+  delete: writerProcedure
+    .input(z.object({ boardId: z.string(), taskId: z.string() }))
     .mutation(({ ctx, input }) => {
       const deleted = tasksRepo.deleteTask(ctx.db, input.taskId);
       if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
     }),
 
-  move: protectedProcedure
+  move: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         taskId: z.string(),
         columnId: z.string(),
         position: z.number().int().min(0),
@@ -87,7 +89,7 @@ export const taskRouter = router({
       return task;
     }),
 
-  duplicate: protectedProcedure
+  duplicate: writerProcedure
     .input(
       z.object({
         taskId: z.string(),
@@ -98,7 +100,7 @@ export const taskRouter = router({
       return tasksRepo.duplicateTask(ctx.db, input.taskId, input.boardId);
     }),
 
-  claim: protectedProcedure
+  claim: writerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -111,8 +113,8 @@ export const taskRouter = router({
       return result;
     }),
 
-  release: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
+  release: writerProcedure
+    .input(z.object({ boardId: z.string(), taskId: z.string() }))
     .mutation(({ ctx, input }) => {
       tasksRepo.releaseTask(ctx.db, input.taskId);
       return { success: true };

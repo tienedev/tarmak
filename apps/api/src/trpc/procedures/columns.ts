@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../context";
-import { protectedProcedure } from "../middleware/auth";
+import { memberProcedure, writerProcedure } from "../middleware/roles";
 import { columnsRepo } from "@tarmak/db";
 
 export const columnRouter = router({
-  create: protectedProcedure
+  create: writerProcedure
     .input(
       z.object({
         boardId: z.string(),
@@ -18,13 +18,14 @@ export const columnRouter = router({
       return columnsRepo.createColumn(ctx.db, input.boardId, input.name, input.wipLimit, input.color);
     }),
 
-  list: protectedProcedure
+  list: memberProcedure
     .input(z.object({ boardId: z.string() }))
     .query(({ ctx, input }) => columnsRepo.listColumns(ctx.db, input.boardId)),
 
-  update: protectedProcedure
+  update: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         columnId: z.string(),
         name: z.string().min(1).max(100).optional(),
         wipLimit: z.number().int().positive().nullable().optional(),
@@ -41,17 +42,18 @@ export const columnRouter = router({
       return { success: true };
     }),
 
-  delete: protectedProcedure
-    .input(z.object({ columnId: z.string() }))
+  delete: writerProcedure
+    .input(z.object({ boardId: z.string(), columnId: z.string() }))
     .mutation(({ ctx, input }) => {
       const deleted = columnsRepo.deleteColumn(ctx.db, input.columnId);
       if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
     }),
 
-  move: protectedProcedure
+  move: writerProcedure
     .input(
       z.object({
+        boardId: z.string(),
         columnId: z.string(),
         position: z.number().int().min(0),
       }),
@@ -62,15 +64,15 @@ export const columnRouter = router({
       return { success: true };
     }),
 
-  archive: protectedProcedure
-    .input(z.object({ columnId: z.string() }))
+  archive: writerProcedure
+    .input(z.object({ boardId: z.string(), columnId: z.string() }))
     .mutation(({ ctx, input }) => {
       columnsRepo.archiveColumn(ctx.db, input.columnId);
       return { success: true };
     }),
 
-  unarchive: protectedProcedure
-    .input(z.object({ columnId: z.string() }))
+  unarchive: writerProcedure
+    .input(z.object({ boardId: z.string(), columnId: z.string() }))
     .mutation(({ ctx, input }) => {
       columnsRepo.unarchiveColumn(ctx.db, input.columnId);
       return { success: true };
