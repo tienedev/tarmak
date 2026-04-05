@@ -82,7 +82,7 @@ export function KanbanColumn({ column, tasks, boardId, onTaskClick, columnIndex,
   async function saveWipLimit() {
     const val = wipValue.trim() === '' ? null : parseInt(wipValue, 10) || null
     try {
-      await trpcClient.column.update.mutate({ columnId: column.id, wipLimit: val })
+      await trpcClient.column.update.mutate({ boardId, columnId: column.id, wipLimit: val })
       useBoardStore.getState().fetchBoard(boardId)
       setWipOpen(false)
     } catch { /* ignore */ }

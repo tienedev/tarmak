@@ -473,7 +473,7 @@ function FieldsTab() {
   const { currentBoard, fields, fetchBoard } = useBoardStore()
   const addNotification = useNotificationStore((s) => s.add)
   const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState('text')
+  const [newType, setNewType] = useState<'text' | 'number' | 'url' | 'enum' | 'date'>('text')
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
@@ -542,7 +542,7 @@ function FieldsTab() {
             placeholder={t('settings.fieldPlaceholder')}
             className="flex-1 text-sm"
           />
-          <Select value={newType} onValueChange={(v) => setNewType(v ?? 'text')}>
+          <Select value={newType} onValueChange={(v) => setNewType((v ?? 'text') as typeof newType)}>
             <SelectTrigger size="sm" className="w-24">
               {fieldTypeLabels[newType] ?? t('settings.fieldText')}
             </SelectTrigger>
@@ -591,7 +591,7 @@ function WipTab({ boardId }: { boardId: string }) {
     const raw = values[columnId]?.trim()
     const val = raw === '' ? null : parseInt(raw, 10) || null
     try {
-      await trpcClient.column.update.mutate({ columnId, wipLimit: val })
+      await trpcClient.column.update.mutate({ boardId, columnId, wipLimit: val })
       await fetchBoard(boardId)
       addNotification(t('settings.wipUpdated'))
     } catch {

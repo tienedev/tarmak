@@ -71,7 +71,7 @@ export function RunButton({ task, boardId, agentStatus, onSessionStarted }: RunB
 
     try {
       // Fetch subtasks for prompt construction
-      const subtasks = await trpcClient.subtask.list.query({ taskId: task.id }) as Subtask[]
+      const subtasks = await trpcClient.subtask.list.query({ boardId, taskId: task.id }) as Subtask[]
       const prompt = buildPrompt(task, subtasks, currentBoard.name)
 
       const result = await agentApi.run({
