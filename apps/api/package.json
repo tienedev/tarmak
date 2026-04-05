@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
+    "@inquirer/prompts": "^8.3.2",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@tarmak/db": "workspace:*",
     "@tarmak/kbf": "workspace:*",
