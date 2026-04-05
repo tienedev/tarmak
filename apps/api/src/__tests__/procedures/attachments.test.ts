@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
   );
 }
 
@@ -37,7 +37,7 @@ function seedAttachment(ctx: Context, taskId: string, boardId: string) {
     mimeType: "image/png",
     sizeBytes: 1024,
     storageKey: `uploads/${crypto.randomUUID()}.png`,
-    uploadedBy: ctx.user?.id,
+    uploadedBy: ctx.user!.id,
   });
 }
 

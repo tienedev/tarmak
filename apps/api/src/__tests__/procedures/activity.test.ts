@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
   );
 }
 
@@ -20,12 +20,12 @@ function seedBoard(ctx: Context) {
   ctx.db.run(
     sql`INSERT INTO boards (id, name, created_at, updated_at) VALUES ('b1', 'Board', datetime('now'), datetime('now'))`,
   );
-  boardsRepo.addMember(ctx.db, "b1", ctx.user?.id, "owner");
+  boardsRepo.addMember(ctx.db, "b1", ctx.user!.id, "owner");
 }
 
 function seedActivity(ctx: Context, action: string, index: number) {
   ctx.db.run(
-    sql`INSERT INTO activity (id, board_id, user_id, action, details, created_at) VALUES (${`a${index}`}, 'b1', ${ctx.user?.id}, ${action}, ${`Detail ${index}`}, datetime('now', ${`+${index} seconds`}))`,
+    sql`INSERT INTO activity (id, board_id, user_id, action, details, created_at) VALUES (${`a${index}`}, 'b1', ${ctx.user!.id}, ${action}, ${`Detail ${index}`}, datetime('now', ${`+${index} seconds`}))`,
   );
 }
 

@@ -104,9 +104,9 @@ describe("requireRole", () => {
     // Seed user and add as board member
     ctx.db.run(
       require("drizzle-orm")
-        .sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
+        .sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
     );
-    boardsRepo.addMember(ctx.db, board.id, ctx.user?.id, role);
+    boardsRepo.addMember(ctx.db, board.id, ctx.user!.id, role);
 
     return { ctx, board };
   }
@@ -145,7 +145,7 @@ describe("requireRole", () => {
     const board = boardsRepo.createBoard(ctx.db, "Test Board");
     ctx.db.run(
       require("drizzle-orm")
-        .sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
+        .sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
     );
 
     const appRouter = router({

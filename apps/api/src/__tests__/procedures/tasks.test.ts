@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
   );
 }
 
