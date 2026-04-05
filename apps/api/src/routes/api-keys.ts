@@ -1,12 +1,18 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import type { DB } from "@tarmak/db";
 import { apiKeys } from "@tarmak/db";
 import { resolveUser } from "../auth/resolve-user";
+import type { AuthEnv } from "./types";
+
+const createKeySchema = z.object({
+  name: z.string().min(1).max(100),
+});
 
 export function apiKeyRoutes(db: DB) {
-  const app = new Hono();
+  const app = new Hono<AuthEnv>();
 
   // Auth middleware for all routes
   app.use("*", async (c, next) => {
@@ -14,13 +20,13 @@ export function apiKeyRoutes(db: DB) {
     if (!user) {
       return c.json({ error: "unauthorized" }, 401);
     }
-    c.set("user" as never, user as never);
+    c.set("user", user);
     await next();
   });
 
   // GET / — list user's API keys
   app.get("/", (c) => {
-    const user = c.get("user" as never) as { id: string; name: string; email: string };
+    const user = c.get("user");
     const keys = db
       .select({
         id: apiKeys.id,
@@ -38,12 +44,12 @@ export function apiKeyRoutes(db: DB) {
 
   // POST / — create API key
   app.post("/", async (c) => {
-    const user = c.get("user" as never) as { id: string; name: string; email: string };
-    const body = await c.req.json<{ name?: string }>();
-
-    if (!body.name) {
-      return c.json({ error: "name is required" }, 400);
+    const user = c.get("user");
+    const parsed = createKeySchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
     }
+    const { name } = parsed.data;
 
     const rawKey = `tarmak_${crypto.randomBytes(32).toString("hex")}`;
     const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
@@ -54,7 +60,7 @@ export function apiKeyRoutes(db: DB) {
       .values({
         id,
         user_id: user.id,
-        name: body.name,
+        name,
         key_hash: keyHash,
         key_prefix: keyPrefix,
       })
@@ -63,7 +69,7 @@ export function apiKeyRoutes(db: DB) {
     const apiKey = {
       id,
       user_id: user.id,
-      name: body.name,
+      name,
       key_prefix: keyPrefix,
       created_at: new Date().toISOString(),
       last_used_at: null,
@@ -74,7 +80,7 @@ export function apiKeyRoutes(db: DB) {
 
   // DELETE /:id — delete API key
   app.delete("/:id", (c) => {
-    const user = c.get("user" as never) as { id: string; name: string; email: string };
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const key = db

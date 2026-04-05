@@ -1,9 +1,21 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import type { DB } from "@tarmak/db";
 import { users, sessions } from "@tarmak/db";
 import { resolveUser } from "../auth/resolve-user";
+
+const registerSchema = z.object({
+  name: z.string().min(1).max(100),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(32);
@@ -23,7 +35,8 @@ function verifyPassword(password: string, hash: string): boolean {
 function createSession(db: DB, userId: string): { token: string } {
   const token = crypto.randomUUID();
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const sessionDays = Number(process.env.TARMAK_SESSION_DAYS ?? 30);
+  const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000).toISOString();
   const id = crypto.randomUUID();
 
   db.insert(sessions)
@@ -38,12 +51,11 @@ export function authRoutes(db: DB) {
 
   // POST /register
   app.post("/register", async (c) => {
-    const body = await c.req.json<{ name?: string; email?: string; password?: string }>();
-    const { name, email, password } = body;
-
-    if (!name || !email || !password) {
-      return c.json({ error: "name, email, and password are required" }, 400);
+    const parsed = registerSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
     }
+    const { name, email, password } = parsed.data;
 
     // Check uniqueness
     const existing = db
@@ -69,12 +81,11 @@ export function authRoutes(db: DB) {
 
   // POST /login
   app.post("/login", async (c) => {
-    const body = await c.req.json<{ email?: string; password?: string }>();
-    const { email, password } = body;
-
-    if (!email || !password) {
-      return c.json({ error: "email and password are required" }, 400);
+    const parsed = loginSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
     }
+    const { email, password } = parsed.data;
 
     const user = db.select().from(users).where(eq(users.email, email)).get();
     if (!user || !user.password_hash) {

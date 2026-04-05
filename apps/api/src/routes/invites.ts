@@ -1,12 +1,23 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
+import { z } from "zod";
 import type { DB } from "@tarmak/db";
-import { inviteLinks, boardMembers } from "@tarmak/db";
+import { inviteLinks, boardMembers, boardsRepo } from "@tarmak/db";
 import { resolveUser } from "../auth/resolve-user";
+import type { AuthEnv } from "./types";
+
+const createInviteSchema = z.object({
+  board_id: z.string().min(1),
+  role: z.enum(["owner", "member", "viewer"]).default("member"),
+});
+
+const acceptInviteSchema = z.object({
+  invite_token: z.string().min(1),
+});
 
 export function inviteRoutes(db: DB) {
-  const app = new Hono();
+  const app = new Hono<AuthEnv>();
 
   // Auth middleware for all routes
   app.use("*", async (c, next) => {
@@ -14,29 +25,34 @@ export function inviteRoutes(db: DB) {
     if (!user) {
       return c.json({ error: "unauthorized" }, 401);
     }
-    c.set("user" as never, user as never);
+    c.set("user", user);
     await next();
   });
 
-  // POST /invite — create invite link
+  // POST /invite — create invite link (owner only)
   app.post("/invite", async (c) => {
-    const user = c.get("user" as never) as { id: string; name: string; email: string };
-    const body = await c.req.json<{ board_id?: string; role?: string }>();
+    const user = c.get("user");
+    const parsed = createInviteSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
+    }
+    const { board_id, role } = parsed.data;
 
-    if (!body.board_id) {
-      return c.json({ error: "board_id is required" }, 400);
+    // Only board owners can create invites
+    const memberRole = boardsRepo.getMemberRole(db, board_id, user.id);
+    if (memberRole !== "owner") {
+      return c.json({ error: "Only board owners can create invites" }, 403);
     }
 
     const id = crypto.randomUUID();
     const token = crypto.randomBytes(32).toString("hex");
-    const role = body.role ?? "member";
     const inviteDays = Number(process.env.TARMAK_INVITE_DAYS ?? 7);
     const expiresAt = new Date(Date.now() + inviteDays * 24 * 60 * 60 * 1000).toISOString();
 
     db.insert(inviteLinks)
       .values({
         id,
-        board_id: body.board_id,
+        board_id,
         token,
         role,
         expires_at: expiresAt,
@@ -47,11 +63,18 @@ export function inviteRoutes(db: DB) {
     return c.json({ invite_url: `/invite/${token}` }, 201);
   });
 
-  // GET /invite?board_id=X — list invites for a board
+  // GET /invite?board_id=X — list invites for a board (members only)
   app.get("/invite", (c) => {
+    const user = c.get("user");
     const boardId = c.req.query("board_id");
     if (!boardId) {
       return c.json({ error: "board_id query param is required" }, 400);
+    }
+
+    // Only board members can list invites
+    const memberRole = boardsRepo.getMemberRole(db, boardId, user.id);
+    if (!memberRole) {
+      return c.json({ error: "Not a board member" }, 403);
     }
 
     const invites = db
@@ -63,12 +86,13 @@ export function inviteRoutes(db: DB) {
     return c.json(invites);
   });
 
-  // DELETE /invite/:id — revoke invite
+  // DELETE /invite/:id — revoke invite (owner only)
   app.delete("/invite/:id", (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const invite = db
-      .select({ id: inviteLinks.id })
+      .select()
       .from(inviteLinks)
       .where(eq(inviteLinks.id, id))
       .get();
@@ -77,23 +101,29 @@ export function inviteRoutes(db: DB) {
       return c.json({ error: "not found" }, 404);
     }
 
+    // Only board owners can revoke invites
+    const memberRole = boardsRepo.getMemberRole(db, invite.board_id, user.id);
+    if (memberRole !== "owner") {
+      return c.json({ error: "Only board owners can revoke invites" }, 403);
+    }
+
     db.delete(inviteLinks).where(eq(inviteLinks.id, id)).run();
     return c.json({ ok: true });
   });
 
   // POST /accept — accept invite by token
   app.post("/accept", async (c) => {
-    const user = c.get("user" as never) as { id: string; name: string; email: string };
-    const body = await c.req.json<{ invite_token?: string }>();
-
-    if (!body.invite_token) {
-      return c.json({ error: "invite_token is required" }, 400);
+    const user = c.get("user");
+    const parsed = acceptInviteSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
     }
+    const { invite_token } = parsed.data;
 
     const invite = db
       .select()
       .from(inviteLinks)
-      .where(eq(inviteLinks.token, body.invite_token))
+      .where(eq(inviteLinks.token, invite_token))
       .get();
 
     if (!invite) {
