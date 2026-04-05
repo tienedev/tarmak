@@ -28,13 +28,19 @@ export function getBoard(db: DB, id: string) {
   return db.select().from(boards).where(eq(boards.id, id)).get() ?? null;
 }
 
-export function listBoards(db: DB, userId: string) {
-  return db
+export function listBoards(db: DB, userId?: string) {
+  const query = db
     .select({ id: boards.id, name: boards.name, description: boards.description, repo_url: boards.repo_url, created_at: boards.created_at, updated_at: boards.updated_at })
-    .from(boards)
-    .innerJoin(boardMembers, and(eq(boardMembers.board_id, boards.id), eq(boardMembers.user_id, userId)))
-    .orderBy(boards.created_at)
-    .all();
+    .from(boards);
+
+  if (userId) {
+    return query
+      .innerJoin(boardMembers, and(eq(boardMembers.board_id, boards.id), eq(boardMembers.user_id, userId)))
+      .orderBy(boards.created_at)
+      .all();
+  }
+
+  return query.orderBy(boards.created_at).all();
 }
 
 export function updateBoard(
