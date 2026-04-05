@@ -8,10 +8,47 @@ The developer's kanban board — built for humans and AI agents.
 [![Docker](https://img.shields.io/badge/ghcr.io-tarmak-blue)](https://ghcr.io/tienedev/tarmak)
 
 <p align="center">
-  <img src="docs/screenshot-board.png" alt="Tarmak kanban board with tasks organized across Backlog, In Progress, Review, and Done columns" width="800" />
+  <img src="docs/screenshots/02-board-dark.png" alt="Tarmak kanban board with tasks organized across Backlog, In Progress, Review, and Done columns" width="800" />
 </p>
 
 AI-assisted development is powerful but locked behind the terminal. Tarmak gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code. Click "Run" on a task, watch the agent work in a live terminal, get production-quality code.
+
+<details>
+<summary><strong>More screenshots</strong></summary>
+
+<br/>
+
+**Login**
+
+<p align="center">
+  <img src="docs/screenshots/06-login-dark.png" alt="Tarmak login page" width="800" />
+</p>
+
+**Run an agent directly from a task**
+
+<p align="center">
+  <img src="docs/screenshots/07-task-run-agent-dark.png" alt="Task detail with Run agent button" width="800" />
+</p>
+
+**List view**
+
+<p align="center">
+  <img src="docs/screenshots/03-list-view-dark.png" alt="Tarmak list view" width="800" />
+</p>
+
+**Timeline view**
+
+<p align="center">
+  <img src="docs/screenshots/04-timeline-dark.png" alt="Tarmak timeline view" width="800" />
+</p>
+
+**Agent sessions**
+
+<p align="center">
+  <img src="docs/screenshots/08-sessions-view-dark.png" alt="Tarmak agent sessions view" width="800" />
+</p>
+
+</details>
 
 ## Features
 
