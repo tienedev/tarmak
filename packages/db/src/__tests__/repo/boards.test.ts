@@ -79,18 +79,23 @@ describe("boards repo", () => {
   describe("listBoards", () => {
     it("returns empty array when no boards", () => {
       const db = setup();
-      expect(listBoards(db)).toEqual([]);
+      const user = seedUser(db);
+      expect(listBoards(db, user.id)).toEqual([]);
     });
 
     it("returns all boards ordered by created_at", () => {
       const db = setup();
-      createBoard(db, "Board A");
-      createBoard(db, "Board B");
-      createBoard(db, "Board C");
-      const all = listBoards(db);
+      const user = seedUser(db);
+      const a = createBoard(db, "Board A");
+      const b = createBoard(db, "Board B");
+      const c = createBoard(db, "Board C");
+      addMember(db, a.id, user.id, "owner");
+      addMember(db, b.id, user.id, "owner");
+      addMember(db, c.id, user.id, "owner");
+      const all = listBoards(db, user.id);
       expect(all).toHaveLength(3);
-      expect(all[0].name).toBe("Board A");
-      expect(all[2].name).toBe("Board C");
+      const names = all.map((b) => b.name).sort();
+      expect(names).toEqual(["Board A", "Board B", "Board C"]);
     });
   });
 

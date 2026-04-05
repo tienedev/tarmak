@@ -11,7 +11,8 @@ export function securityHeaders() {
     );
     c.header(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+      process.env.TARMAK_CSP ??
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
     );
   });
 }
