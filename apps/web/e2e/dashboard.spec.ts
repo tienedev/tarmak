@@ -29,12 +29,11 @@ test.describe('Dashboard', () => {
     const boardBtn = sidebarBoard(page, 'Clickable Board')
     await expect(boardBtn).toBeVisible({ timeout: 10_000 })
 
-    // Expand the board in sidebar to reveal the "Board" sub-link
+    // Expand the board in sidebar to reveal sub-links
     await boardBtn.click()
 
-    // The sub-link text is "Board" but the board name also contains "Board",
-    // so target the <a> element specifically inside the expanded sub-items area
-    const boardLink = page.locator('aside .border-l a').filter({ hasText: 'Board' }).first()
+    // Target the board sub-link by its href (avoids matching the board name button)
+    const boardLink = page.locator(`aside a[href="#/boards/${board.id}"]`).first()
     await expect(boardLink).toBeVisible({ timeout: 5_000 })
     await boardLink.click()
     await expect(page).toHaveURL(new RegExp(`#/boards/${board.id}`))
