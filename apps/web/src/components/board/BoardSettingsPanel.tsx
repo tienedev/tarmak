@@ -106,6 +106,47 @@ export function BoardSettingsPanel({ boardId, open, onClose }: BoardSettingsPane
   )
 }
 
+// --- Setup Command Block ---
+
+function SetupCommandBlock() {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  const serverUrl = window.location.origin
+  const command = `npx tarmak init --server ${serverUrl}`
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(command)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium">
+        {t('settings.setupClaudeCode')}
+      </label>
+      <p className="mb-2 text-xs text-muted-foreground">
+        {t('settings.setupClaudeCodeHint')}
+      </p>
+      <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
+        <code className="flex-1 truncate text-xs">{command}</code>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 shrink-0"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <Check className="size-3.5 text-green-500" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // --- General Tab ---
 
 function GeneralTab({ boardId }: { boardId: string }) {
@@ -159,6 +200,13 @@ function GeneralTab({ boardId }: { boardId: string }) {
           </Button>
         </div>
       </div>
+
+      {currentBoard?.repo_url && (
+        <>
+          <Separator />
+          <SetupCommandBlock />
+        </>
+      )}
 
     </div>
   )
