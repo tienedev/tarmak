@@ -4,5 +4,6 @@ export default defineConfig({
   format: ["esm"],
   dts: false,
   clean: true,
+  banner: { js: "#!/usr/bin/env node" },
   external: ["better-sqlite3"],
 });
