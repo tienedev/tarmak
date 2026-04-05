@@ -133,6 +133,12 @@ switch (command) {
     break;
   }
 
+  case "init": {
+    const { runInit } = await import("./cli/init.js");
+    await runInit(args.slice(1));
+    break;
+  }
+
   default:
     console.log(`tarmak - Kanban board for AI-assisted development
 
@@ -147,6 +153,7 @@ Commands:
   import <path>                      Import boards from JSON file
   users list                         List all users
   users reset-password <email> <pw>  Reset a user's password
+  init                               Setup MCP + skills in current repo
 `);
     process.exit(1);
 }
