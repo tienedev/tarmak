@@ -1,24 +1,28 @@
 // agent/src/callback.ts
 import type { Session } from "./types.js";
 
+/**
+ * Report a new agent session to the Tarmak API via tRPC.
+ * Uses the `agent.create` mutation at POST /trpc/agent.create.
+ */
 export async function reportSessionCreated(
   serverUrl: string,
   serverToken: string,
   session: Session
 ): Promise<void> {
   try {
-    await fetch(`${serverUrl}/api/v1/boards/${session.boardId}/agent-sessions`, {
+    await fetch(`${serverUrl}/trpc/agent.create`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${serverToken}`,
       },
       body: JSON.stringify({
-        id: session.id,
-        board_id: session.boardId,
-        task_id: session.taskId,
-        status: "running",
-        branch_name: session.branchName,
+        json: {
+          boardId: session.boardId,
+          taskId: session.taskId,
+          branchName: session.branchName,
+        },
       }),
     });
   } catch {
@@ -26,6 +30,10 @@ export async function reportSessionCreated(
   }
 }
 
+/**
+ * Report session completion to the Tarmak API via tRPC.
+ * Uses the `agent.update` mutation at POST /trpc/agent.update.
+ */
 export async function reportSessionCompleted(
   serverUrl: string,
   serverToken: string,
@@ -39,22 +47,21 @@ export async function reportSessionCompleted(
         : "failed";
 
   try {
-    await fetch(
-      `${serverUrl}/api/v1/boards/${session.boardId}/agent-sessions/${session.id}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serverToken}`,
-        },
-        body: JSON.stringify({
+    await fetch(`${serverUrl}/trpc/agent.update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serverToken}`,
+      },
+      body: JSON.stringify({
+        json: {
+          id: session.id,
           status,
-          exit_code: session.exitCode,
-          log: session.log,
-          finished_at: new Date().toISOString(),
-        }),
-      }
-    );
+          exitCode: session.exitCode ?? undefined,
+          log: session.log || undefined,
+        },
+      }),
+    });
   } catch {
     // best-effort
   }

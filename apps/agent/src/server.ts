@@ -2,6 +2,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
+import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { query } from "@anthropic-ai/claude-agent-sdk";
@@ -32,6 +33,7 @@ const SDK_OPTIONS = {
 };
 
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_SESSION_MESSAGES = 500;
 
 export async function startServer(opts: StartOptions): Promise<void> {
   // Load or generate agent token
@@ -215,6 +217,20 @@ export async function startServer(opts: StartOptions): Promise<void> {
   // --- POST /config/set-workdir ---
   app.post("/config/set-workdir", async (c) => {
     const { repo_url, workdir } = await c.req.json<{ repo_url: string; workdir: string }>();
+
+    if (!workdir || typeof workdir !== "string") {
+      return c.json({ error: "Missing required field: workdir" }, 400);
+    }
+    if (!path.isAbsolute(workdir)) {
+      return c.json({ error: "workdir must be an absolute path" }, 400);
+    }
+    if (!fs.existsSync(workdir) || !fs.statSync(workdir).isDirectory()) {
+      return c.json({ error: "workdir does not exist or is not a directory" }, 400);
+    }
+    if (!fs.existsSync(path.join(workdir, ".git"))) {
+      return c.json({ error: "workdir is not a git repository (no .git found)" }, 400);
+    }
+
     repoCache.set(repo_url, workdir);
     await repoCache.save();
     return c.json({ status: "ok" });
@@ -223,7 +239,13 @@ export async function startServer(opts: StartOptions): Promise<void> {
   // --- Helpers ---
   function broadcastToSession(sessionId: string, msg: ServerMessage): void {
     const session = sessions.get(sessionId);
-    if (session) session.messages.push(msg);
+    if (session) {
+      session.messages.push(msg);
+      if (session.messages.length > MAX_SESSION_MESSAGES) {
+        // Keep the first message (initial status) and the most recent messages
+        session.messages = [session.messages[0]!, ...session.messages.slice(-MAX_SESSION_MESSAGES + 1)];
+      }
+    }
 
     const clients = sessionWs.get(sessionId);
     if (!clients) return;
@@ -276,8 +298,12 @@ export async function startServer(opts: StartOptions): Promise<void> {
       session.status = "executing";
       broadcastToSession(session.id, { type: "status", status: "executing" });
 
+      const executionPrompt = planText
+        ? `Execute the following approved plan exactly as specified:\n\n${planText}\n\nOriginal request: ${session.prompt}`
+        : session.prompt;
+
       for await (const message of query({
-        prompt: session.prompt,
+        prompt: executionPrompt,
         options: {
           cwd: session.worktreePath,
           permissionMode: "acceptEdits",
