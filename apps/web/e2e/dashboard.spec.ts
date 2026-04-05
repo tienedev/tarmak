@@ -25,14 +25,17 @@ test.describe('Dashboard', () => {
     const board = await createBoard(page, 'Clickable Board')
     await page.goto('/#/')
 
-    // Wait for the sidebar to show the board name
-    const boardBtn = sidebarBoard(page, 'Clickable Board')
+    // Wait for the sidebar to show the board name (scope to aside only, not mobile Sheet)
+    const boardBtn = page.locator('aside').getByRole('button', { name: 'Clickable Board' })
     await expect(boardBtn).toBeVisible({ timeout: 10_000 })
 
-    // Click the board name to expand, then click the board sub-link
+    // Click the board name to expand sub-items
     await boardBtn.click()
-    // Use the visible <a> inside <aside> only (not the mobile Sheet copy)
-    await page.locator('aside').getByRole('link', { name: /board/i }).first().click({ timeout: 5_000 })
+
+    // Click the expanded board link (the <a> that navigates to the board)
+    const boardLink = page.locator(`aside a[href="#/boards/${board.id}"]`)
+    await expect(boardLink).toBeVisible({ timeout: 5_000 })
+    await boardLink.click()
     await expect(page).toHaveURL(new RegExp(`#/boards/${board.id}`))
     await expect(main(page).getByRole('heading', { name: 'Clickable Board' })).toBeVisible()
   })
