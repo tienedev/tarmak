@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb, notificationsRepo } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
-import type { Context } from "../../trpc/context";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { TicketStore } from "../../notifications/ticket-store";
+import type { Context } from "../../trpc/context";
 import { setTicketStore } from "../../trpc/procedures/notifications";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -14,7 +14,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
   );
 }
 
@@ -26,7 +26,7 @@ function seedBoard(ctx: Context) {
 
 function seedNotification(ctx: Context, overrides?: { id?: string; read?: boolean }) {
   return notificationsRepo.createNotification(ctx.db, {
-    userId: ctx.user!.id,
+    userId: ctx.user?.id,
     boardId: "b1",
     type: "task_assigned",
     title: "You were assigned a task",
@@ -90,7 +90,7 @@ describe("notification procedures", () => {
       seedNotification(ctx);
 
       // Mark one as read
-      notificationsRepo.markRead(ctx.db, n1.id, ctx.user!.id);
+      notificationsRepo.markRead(ctx.db, n1.id, ctx.user?.id);
 
       const list = await caller.notification.list({ unreadOnly: true });
       expect(list).toHaveLength(1);
@@ -182,9 +182,7 @@ describe("notification procedures", () => {
       seedUser(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.notification.delete({ id: "nonexistent" })).rejects.toThrow(
-        "NOT_FOUND",
-      );
+      await expect(caller.notification.delete({ id: "nonexistent" })).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -198,7 +196,7 @@ describe("notification procedures", () => {
       seedNotification(ctx);
       seedNotification(ctx);
       const n3 = seedNotification(ctx);
-      notificationsRepo.markRead(ctx.db, n3.id, ctx.user!.id);
+      notificationsRepo.markRead(ctx.db, n3.id, ctx.user?.id);
 
       const result = await caller.notification.unreadCount();
       expect(result.count).toBe(2);

@@ -5,10 +5,7 @@ export function securityHeaders() {
     await next();
     c.header("X-Content-Type-Options", "nosniff");
     c.header("X-Frame-Options", "DENY");
-    c.header(
-      "Strict-Transport-Security",
-      "max-age=63072000; includeSubDomains",
-    );
+    c.header("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
     c.header(
       "Content-Security-Policy",
       process.env.TARMAK_CSP ??

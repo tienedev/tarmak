@@ -1,7 +1,7 @@
+import { searchRepo } from "@tarmak/db";
 import { z } from "zod";
 import { router } from "../context";
 import { memberProcedure } from "../middleware/roles";
-import { searchRepo } from "@tarmak/db";
 
 export const searchRouter = router({
   query: memberProcedure

@@ -1,5 +1,5 @@
 import type { DB } from "@tarmak/db";
-import { tasksRepo, columnsRepo } from "@tarmak/db";
+import { columnsRepo, tasksRepo } from "@tarmak/db";
 
 export class TaskService {
   constructor(private db: DB) {}

@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { activity } from "@tarmak/db";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
 import { router } from "../context";
 import { memberProcedure } from "../middleware/roles";
-import { activity } from "@tarmak/db";
 
 export const activityRouter = router({
   list: memberProcedure

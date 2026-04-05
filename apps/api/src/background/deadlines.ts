@@ -1,13 +1,13 @@
-import { and, isNotNull, eq, lt } from "drizzle-orm";
 import type { DB } from "@tarmak/db";
-import { tasks, notificationsRepo } from "@tarmak/db";
-import type { NotificationBroadcaster } from "../notifications/broadcaster";
+import { notificationsRepo, tasks } from "@tarmak/db";
+import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { logger } from "../logger";
+import type { NotificationBroadcaster } from "../notifications/broadcaster";
 
 export function startDeadlineChecker(
   db: DB,
   broadcaster: NotificationBroadcaster,
-  intervalMs: number = 3_600_000,
+  intervalMs = 3_600_000,
 ): NodeJS.Timeout {
   return setInterval(() => {
     try {
@@ -18,10 +18,7 @@ export function startDeadlineChecker(
   }, intervalMs);
 }
 
-export function checkDeadlines(
-  db: DB,
-  broadcaster: NotificationBroadcaster,
-): void {
+export function checkDeadlines(db: DB, broadcaster: NotificationBroadcaster): void {
   const now = new Date().toISOString();
 
   // Find non-archived tasks with overdue due_date and an assignee

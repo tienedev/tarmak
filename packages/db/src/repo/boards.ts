@@ -1,15 +1,15 @@
-import { eq, sql, and } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { DB } from "../connection";
 import {
+  boardMembers,
   boards,
   columns,
-  labels,
-  taskLabels,
   customFields,
-  taskCustomFieldValues,
-  tasks,
+  labels,
   subtasks,
-  boardMembers,
+  taskCustomFieldValues,
+  taskLabels,
+  tasks,
   users,
 } from "../schema/index";
 
@@ -30,12 +30,22 @@ export function getBoard(db: DB, id: string) {
 
 export function listBoards(db: DB, userId?: string) {
   const query = db
-    .select({ id: boards.id, name: boards.name, description: boards.description, repo_url: boards.repo_url, created_at: boards.created_at, updated_at: boards.updated_at })
+    .select({
+      id: boards.id,
+      name: boards.name,
+      description: boards.description,
+      repo_url: boards.repo_url,
+      created_at: boards.created_at,
+      updated_at: boards.updated_at,
+    })
     .from(boards);
 
   if (userId) {
     return query
-      .innerJoin(boardMembers, and(eq(boardMembers.board_id, boards.id), eq(boardMembers.user_id, userId)))
+      .innerJoin(
+        boardMembers,
+        and(eq(boardMembers.board_id, boards.id), eq(boardMembers.user_id, userId)),
+      )
       .orderBy(boards.created_at)
       .all();
   }
@@ -132,7 +142,11 @@ export function duplicateBoard(
     }
 
     // Copy custom fields
-    const oldFields = tx.select().from(customFields).where(eq(customFields.board_id, boardId)).all();
+    const oldFields = tx
+      .select()
+      .from(customFields)
+      .where(eq(customFields.board_id, boardId))
+      .all();
     const fieldMap = new Map<string, string>();
     for (const field of oldFields) {
       const newFieldId = crypto.randomUUID();
@@ -151,7 +165,11 @@ export function duplicateBoard(
 
     // Copy tasks if requested
     if (includeTasks) {
-      const oldTasks = tx.select().from(tasks).where(and(eq(tasks.board_id, boardId), eq(tasks.archived, false))).all();
+      const oldTasks = tx
+        .select()
+        .from(tasks)
+        .where(and(eq(tasks.board_id, boardId), eq(tasks.archived, false)))
+        .all();
 
       for (const task of oldTasks) {
         const newColumnId = columnMap.get(task.column_id);
@@ -221,9 +239,7 @@ export function duplicateBoard(
     }
 
     // Add owner as member
-    tx.insert(boardMembers)
-      .values({ board_id: newBoardId, user_id: ownerId, role: "owner" })
-      .run();
+    tx.insert(boardMembers).values({ board_id: newBoardId, user_id: ownerId, role: "owner" }).run();
 
     return tx.select().from(boards).where(eq(boards.id, newBoardId)).get()!;
   });

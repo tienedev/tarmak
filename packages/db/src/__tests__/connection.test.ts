@@ -1,15 +1,15 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../connection";
+import { agentSessions } from "../schema/agent";
 import { boards } from "../schema/boards";
 import { columns } from "../schema/columns";
-import { tasks } from "../schema/tasks";
-import { users, boardMembers } from "../schema/users";
-import { labels, taskLabels } from "../schema/labels";
 import { comments } from "../schema/comments";
-import { subtasks } from "../schema/subtasks";
+import { labels, taskLabels } from "../schema/labels";
 import { notifications } from "../schema/notifications";
-import { agentSessions } from "../schema/agent";
-import { eq } from "drizzle-orm";
+import { subtasks } from "../schema/subtasks";
+import { tasks } from "../schema/tasks";
+import { boardMembers, users } from "../schema/users";
 
 describe("createDb", () => {
   it("creates in-memory database", () => {
@@ -59,9 +59,7 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
 
     const result = db.select().from(columns).all();
     expect(result).toHaveLength(1);
@@ -74,9 +72,7 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
     db.insert(tasks)
       .values({
         id: "t1",
@@ -99,13 +95,9 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(users)
-      .values({ id: "u1", name: "Alice", email: "alice@test.com" })
-      .run();
+    db.insert(users).values({ id: "u1", name: "Alice", email: "alice@test.com" }).run();
 
-    db.insert(boardMembers)
-      .values({ board_id: "b1", user_id: "u1", role: "owner" })
-      .run();
+    db.insert(boardMembers).values({ board_id: "b1", user_id: "u1", role: "owner" }).run();
 
     const result = db.select().from(users).all();
     expect(result).toHaveLength(1);
@@ -117,18 +109,10 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
-    db.insert(tasks)
-      .values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" })
-      .run();
-    db.insert(labels)
-      .values({ id: "l1", board_id: "b1", name: "Bug", color: "#ff0000" })
-      .run();
-    db.insert(taskLabels)
-      .values({ task_id: "t1", label_id: "l1" })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
+    db.insert(tasks).values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" }).run();
+    db.insert(labels).values({ id: "l1", board_id: "b1", name: "Bug", color: "#ff0000" }).run();
+    db.insert(taskLabels).values({ task_id: "t1", label_id: "l1" }).run();
 
     const result = db.select().from(taskLabels).all();
     expect(result).toHaveLength(1);
@@ -139,15 +123,9 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
-    db.insert(tasks)
-      .values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" })
-      .run();
-    db.insert(users)
-      .values({ id: "u1", name: "Alice", email: "alice@test.com" })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
+    db.insert(tasks).values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" }).run();
+    db.insert(users).values({ id: "u1", name: "Alice", email: "alice@test.com" }).run();
     db.insert(comments)
       .values({ id: "cmt1", task_id: "t1", user_id: "u1", content: "Hello" })
       .run();
@@ -162,15 +140,9 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
-    db.insert(tasks)
-      .values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" })
-      .run();
-    db.insert(subtasks)
-      .values({ id: "st1", task_id: "t1", title: "Sub 1" })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
+    db.insert(tasks).values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" }).run();
+    db.insert(subtasks).values({ id: "st1", task_id: "t1", title: "Sub 1" }).run();
 
     const result = db.select().from(subtasks).all();
     expect(result).toHaveLength(1);
@@ -182,9 +154,7 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(users)
-      .values({ id: "u1", name: "Alice", email: "alice@test.com" })
-      .run();
+    db.insert(users).values({ id: "u1", name: "Alice", email: "alice@test.com" }).run();
     db.insert(notifications)
       .values({
         id: "n1",
@@ -205,12 +175,8 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
-    db.insert(tasks)
-      .values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
+    db.insert(tasks).values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" }).run();
     db.insert(users)
       .values({ id: "u1", name: "Agent", email: "agent@test.com", is_agent: true })
       .run();
@@ -233,12 +199,8 @@ describe("createDb", () => {
     migrateDb(db);
 
     db.insert(boards).values({ id: "b1", name: "Board" }).run();
-    db.insert(columns)
-      .values({ id: "c1", board_id: "b1", name: "Todo", position: 0 })
-      .run();
-    db.insert(tasks)
-      .values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" })
-      .run();
+    db.insert(columns).values({ id: "c1", board_id: "b1", name: "Todo", position: 0 }).run();
+    db.insert(tasks).values({ id: "t1", board_id: "b1", column_id: "c1", title: "Task" }).run();
 
     // Delete the board — should cascade to columns and tasks
     db.delete(boards).where(eq(boards.id, "b1")).run();

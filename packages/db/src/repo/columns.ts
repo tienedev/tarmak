@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { DB } from "../connection";
 import { columns } from "../schema/index";
 import { tasks } from "../schema/index";
@@ -66,11 +66,7 @@ export function deleteColumn(db: DB, id: string) {
 }
 
 export function moveColumn(db: DB, id: string, newPosition: number) {
-  const result = db
-    .update(columns)
-    .set({ position: newPosition })
-    .where(eq(columns.id, id))
-    .run();
+  const result = db.update(columns).set({ position: newPosition }).where(eq(columns.id, id)).run();
   return result.changes > 0;
 }
 

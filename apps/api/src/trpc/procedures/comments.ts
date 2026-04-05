@@ -1,9 +1,9 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { comments, commentsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { router } from "../context";
 import { memberProcedure, writerProcedure } from "../middleware/roles";
-import { commentsRepo, comments } from "@tarmak/db";
 
 export const commentRouter = router({
   create: writerProcedure

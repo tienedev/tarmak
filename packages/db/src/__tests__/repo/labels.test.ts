@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import {
-  createLabel,
-  listLabels,
-  updateLabel,
-  deleteLabel,
-  attachLabel,
-  detachLabel,
-  getTaskLabels,
-} from "../../repo/labels";
+import type { DB } from "../../connection";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
+import {
+  attachLabel,
+  createLabel,
+  deleteLabel,
+  detachLabel,
+  getTaskLabels,
+  listLabels,
+  updateLabel,
+} from "../../repo/labels";
 import { createTask, getTaskWithRelations } from "../../repo/tasks";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -168,7 +168,7 @@ describe("labels repo", () => {
       attachLabel(db, task.id, label.id);
       attachLabel(db, task.id, label.id);
       const t = getTaskWithRelations(db, task.id);
-      expect(t!.labels.filter((l: any) => l.id === label.id)).toHaveLength(1);
+      expect(t?.labels.filter((l: any) => l.id === label.id)).toHaveLength(1);
     });
 
     it("detaches a label from a task", () => {

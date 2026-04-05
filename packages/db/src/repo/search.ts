@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
 import type { SearchResult } from "@tarmak/shared";
+import { sql } from "drizzle-orm";
 import type { DB } from "../connection";
 
 export function search(

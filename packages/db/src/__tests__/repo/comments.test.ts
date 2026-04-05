@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import {
-  createComment,
-  listComments,
-  updateComment,
-  deleteComment,
-} from "../../repo/comments";
+import type { DB } from "../../connection";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
+import { createComment, deleteComment, listComments, updateComment } from "../../repo/comments";
 import { createTask } from "../../repo/tasks";
 import { users } from "../../schema/users";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -119,9 +114,9 @@ describe("comments repo", () => {
       const updated = updateComment(db, comment.id, "Edited");
 
       expect(updated).not.toBeNull();
-      expect(updated!.content).toBe("Edited");
-      expect(updated!.updated_at).toBeDefined();
-      expect(updated!.updated_at).not.toBeNull();
+      expect(updated?.content).toBe("Edited");
+      expect(updated?.updated_at).toBeDefined();
+      expect(updated?.updated_at).not.toBeNull();
     });
 
     it("returns null for non-existent comment", () => {

@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { DB } from "../connection";
 import { notifications } from "../schema/index";
 
@@ -89,11 +89,7 @@ export function deleteNotification(db: DB, id: string, userId: string) {
   return result.changes > 0;
 }
 
-export function hasDeadlineNotification(
-  db: DB,
-  taskId: string,
-  userId: string,
-) {
+export function hasDeadlineNotification(db: DB, taskId: string, userId: string) {
   const row = db
     .select({ count: sql<number>`COUNT(*)` })
     .from(notifications)

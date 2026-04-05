@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { attachmentsRepo, createDb, migrateDb } from "@tarmak/db";
 import { sql } from "drizzle-orm";
-import { createDb, migrateDb, attachmentsRepo } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
   );
 }
 
@@ -37,7 +37,7 @@ function seedAttachment(ctx: Context, taskId: string, boardId: string) {
     mimeType: "image/png",
     sizeBytes: 1024,
     storageKey: `uploads/${crypto.randomUUID()}.png`,
-    uploadedBy: ctx.user!.id,
+    uploadedBy: ctx.user?.id,
   });
 }
 
@@ -72,7 +72,10 @@ describe("attachment procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const attachment = seedAttachment(ctx, task.id, board.id);
-      const fetched = await caller.attachment.get({ boardId: board.id, attachmentId: attachment.id });
+      const fetched = await caller.attachment.get({
+        boardId: board.id,
+        attachmentId: attachment.id,
+      });
       expect(fetched.filename).toBe("test.png");
       expect(fetched.mime_type).toBe("image/png");
       expect(fetched.size_bytes).toBe(1024);
@@ -96,7 +99,10 @@ describe("attachment procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const attachment = seedAttachment(ctx, task.id, board.id);
-      const result = await caller.attachment.delete({ boardId: board.id, attachmentId: attachment.id });
+      const result = await caller.attachment.delete({
+        boardId: board.id,
+        attachmentId: attachment.id,
+      });
       expect(result.success).toBe(true);
 
       const attachments = await caller.attachment.list({ boardId: board.id, taskId: task.id });

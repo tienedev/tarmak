@@ -2,7 +2,7 @@ export class Schema {
   constructor(
     public entity: string,
     public fields: string[],
-    public version: number = 1,
+    public version = 1,
   ) {}
 
   encode(): string {

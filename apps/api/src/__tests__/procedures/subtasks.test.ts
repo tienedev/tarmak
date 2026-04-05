@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
   );
 }
 
@@ -53,8 +53,16 @@ describe("subtask procedures", () => {
       const { board, task } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      const s1 = await caller.subtask.create({ boardId: board.id, taskId: task.id, title: "First" });
-      const s2 = await caller.subtask.create({ boardId: board.id, taskId: task.id, title: "Second" });
+      const s1 = await caller.subtask.create({
+        boardId: board.id,
+        taskId: task.id,
+        title: "First",
+      });
+      const s2 = await caller.subtask.create({
+        boardId: board.id,
+        taskId: task.id,
+        title: "Second",
+      });
       expect(s2.position).toBeGreaterThan(s1.position);
     });
   });
@@ -185,7 +193,11 @@ describe("subtask procedures", () => {
         taskId: task.id,
         title: "Movable",
       });
-      const result = await caller.subtask.move({ boardId: board.id, subtaskId: subtask.id, position: 5 });
+      const result = await caller.subtask.move({
+        boardId: board.id,
+        subtaskId: subtask.id,
+        position: 5,
+      });
       expect(result.success).toBe(true);
     });
 

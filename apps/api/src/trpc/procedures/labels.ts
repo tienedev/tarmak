@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { labelsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { memberProcedure, writerProcedure } from "../middleware/roles";
-import { labelsRepo } from "@tarmak/db";
 
 export const labelRouter = router({
   create: writerProcedure

@@ -1,8 +1,8 @@
-import { TRPCError } from "@trpc/server";
-import { middleware } from "../context";
+import { boardsRepo } from "@tarmak/db";
 import { ROLE_HIERARCHY } from "@tarmak/shared";
 import type { Role } from "@tarmak/shared";
-import { boardsRepo } from "@tarmak/db";
+import { TRPCError } from "@trpc/server";
+import { middleware } from "../context";
 import { protectedProcedure } from "./auth";
 
 export function requireRole(minimumRole: Role) {

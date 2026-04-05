@@ -1,12 +1,9 @@
-import { and, eq, lt } from "drizzle-orm";
 import type { DB } from "@tarmak/db";
-import { sessions, agentSessions } from "@tarmak/db";
+import { agentSessions, sessions } from "@tarmak/db";
+import { and, eq, lt } from "drizzle-orm";
 import { logger } from "../logger";
 
-export function startSessionCleanup(
-  db: DB,
-  intervalMs: number = 3_600_000,
-): NodeJS.Timeout {
+export function startSessionCleanup(db: DB, intervalMs = 3_600_000): NodeJS.Timeout {
   return setInterval(() => {
     try {
       cleanupSessions(db);
@@ -20,10 +17,7 @@ export function cleanupSessions(db: DB): void {
   const now = new Date().toISOString();
 
   // Delete expired auth sessions
-  const authResult = db
-    .delete(sessions)
-    .where(lt(sessions.expires_at, now))
-    .run();
+  const authResult = db.delete(sessions).where(lt(sessions.expires_at, now)).run();
 
   if (authResult.changes > 0) {
     logger.info({ count: authResult.changes }, "Cleaned up expired auth sessions");
@@ -34,18 +28,10 @@ export function cleanupSessions(db: DB): void {
   const agentResult = db
     .update(agentSessions)
     .set({ status: "failed", finished_at: now })
-    .where(
-      and(
-        eq(agentSessions.status, "running"),
-        lt(agentSessions.started_at, oneHourAgo),
-      ),
-    )
+    .where(and(eq(agentSessions.status, "running"), lt(agentSessions.started_at, oneHourAgo)))
     .run();
 
   if (agentResult.changes > 0) {
-    logger.info(
-      { count: agentResult.changes },
-      "Marked stale agent sessions as failed",
-    );
+    logger.info({ count: agentResult.changes }, "Marked stale agent sessions as failed");
   }
 }

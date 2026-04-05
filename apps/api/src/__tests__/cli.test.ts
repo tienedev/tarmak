@@ -1,23 +1,23 @@
-import { describe, expect, it, beforeEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  createDb,
-  migrateDb,
+  type DB,
   boardsRepo,
   columnsRepo,
-  tasksRepo,
-  labelsRepo,
-  subtasksRepo,
+  createDb,
   customFieldsRepo,
+  labelsRepo,
+  migrateDb,
+  subtasksRepo,
+  tasksRepo,
   users,
-  type DB,
 } from "@tarmak/db";
-import { sql, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { beforeEach, describe, expect, it } from "vitest";
 import { exportAllData } from "../cli/export";
-import { importData, type ImportData } from "../cli/import";
-import { listUsers, resetPassword, hashPassword } from "../cli/users";
+import { type ImportData, importData } from "../cli/import";
+import { hashPassword, listUsers, resetPassword } from "../cli/users";
 
 function createTestDb(): DB {
   const db = createDb();
@@ -45,9 +45,7 @@ function seedBoard(db: DB) {
 }
 
 function insertUser(db: DB, id: string, name: string, email: string) {
-  db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${id}, ${name}, ${email})`,
-  );
+  db.run(sql`INSERT INTO users (id, name, email) VALUES (${id}, ${name}, ${email})`);
 }
 
 describe("CLI: export", () => {
@@ -186,11 +184,7 @@ describe("CLI: users reset-password", () => {
     expect(ok).toBe(true);
 
     // Verify password hash was stored
-    const user = db
-      .select()
-      .from(users)
-      .where(eq(users.email, "alice@test.com"))
-      .get();
+    const user = db.select().from(users).where(eq(users.email, "alice@test.com")).get();
     expect(user?.password_hash).toBeTruthy();
     expect(user?.password_hash).toMatch(/^scrypt:/);
   });

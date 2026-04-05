@@ -1,27 +1,27 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
+import type { DB } from "../../connection";
+import { createBoard } from "../../repo/boards";
+import { createColumn } from "../../repo/columns";
 import {
+  claimTask,
   createTask,
+  deleteTask,
+  duplicateTask,
   getTask,
   getTaskWithRelations,
   listTasks,
-  updateTask,
-  deleteTask,
   moveTask,
-  claimTask,
   releaseTask,
-  duplicateTask,
+  updateTask,
 } from "../../repo/tasks";
-import { createBoard } from "../../repo/boards";
-import { createColumn } from "../../repo/columns";
-import { labels, taskLabels } from "../../schema/labels";
-import { subtasks } from "../../schema/subtasks";
 import { attachments } from "../../schema/attachments";
 import { customFields, taskCustomFieldValues } from "../../schema/custom-fields";
-import { users } from "../../schema/users";
+import { labels, taskLabels } from "../../schema/labels";
+import { subtasks } from "../../schema/subtasks";
 import { tasks } from "../../schema/tasks";
-import { eq } from "drizzle-orm";
-import type { DB } from "../../connection";
+import { users } from "../../schema/users";
 
 function setup() {
   const db = createDb();
@@ -87,7 +87,7 @@ describe("tasks repo", () => {
 
       const found = getTask(db, task.id);
       expect(found).not.toBeNull();
-      expect(found!.title).toBe("Task");
+      expect(found?.title).toBe("Task");
     });
 
     it("returns null for non-existent task", () => {
@@ -104,14 +104,22 @@ describe("tasks repo", () => {
 
       // Add labels
       db.insert(labels).values({ id: "l1", board_id: board.id, name: "Bug", color: "#f00" }).run();
-      db.insert(labels).values({ id: "l2", board_id: board.id, name: "Feature", color: "#0f0" }).run();
+      db.insert(labels)
+        .values({ id: "l2", board_id: board.id, name: "Feature", color: "#0f0" })
+        .run();
       db.insert(taskLabels).values({ task_id: task.id, label_id: "l1" }).run();
       db.insert(taskLabels).values({ task_id: task.id, label_id: "l2" }).run();
 
       // Add subtasks
-      db.insert(subtasks).values({ id: "st1", task_id: task.id, title: "Sub 1", completed: true }).run();
-      db.insert(subtasks).values({ id: "st2", task_id: task.id, title: "Sub 2", completed: false }).run();
-      db.insert(subtasks).values({ id: "st3", task_id: task.id, title: "Sub 3", completed: true }).run();
+      db.insert(subtasks)
+        .values({ id: "st1", task_id: task.id, title: "Sub 1", completed: true })
+        .run();
+      db.insert(subtasks)
+        .values({ id: "st2", task_id: task.id, title: "Sub 2", completed: false })
+        .run();
+      db.insert(subtasks)
+        .values({ id: "st3", task_id: task.id, title: "Sub 3", completed: true })
+        .run();
 
       // Add attachments
       db.insert(attachments)
@@ -128,11 +136,11 @@ describe("tasks repo", () => {
 
       const result = getTaskWithRelations(db, task.id);
       expect(result).not.toBeNull();
-      expect(result!.title).toBe("Task");
-      expect(result!.labels).toHaveLength(2);
-      expect(result!.labels.map((l) => l.name).sort()).toEqual(["Bug", "Feature"]);
-      expect(result!.subtask_count).toEqual({ completed: 2, total: 3 });
-      expect(result!.attachment_count).toBe(1);
+      expect(result?.title).toBe("Task");
+      expect(result?.labels).toHaveLength(2);
+      expect(result?.labels.map((l) => l.name).sort()).toEqual(["Bug", "Feature"]);
+      expect(result?.subtask_count).toEqual({ completed: 2, total: 3 });
+      expect(result?.attachment_count).toBe(1);
     });
 
     it("returns null for non-existent task", () => {
@@ -147,9 +155,9 @@ describe("tasks repo", () => {
 
       const result = getTaskWithRelations(db, task.id);
       expect(result).not.toBeNull();
-      expect(result!.labels).toEqual([]);
-      expect(result!.subtask_count).toEqual({ completed: 0, total: 0 });
-      expect(result!.attachment_count).toBe(0);
+      expect(result?.labels).toEqual([]);
+      expect(result?.subtask_count).toEqual({ completed: 0, total: 0 });
+      expect(result?.attachment_count).toBe(0);
     });
   });
 
@@ -202,8 +210,8 @@ describe("tasks repo", () => {
 
       const updated = updateTask(db, task.id, { title: "New", description: "Desc" });
       expect(updated).not.toBeNull();
-      expect(updated!.title).toBe("New");
-      expect(updated!.description).toBe("Desc");
+      expect(updated?.title).toBe("New");
+      expect(updated?.description).toBe("Desc");
     });
 
     it("updates priority and assignee", () => {
@@ -212,8 +220,8 @@ describe("tasks repo", () => {
       const task = createTask(db, { boardId: board.id, columnId: col.id, title: "Task" });
 
       const updated = updateTask(db, task.id, { priority: "urgent", assignee: "user-1" });
-      expect(updated!.priority).toBe("urgent");
-      expect(updated!.assignee).toBe("user-1");
+      expect(updated?.priority).toBe("urgent");
+      expect(updated?.assignee).toBe("user-1");
     });
 
     it("updates due_date", () => {
@@ -222,7 +230,7 @@ describe("tasks repo", () => {
       const task = createTask(db, { boardId: board.id, columnId: col.id, title: "Task" });
 
       const updated = updateTask(db, task.id, { due_date: "2026-12-31" });
-      expect(updated!.due_date).toBe("2026-12-31");
+      expect(updated?.due_date).toBe("2026-12-31");
     });
 
     it("returns null for non-existent task", () => {
@@ -256,8 +264,8 @@ describe("tasks repo", () => {
 
       const moved = moveTask(db, task.id, col2.id, 0);
       expect(moved).not.toBeNull();
-      expect(moved!.column_id).toBe(col2.id);
-      expect(moved!.position).toBe(0);
+      expect(moved?.column_id).toBe(col2.id);
+      expect(moved?.position).toBe(0);
     });
 
     it("returns null for non-existent task", () => {
@@ -272,16 +280,37 @@ describe("tasks repo", () => {
       const { board, col } = seedBoardAndColumn(db);
 
       // Create agent user
-      db.insert(users).values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true }).run();
+      db.insert(users)
+        .values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true })
+        .run();
 
       // Create ai-ready label
-      db.insert(labels).values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" }).run();
-      db.insert(labels).values({ id: "l-bug", board_id: board.id, name: "bug", color: "#f00" }).run();
+      db.insert(labels)
+        .values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" })
+        .run();
+      db.insert(labels)
+        .values({ id: "l-bug", board_id: board.id, name: "bug", color: "#f00" })
+        .run();
 
       // Create tasks with different priorities
-      const low = createTask(db, { boardId: board.id, columnId: col.id, title: "Low", priority: "low" });
-      const urgent = createTask(db, { boardId: board.id, columnId: col.id, title: "Urgent", priority: "urgent" });
-      const high = createTask(db, { boardId: board.id, columnId: col.id, title: "High", priority: "high" });
+      const low = createTask(db, {
+        boardId: board.id,
+        columnId: col.id,
+        title: "Low",
+        priority: "low",
+      });
+      const urgent = createTask(db, {
+        boardId: board.id,
+        columnId: col.id,
+        title: "Urgent",
+        priority: "urgent",
+      });
+      const high = createTask(db, {
+        boardId: board.id,
+        columnId: col.id,
+        title: "High",
+        priority: "high",
+      });
 
       // Only tag urgent and low as ai-ready
       db.insert(taskLabels).values({ task_id: low.id, label_id: "l-ai" }).run();
@@ -290,16 +319,18 @@ describe("tasks repo", () => {
 
       const claimed = claimTask(db, board.id, "agent-1");
       expect(claimed).not.toBeNull();
-      expect(claimed!.task.title).toBe("Urgent");
-      expect(claimed!.task.locked_by).toBe("agent-1");
-      expect(claimed!.labels).toContain("ai-ready");
-      expect(claimed!.labels).toContain("bug");
+      expect(claimed?.task.title).toBe("Urgent");
+      expect(claimed?.task.locked_by).toBe("agent-1");
+      expect(claimed?.labels).toContain("ai-ready");
+      expect(claimed?.labels).toContain("bug");
     });
 
     it("returns null when no ai-ready tasks", () => {
       const db = setup();
       const { board, col } = seedBoardAndColumn(db);
-      db.insert(users).values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true }).run();
+      db.insert(users)
+        .values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true })
+        .run();
 
       createTask(db, { boardId: board.id, columnId: col.id, title: "Not tagged" });
 
@@ -309,35 +340,62 @@ describe("tasks repo", () => {
     it("skips already-locked tasks", () => {
       const db = setup();
       const { board, col } = seedBoardAndColumn(db);
-      db.insert(users).values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true }).run();
-      db.insert(users).values({ id: "agent-2", name: "Agent2", email: "agent2@test.com", is_agent: true }).run();
+      db.insert(users)
+        .values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true })
+        .run();
+      db.insert(users)
+        .values({ id: "agent-2", name: "Agent2", email: "agent2@test.com", is_agent: true })
+        .run();
 
-      db.insert(labels).values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" }).run();
+      db.insert(labels)
+        .values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" })
+        .run();
 
-      const t1 = createTask(db, { boardId: board.id, columnId: col.id, title: "Task 1", priority: "urgent" });
-      const t2 = createTask(db, { boardId: board.id, columnId: col.id, title: "Task 2", priority: "high" });
+      const t1 = createTask(db, {
+        boardId: board.id,
+        columnId: col.id,
+        title: "Task 1",
+        priority: "urgent",
+      });
+      const t2 = createTask(db, {
+        boardId: board.id,
+        columnId: col.id,
+        title: "Task 2",
+        priority: "high",
+      });
 
       db.insert(taskLabels).values({ task_id: t1.id, label_id: "l-ai" }).run();
       db.insert(taskLabels).values({ task_id: t2.id, label_id: "l-ai" }).run();
 
       // Agent 1 claims first
       const first = claimTask(db, board.id, "agent-1");
-      expect(first!.task.title).toBe("Task 1");
+      expect(first?.task.title).toBe("Task 1");
 
       // Agent 2 should get the next one
       const second = claimTask(db, board.id, "agent-2");
-      expect(second!.task.title).toBe("Task 2");
+      expect(second?.task.title).toBe("Task 2");
     });
 
     it("atomic lock prevents double claim", () => {
       const db = setup();
       const { board, col } = seedBoardAndColumn(db);
-      db.insert(users).values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true }).run();
-      db.insert(users).values({ id: "agent-2", name: "Agent2", email: "agent2@test.com", is_agent: true }).run();
+      db.insert(users)
+        .values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true })
+        .run();
+      db.insert(users)
+        .values({ id: "agent-2", name: "Agent2", email: "agent2@test.com", is_agent: true })
+        .run();
 
-      db.insert(labels).values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" }).run();
+      db.insert(labels)
+        .values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" })
+        .run();
 
-      const task = createTask(db, { boardId: board.id, columnId: col.id, title: "Only Task", priority: "high" });
+      const task = createTask(db, {
+        boardId: board.id,
+        columnId: col.id,
+        title: "Only Task",
+        priority: "high",
+      });
       db.insert(taskLabels).values({ task_id: task.id, label_id: "l-ai" }).run();
 
       // Agent 1 claims
@@ -351,8 +409,12 @@ describe("tasks repo", () => {
     it("prioritizes by due_date when priority is same", () => {
       const db = setup();
       const { board, col } = seedBoardAndColumn(db);
-      db.insert(users).values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true }).run();
-      db.insert(labels).values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" }).run();
+      db.insert(users)
+        .values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true })
+        .run();
+      db.insert(labels)
+        .values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" })
+        .run();
 
       const t1 = createTask(db, { boardId: board.id, columnId: col.id, title: "Later" });
       const t2 = createTask(db, { boardId: board.id, columnId: col.id, title: "Sooner" });
@@ -365,7 +427,7 @@ describe("tasks repo", () => {
       db.insert(taskLabels).values({ task_id: t2.id, label_id: "l-ai" }).run();
 
       const claimed = claimTask(db, board.id, "agent-1");
-      expect(claimed!.task.title).toBe("Sooner");
+      expect(claimed?.task.title).toBe("Sooner");
     });
   });
 
@@ -373,8 +435,12 @@ describe("tasks repo", () => {
     it("releases a locked task", () => {
       const db = setup();
       const { board, col } = seedBoardAndColumn(db);
-      db.insert(users).values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true }).run();
-      db.insert(labels).values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" }).run();
+      db.insert(users)
+        .values({ id: "agent-1", name: "Agent", email: "agent@test.com", is_agent: true })
+        .run();
+      db.insert(labels)
+        .values({ id: "l-ai", board_id: board.id, name: "ai-ready", color: "#00f" })
+        .run();
 
       const task = createTask(db, { boardId: board.id, columnId: col.id, title: "Task" });
       db.insert(taskLabels).values({ task_id: task.id, label_id: "l-ai" }).run();
@@ -383,8 +449,8 @@ describe("tasks repo", () => {
       releaseTask(db, task.id);
 
       const released = getTask(db, task.id);
-      expect(released!.locked_by).toBeNull();
-      expect(released!.locked_at).toBeNull();
+      expect(released?.locked_by).toBeNull();
+      expect(released?.locked_at).toBeNull();
     });
   });
 
@@ -410,14 +476,18 @@ describe("tasks repo", () => {
       db.insert(taskLabels).values({ task_id: task.id, label_id: "l1" }).run();
 
       // Add subtasks
-      db.insert(subtasks).values({ id: "st1", task_id: task.id, title: "Sub 1", completed: true }).run();
+      db.insert(subtasks)
+        .values({ id: "st1", task_id: task.id, title: "Sub 1", completed: true })
+        .run();
       db.insert(subtasks).values({ id: "st2", task_id: task.id, title: "Sub 2" }).run();
 
       // Add custom field value
       db.insert(customFields)
         .values({ id: "cf1", board_id: board.id, name: "Points", field_type: "number" })
         .run();
-      db.insert(taskCustomFieldValues).values({ task_id: task.id, field_id: "cf1", value: "8" }).run();
+      db.insert(taskCustomFieldValues)
+        .values({ task_id: task.id, field_id: "cf1", value: "8" })
+        .run();
 
       const dup = duplicateTask(db, task.id, board.id);
 
@@ -428,8 +498,8 @@ describe("tasks repo", () => {
 
       // Should NOT copy assignee and due_date
       const dupRaw = getTask(db, dup.id);
-      expect(dupRaw!.assignee).toBeNull();
-      expect(dupRaw!.due_date).toBeNull();
+      expect(dupRaw?.assignee).toBeNull();
+      expect(dupRaw?.due_date).toBeNull();
 
       // Position should be original + 1
       expect(dup.position).toBe(task.position + 1);
@@ -465,8 +535,8 @@ describe("tasks repo", () => {
 
       const updatedT2 = getTask(db, t2.id);
       const updatedT3 = getTask(db, t3.id);
-      expect(updatedT2!.position).toBe(3);
-      expect(updatedT3!.position).toBe(4);
+      expect(updatedT2?.position).toBe(3);
+      expect(updatedT3?.position).toBe(4);
     });
   });
 });

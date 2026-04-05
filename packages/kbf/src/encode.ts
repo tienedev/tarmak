@@ -1,5 +1,5 @@
-import type { Delta, Row } from "./types";
 import type { Schema } from "./schema";
+import type { Delta, Row } from "./types";
 
 function escapePipe(value: string): string {
   return value.replaceAll("|", "\\|");

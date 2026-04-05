@@ -1,4 +1,4 @@
-import { eq, and, desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { DB } from "../connection";
 import { agentSessions } from "../schema/index";
 

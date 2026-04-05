@@ -35,11 +35,7 @@ export function createAttachment(
 }
 
 export function listAttachments(db: DB, taskId: string) {
-  return db
-    .select()
-    .from(attachments)
-    .where(eq(attachments.task_id, taskId))
-    .all();
+  return db.select().from(attachments).where(eq(attachments.task_id, taskId)).all();
 }
 
 export function getAttachment(db: DB, id: string) {

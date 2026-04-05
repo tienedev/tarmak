@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { agentRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
 import { memberProcedure, writerProcedure } from "../middleware/roles";
-import { agentRepo } from "@tarmak/db";
 
 export const agentRouter = router({
   create: writerProcedure
@@ -65,9 +65,7 @@ export const agentRouter = router({
       return agentRepo.listBoardSessions(ctx.db, input.boardId, input.status);
     }),
 
-  getRunning: protectedProcedure
-    .input(z.object({ taskId: z.string() }))
-    .query(({ ctx, input }) => {
-      return agentRepo.getRunningSession(ctx.db, input.taskId);
-    }),
+  getRunning: protectedProcedure.input(z.object({ taskId: z.string() })).query(({ ctx, input }) => {
+    return agentRepo.getRunningSession(ctx.db, input.taskId);
+  }),
 });

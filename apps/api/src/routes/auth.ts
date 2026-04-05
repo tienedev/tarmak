@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
-import { Hono } from "hono";
-import { eq } from "drizzle-orm";
-import { z } from "zod";
 import type { DB } from "@tarmak/db";
-import { users, sessions } from "@tarmak/db";
+import { sessions, users } from "@tarmak/db";
+import { eq } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
 import { resolveUser } from "../auth/resolve-user";
 
 const registerSchema = z.object({
@@ -58,11 +58,7 @@ export function authRoutes(db: DB) {
     const { name, email, password } = parsed.data;
 
     // Check uniqueness
-    const existing = db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, email))
-      .get();
+    const existing = db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
     if (existing) {
       return c.json({ error: "email already registered" }, 409);
     }
@@ -70,9 +66,7 @@ export function authRoutes(db: DB) {
     const id = crypto.randomUUID();
     const passwordHash = hashPassword(password);
 
-    db.insert(users)
-      .values({ id, name, email, password_hash: passwordHash })
-      .run();
+    db.insert(users).values({ id, name, email, password_hash: passwordHash }).run();
 
     const { token } = createSession(db, id);
 

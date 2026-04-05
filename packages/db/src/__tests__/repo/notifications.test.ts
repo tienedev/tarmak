@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import {
-  createNotification,
-  listNotifications,
-  markRead,
-  markAllRead,
-  deleteNotification,
-  getUnreadCount,
-} from "../../repo/notifications";
+import type { DB } from "../../connection";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
+import {
+  createNotification,
+  deleteNotification,
+  getUnreadCount,
+  listNotifications,
+  markAllRead,
+  markRead,
+} from "../../repo/notifications";
 import { createTask } from "../../repo/tasks";
 import { users } from "../../schema/users";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -21,9 +21,7 @@ function setup() {
 }
 
 function seedUser(db: DB) {
-  db.insert(users)
-    .values({ id: "user-1", name: "Alice", email: "alice@test.com" })
-    .run();
+  db.insert(users).values({ id: "user-1", name: "Alice", email: "alice@test.com" }).run();
   return "user-1";
 }
 

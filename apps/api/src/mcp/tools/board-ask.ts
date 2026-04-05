@@ -1,16 +1,16 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   type DB,
+  archiveRepo,
   boardsRepo,
   columnsRepo,
-  tasksRepo,
   labelsRepo,
   searchRepo,
-  archiveRepo,
+  tasksRepo,
 } from "@tarmak/db";
 import { encodeFull } from "@tarmak/kbf";
-import { text, TASK_SCHEMA, taskToRow } from "../shared";
+import { z } from "zod";
+import { TASK_SCHEMA, taskToRow, text } from "../shared";
 
 interface TaskRow {
   id: string;
@@ -37,11 +37,7 @@ function formatTaskText(task: TaskRow): string {
   return parts.join("");
 }
 
-function formatTasksForOutput(
-  db: DB,
-  tasks: TaskRow[],
-  format: string,
-): string {
+function formatTasksForOutput(db: DB, tasks: TaskRow[], format: string): string {
   if (tasks.length === 0) return "No matching tasks found.";
 
   switch (format) {
@@ -62,7 +58,7 @@ function isOverdue(dueDate: string): boolean {
   return due < now;
 }
 
-function isDueSoon(dueDate: string, days: number = 3): boolean {
+function isDueSoon(dueDate: string, days = 3): boolean {
   const now = new Date();
   const due = new Date(dueDate);
   const limit = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
@@ -79,7 +75,7 @@ function isDueToday(dueDate: string): boolean {
   );
 }
 
-function isStale(updatedAt: string, days: number = 7): boolean {
+function isStale(updatedAt: string, days = 7): boolean {
   const updated = new Date(updatedAt);
   const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   return updated < threshold;
@@ -161,9 +157,9 @@ export function registerBoardAskTool(server: McpServer, db: DB) {
         const statsText = [
           `Board: ${board.name}`,
           `Total tasks: ${allTasks.length}`,
-          `By column:`,
+          "By column:",
           ...colCounts,
-          `By priority:`,
+          "By priority:",
           ...priLines,
           `Assigned: ${assigned}`,
           `Overdue: ${overdue}`,
@@ -192,9 +188,7 @@ export function registerBoardAskTool(server: McpServer, db: DB) {
 
       // Pattern: high priority
       if (q.includes("high priority") || q.includes("urgent")) {
-        const highPri = allTasks.filter(
-          (t) => t.priority === "high" || t.priority === "urgent",
-        );
+        const highPri = allTasks.filter((t) => t.priority === "high" || t.priority === "urgent");
         return text(formatTasksForOutput(db, highPri, format));
       }
 
@@ -217,9 +211,7 @@ export function registerBoardAskTool(server: McpServer, db: DB) {
           if (format === "json") {
             return text(JSON.stringify(results, null, 2));
           }
-          const lines = results.map(
-            (r) => `- [${r.entity_type}] ${r.snippet} (${r.entity_id})`,
-          );
+          const lines = results.map((r) => `- [${r.entity_type}] ${r.snippet} (${r.entity_id})`);
           return text(lines.join("\n"));
         }
       } catch {

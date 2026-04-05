@@ -1,5 +1,5 @@
 import type { DB } from "@tarmak/db";
-import { labelsRepo, subtasksRepo, columnsRepo, tasksRepo, boardsRepo } from "@tarmak/db";
+import { boardsRepo, columnsRepo, labelsRepo, subtasksRepo, tasksRepo } from "@tarmak/db";
 import { Schema, encodeFull, rowFromMap } from "@tarmak/kbf";
 
 export const TASK_SCHEMA = new Schema(

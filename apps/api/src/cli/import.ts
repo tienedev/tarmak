@@ -1,16 +1,25 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  createDb,
+  type DB,
   boardsRepo,
   columnsRepo,
-  tasksRepo,
+  createDb,
+  customFieldsRepo,
   labelsRepo,
   subtasksRepo,
-  customFieldsRepo,
-  type DB,
+  tasksRepo,
 } from "@tarmak/db";
-import { boards, columns, tasks, labels, taskLabels, subtasks, customFields, taskCustomFieldValues } from "@tarmak/db";
+import {
+  boards,
+  columns,
+  customFields,
+  labels,
+  subtasks,
+  taskCustomFieldValues,
+  taskLabels,
+  tasks,
+} from "@tarmak/db";
 
 interface ImportData {
   boards: ImportBoard[];
@@ -183,9 +192,7 @@ function importDataInner(db: DB, data: ImportData) {
       // Import task-label associations
       if (task.labels) {
         for (const labelId of task.labels) {
-          db.insert(taskLabels)
-            .values({ task_id: task.id, label_id: labelId })
-            .run();
+          db.insert(taskLabels).values({ task_id: task.id, label_id: labelId }).run();
         }
       }
 
@@ -222,7 +229,6 @@ function importDataInner(db: DB, data: ImportData) {
 
   return { boardCount, columnCount, taskCount, labelCount };
 }
-
 
 export async function runImport(args: string[]): Promise<void> {
   const dbPath = process.env.DATABASE_PATH ?? "./tarmak.db";

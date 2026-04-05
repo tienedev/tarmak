@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeFull, decodeDeltas } from "../decode";
+import { decodeDeltas, decodeFull } from "../decode";
 
 describe("decodeFull", () => {
   it("decodes schema + rows", () => {

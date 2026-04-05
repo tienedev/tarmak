@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
-import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
-import { z } from "zod";
 import type { DB } from "@tarmak/db";
-import { inviteLinks, boardMembers, boardsRepo } from "@tarmak/db";
+import { boardMembers, boardsRepo, inviteLinks } from "@tarmak/db";
+import { and, eq } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
 import { resolveUser } from "../auth/resolve-user";
 import type { AuthEnv } from "./types";
 
@@ -77,11 +77,7 @@ export function inviteRoutes(db: DB) {
       return c.json({ error: "Not a board member" }, 403);
     }
 
-    const invites = db
-      .select()
-      .from(inviteLinks)
-      .where(eq(inviteLinks.board_id, boardId))
-      .all();
+    const invites = db.select().from(inviteLinks).where(eq(inviteLinks.board_id, boardId)).all();
 
     return c.json(invites);
   });
@@ -91,11 +87,7 @@ export function inviteRoutes(db: DB) {
     const user = c.get("user");
     const id = c.req.param("id");
 
-    const invite = db
-      .select()
-      .from(inviteLinks)
-      .where(eq(inviteLinks.id, id))
-      .get();
+    const invite = db.select().from(inviteLinks).where(eq(inviteLinks.id, id)).get();
 
     if (!invite) {
       return c.json({ error: "not found" }, 404);
@@ -120,11 +112,7 @@ export function inviteRoutes(db: DB) {
     }
     const { invite_token } = parsed.data;
 
-    const invite = db
-      .select()
-      .from(inviteLinks)
-      .where(eq(inviteLinks.token, invite_token))
-      .get();
+    const invite = db.select().from(inviteLinks).where(eq(inviteLinks.token, invite_token)).get();
 
     if (!invite) {
       return c.json({ error: "invalid or expired invite" }, 404);
@@ -139,12 +127,7 @@ export function inviteRoutes(db: DB) {
     const existing = db
       .select({ board_id: boardMembers.board_id })
       .from(boardMembers)
-      .where(
-        and(
-          eq(boardMembers.board_id, invite.board_id),
-          eq(boardMembers.user_id, user.id),
-        ),
-      )
+      .where(and(eq(boardMembers.board_id, invite.board_id), eq(boardMembers.user_id, user.id)))
       .get();
 
     if (!existing) {

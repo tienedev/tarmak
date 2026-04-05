@@ -1,17 +1,15 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import * as Y from "yjs";
+import { crdtRepo, createDb, migrateDb } from "@tarmak/db";
 import { sql } from "drizzle-orm";
-import { createDb, migrateDb, crdtRepo } from "@tarmak/db";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as Y from "yjs";
 import { DocManager } from "../sync/doc-manager";
-import { SyncServer, type SyncClient } from "../sync/ws";
+import { type SyncClient, SyncServer } from "../sync/ws";
 
 function createTestDb() {
   const db = createDb();
   migrateDb(db);
   // Seed a board for foreign key constraints
-  db.run(
-    sql`INSERT INTO boards (id, name) VALUES ('board-1', 'Test Board')`,
-  );
+  db.run(sql`INSERT INTO boards (id, name) VALUES ('board-1', 'Test Board')`);
   return db;
 }
 

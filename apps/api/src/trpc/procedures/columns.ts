@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { columnsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { memberProcedure, writerProcedure } from "../middleware/roles";
-import { columnsRepo } from "@tarmak/db";
 
 export const columnRouter = router({
   create: writerProcedure
@@ -15,7 +15,13 @@ export const columnRouter = router({
       }),
     )
     .mutation(({ ctx, input }) => {
-      return columnsRepo.createColumn(ctx.db, input.boardId, input.name, input.wipLimit, input.color);
+      return columnsRepo.createColumn(
+        ctx.db,
+        input.boardId,
+        input.name,
+        input.wipLimit,
+        input.color,
+      );
     }),
 
   list: memberProcedure

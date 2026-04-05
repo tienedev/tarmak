@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import {
-  createCustomField,
-  listCustomFields,
-  updateCustomField,
-  deleteCustomField,
-  setFieldValue,
-  getFieldValues,
-  deleteFieldValue,
-} from "../../repo/custom-fields";
+import type { DB } from "../../connection";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
+import {
+  createCustomField,
+  deleteCustomField,
+  deleteFieldValue,
+  getFieldValues,
+  listCustomFields,
+  setFieldValue,
+  updateCustomField,
+} from "../../repo/custom-fields";
 import { createTask } from "../../repo/tasks";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();

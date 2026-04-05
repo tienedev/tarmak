@@ -19,10 +19,7 @@ export class NotificationBroadcaster extends EventEmitter {
     this.emit(`user:${event.userId}`, event);
   }
 
-  subscribe(
-    userId: string,
-    callback: (event: NotificationEvent) => void,
-  ): () => void {
+  subscribe(userId: string, callback: (event: NotificationEvent) => void): () => void {
     const channel = `user:${userId}`;
     this.on(channel, callback);
     return () => this.off(channel, callback);

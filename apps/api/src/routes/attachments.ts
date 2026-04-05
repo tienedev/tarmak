@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { Hono } from "hono";
 import type { DB } from "@tarmak/db";
 import { attachmentsRepo, boardsRepo } from "@tarmak/db";
+import { Hono } from "hono";
 import { resolveUser } from "../auth/resolve-user";
 import type { AuthEnv } from "./types";
 
@@ -33,9 +33,7 @@ export function attachmentRoutes(db: DB) {
 
     // Extract route params from the original URL since they're defined on the parent router
     const url = new URL(c.req.url, "http://localhost");
-    const match = url.pathname.match(
-      /\/api\/v1\/boards\/([^/]+)\/tasks\/([^/]+)\/attachments/,
-    );
+    const match = url.pathname.match(/\/api\/v1\/boards\/([^/]+)\/tasks\/([^/]+)\/attachments/);
     if (!match) {
       return c.json({ error: "invalid path" }, 400);
     }
@@ -57,7 +55,10 @@ export function attachmentRoutes(db: DB) {
 
     // Check file size before reading into memory
     if (file.size > MAX_FILE_SIZE) {
-      return c.json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` }, 413);
+      return c.json(
+        { error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+        413,
+      );
     }
 
     const filename = sanitizeFilename(file.name);

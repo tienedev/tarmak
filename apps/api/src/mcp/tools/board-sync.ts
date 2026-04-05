@@ -1,9 +1,9 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { type DB, boardsRepo, tasksRepo } from "@tarmak/db";
 import { decodeDeltas } from "@tarmak/kbf";
 import type { Delta } from "@tarmak/kbf";
-import { text, formatFullBoardKbf } from "../shared";
+import { z } from "zod";
+import { formatFullBoardKbf, text } from "../shared";
 
 // Maps KBF field names to DB field names for update deltas
 const TASK_FIELD_MAP: Record<string, string> = {
@@ -31,7 +31,7 @@ function applyDelta(db: DB, boardId: string, delta: Delta): string {
         if (!task) return `task ${delta.id} not found`;
         tasksRepo.moveTask(db, delta.id, delta.value, task.position);
       } else if (dbField === "position") {
-        const pos = parseInt(delta.value, 10);
+        const pos = Number.parseInt(delta.value, 10);
         if (Number.isNaN(pos)) return `invalid position: ${delta.value}`;
         const task = tasksRepo.getTask(db, delta.id);
         if (!task) return `task ${delta.id} not found`;

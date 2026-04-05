@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import { loadState, saveState } from "../../repo/crdt";
 import { createBoard } from "../../repo/boards";
+import { loadState, saveState } from "../../repo/crdt";
 
 function setup() {
   const db = createDb();
@@ -58,7 +58,7 @@ describe("crdt repo", () => {
 
       const loaded = loadState(db, board.id);
       expect(loaded).not.toBeNull();
-      expect(loaded!.length).toBe(0);
+      expect(loaded?.length).toBe(0);
     });
 
     it("handles large Uint8Array", () => {
@@ -70,7 +70,7 @@ describe("crdt repo", () => {
 
       const loaded = loadState(db, board.id);
       expect(loaded).not.toBeNull();
-      expect(loaded!.length).toBe(data.length);
+      expect(loaded?.length).toBe(data.length);
       expect(new Uint8Array(loaded!)).toEqual(data);
     });
   });

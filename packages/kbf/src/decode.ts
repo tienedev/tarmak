@@ -1,5 +1,5 @@
-import type { Delta, Row } from "./types";
 import { Schema } from "./schema";
+import type { Delta, Row } from "./types";
 
 export interface Decoded {
   schema: Schema;

@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { attachmentsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { memberProcedure, writerProcedure } from "../middleware/roles";
-import { attachmentsRepo } from "@tarmak/db";
 
 export const attachmentRouter = router({
   list: memberProcedure

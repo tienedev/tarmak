@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { boardsRepo } from "@tarmak/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { router } from "../context";
 import { protectedProcedure } from "../middleware/auth";
 import { memberProcedure, ownerProcedure } from "../middleware/roles";
-import { boardsRepo } from "@tarmak/db";
 
 export const boardRouter = router({
   create: protectedProcedure
@@ -21,13 +21,11 @@ export const boardRouter = router({
 
   list: protectedProcedure.query(({ ctx }) => boardsRepo.listBoards(ctx.db, ctx.user.id)),
 
-  get: memberProcedure
-    .input(z.object({ boardId: z.string() }))
-    .query(({ ctx, input }) => {
-      const board = boardsRepo.getBoard(ctx.db, input.boardId);
-      if (!board) throw new TRPCError({ code: "NOT_FOUND" });
-      return board;
-    }),
+  get: memberProcedure.input(z.object({ boardId: z.string() })).query(({ ctx, input }) => {
+    const board = boardsRepo.getBoard(ctx.db, input.boardId);
+    if (!board) throw new TRPCError({ code: "NOT_FOUND" });
+    return board;
+  }),
 
   update: ownerProcedure
     .input(
@@ -48,13 +46,11 @@ export const boardRouter = router({
       return board;
     }),
 
-  delete: ownerProcedure
-    .input(z.object({ boardId: z.string() }))
-    .mutation(({ ctx, input }) => {
-      const deleted = boardsRepo.deleteBoard(ctx.db, input.boardId);
-      if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
-      return { success: true };
-    }),
+  delete: ownerProcedure.input(z.object({ boardId: z.string() })).mutation(({ ctx, input }) => {
+    const deleted = boardsRepo.deleteBoard(ctx.db, input.boardId);
+    if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+    return { success: true };
+  }),
 
   duplicate: ownerProcedure
     .input(

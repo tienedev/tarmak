@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createBoardSchema } from "../schemas/board";
 import { createTaskSchema } from "../schemas/task";
 import { loginSchema, registerSchema } from "../schemas/user";
-import { createBoardSchema } from "../schemas/board";
 
 describe("createTaskSchema", () => {
   it("accepts valid task", () => {

@@ -1,21 +1,16 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   type DB,
+  attachmentsRepo,
   boardsRepo,
   columnsRepo,
-  tasksRepo,
   labelsRepo,
-  subtasksRepo,
-  attachmentsRepo,
   searchRepo,
+  subtasksRepo,
+  tasksRepo,
 } from "@tarmak/db";
-import {
-  text,
-  formatTasksKbf,
-  formatColumnsKbf,
-  formatLabelsKbf,
-} from "../shared";
+import { z } from "zod";
+import { formatColumnsKbf, formatLabelsKbf, formatTasksKbf, text } from "../shared";
 
 export function registerBoardQueryTool(server: McpServer, db: DB) {
   server.tool(
@@ -103,9 +98,7 @@ export function registerBoardQueryTool(server: McpServer, db: DB) {
           const cols = columnsRepo.listColumns(db, board_id);
           const tks = tasksRepo.listTasks(db, board_id);
           const lbls = labelsRepo.listLabels(db, board_id);
-          return text(
-            JSON.stringify({ board, columns: cols, tasks: tks, labels: lbls }, null, 2),
-          );
+          return text(JSON.stringify({ board, columns: cols, tasks: tks, labels: lbls }, null, 2));
         }
       }
     },

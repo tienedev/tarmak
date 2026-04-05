@@ -1,17 +1,17 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   type DB,
+  archiveRepo,
+  attachmentsRepo,
   boardsRepo,
   columnsRepo,
-  tasksRepo,
-  labelsRepo,
   commentsRepo,
-  subtasksRepo,
-  attachmentsRepo,
   customFieldsRepo,
-  archiveRepo,
+  labelsRepo,
+  subtasksRepo,
+  tasksRepo,
 } from "@tarmak/db";
+import { z } from "zod";
 import { text } from "../shared";
 
 type MutateData = Record<string, unknown>;
@@ -269,18 +269,19 @@ function handleMutate(db: DB, boardId: string, action: string, data: MutateData)
         config: optStr(data, "config"),
         position: optNum(data, "position"),
       });
-      return ok
-        ? `updated custom field ${str(data, "field_id")}`
-        : "error: custom field not found";
+      return ok ? `updated custom field ${str(data, "field_id")}` : "error: custom field not found";
     }
     case "delete_custom_field": {
       const ok = customFieldsRepo.deleteCustomField(db, str(data, "field_id"));
-      return ok
-        ? `deleted custom field ${str(data, "field_id")}`
-        : "error: custom field not found";
+      return ok ? `deleted custom field ${str(data, "field_id")}` : "error: custom field not found";
     }
     case "set_field_value": {
-      customFieldsRepo.setFieldValue(db, str(data, "task_id"), str(data, "field_id"), str(data, "value"));
+      customFieldsRepo.setFieldValue(
+        db,
+        str(data, "task_id"),
+        str(data, "field_id"),
+        str(data, "value"),
+      );
       return `set field ${str(data, "field_id")} on task ${str(data, "task_id")}`;
     }
 
@@ -304,10 +305,7 @@ export function registerBoardMutateTool(server: McpServer, db: DB) {
     {
       board_id: z.string().describe("Board UUID"),
       action: z.string().describe("Action to perform"),
-      data: z
-        .record(z.unknown())
-        .default({})
-        .describe("Action-specific data"),
+      data: z.record(z.unknown()).default({}).describe("Action-specific data"),
     },
     async (args) => {
       try {

@@ -1,14 +1,14 @@
 import { serve } from "@hono/node-server";
+import { boardsRepo } from "@tarmak/db";
 import { WebSocketServer } from "ws";
 import { createApp } from "./app";
-import { DocManager } from "./sync/doc-manager";
-import { SyncServer } from "./sync/ws";
-import type { SyncClient } from "./sync/ws";
+import { resolveUser } from "./auth/resolve-user";
 import { startDeadlineChecker } from "./background/deadlines";
 import { startSessionCleanup } from "./background/sessions";
 import { logger } from "./logger";
-import { resolveUser } from "./auth/resolve-user";
-import { boardsRepo } from "@tarmak/db";
+import { DocManager } from "./sync/doc-manager";
+import { SyncServer } from "./sync/ws";
+import type { SyncClient } from "./sync/ws";
 
 const args = process.argv.slice(2);
 const command = args[0] ?? "serve";
@@ -43,9 +43,7 @@ switch (command) {
 
       // Authenticate WebSocket connection
       const token = url.searchParams.get("token");
-      const authHeader = token
-        ? `Bearer ${token}`
-        : req.headers.authorization;
+      const authHeader = token ? `Bearer ${token}` : req.headers.authorization;
       const user = resolveUser(db, authHeader);
       if (!user) {
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");

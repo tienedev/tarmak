@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { DB } from "@tarmak/db";
-import { registerBoardQueryTool } from "./tools/board-query";
-import { registerBoardMutateTool } from "./tools/board-mutate";
-import { registerBoardSyncTool } from "./tools/board-sync";
 import { registerBoardAskTool } from "./tools/board-ask";
+import { registerBoardMutateTool } from "./tools/board-mutate";
+import { registerBoardQueryTool } from "./tools/board-query";
+import { registerBoardSyncTool } from "./tools/board-sync";
 
 export function createMcpServer(db: DB): McpServer {
   const server = new McpServer({

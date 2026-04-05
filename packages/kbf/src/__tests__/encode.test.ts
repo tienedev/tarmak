@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeFull, encodeDelta, rowFromMap } from "../encode";
+import { encodeDelta, encodeFull, rowFromMap } from "../encode";
 import { Schema } from "../schema";
 
 describe("encodeFull", () => {
@@ -40,7 +40,10 @@ describe("encodeDelta", () => {
 describe("rowFromMap", () => {
   it("builds row from map using schema order", () => {
     const schema = new Schema("task", ["id", "title", "status"]);
-    const map = new Map([["id", "t1"], ["title", "Do stuff"]]);
+    const map = new Map([
+      ["id", "t1"],
+      ["title", "Do stuff"],
+    ]);
     expect(rowFromMap(schema, map)).toEqual(["t1", "Do stuff", ""]);
   });
 });

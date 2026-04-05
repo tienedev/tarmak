@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
   );
 }
 
@@ -96,7 +96,11 @@ describe("column procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const col = await caller.column.create({ boardId: board.id, name: "Old" });
-      const result = await caller.column.update({ boardId: board.id, columnId: col.id, name: "New" });
+      const result = await caller.column.update({
+        boardId: board.id,
+        columnId: col.id,
+        name: "New",
+      });
       expect(result.success).toBe(true);
     });
 
@@ -105,9 +109,9 @@ describe("column procedures", () => {
       const board = await seedBoard(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.column.update({ boardId: board.id, columnId: "none", name: "X" })).rejects.toThrow(
-        "NOT_FOUND",
-      );
+      await expect(
+        caller.column.update({ boardId: board.id, columnId: "none", name: "X" }),
+      ).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -133,7 +137,11 @@ describe("column procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       const col = await caller.column.create({ boardId: board.id, name: "Todo" });
-      const result = await caller.column.move({ boardId: board.id, columnId: col.id, position: 10 });
+      const result = await caller.column.move({
+        boardId: board.id,
+        columnId: col.id,
+        position: 10,
+      });
       expect(result.success).toBe(true);
     });
   });

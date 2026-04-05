@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createDb, migrateDb } from "../../connection";
-import {
-  createSubtask,
-  listSubtasks,
-  toggleSubtask,
-  updateSubtask,
-  deleteSubtask,
-  moveSubtask,
-  getSubtaskCount,
-} from "../../repo/subtasks";
+import type { DB } from "../../connection";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
+import {
+  createSubtask,
+  deleteSubtask,
+  getSubtaskCount,
+  listSubtasks,
+  moveSubtask,
+  toggleSubtask,
+  updateSubtask,
+} from "../../repo/subtasks";
 import { createTask } from "../../repo/tasks";
-import type { DB } from "../../connection";
 
 function setup() {
   const db = createDb();
@@ -111,7 +111,7 @@ describe("subtasks repo", () => {
       expect(sub.completed).toBe(false);
       const toggled = toggleSubtask(db, sub.id);
       expect(toggled).not.toBeNull();
-      expect(toggled!.completed).toBe(true);
+      expect(toggled?.completed).toBe(true);
     });
 
     it("toggles completed from true back to false", () => {
@@ -121,7 +121,7 @@ describe("subtasks repo", () => {
 
       toggleSubtask(db, sub.id); // false -> true
       const toggled = toggleSubtask(db, sub.id); // true -> false
-      expect(toggled!.completed).toBe(false);
+      expect(toggled?.completed).toBe(false);
     });
 
     it("returns null for non-existent subtask", () => {
@@ -138,7 +138,7 @@ describe("subtasks repo", () => {
 
       const updated = updateSubtask(db, sub.id, "New Title");
       expect(updated).not.toBeNull();
-      expect(updated!.title).toBe("New Title");
+      expect(updated?.title).toBe("New Title");
     });
 
     it("returns null for non-existent subtask", () => {

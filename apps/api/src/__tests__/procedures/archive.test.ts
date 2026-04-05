@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createDb, migrateDb } from "@tarmak/db";
-import { appRouter } from "../../trpc/router";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import type { Context } from "../../trpc/context";
+import { appRouter } from "../../trpc/router";
 
 function createTestContext(): Context {
   const db = createDb();
@@ -12,7 +12,7 @@ function createTestContext(): Context {
 
 function seedUser(ctx: Context) {
   ctx.db.run(
-    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user!.id}, ${ctx.user!.name}, ${ctx.user!.email})`,
+    sql`INSERT INTO users (id, name, email) VALUES (${ctx.user?.id}, ${ctx.user?.name}, ${ctx.user?.email})`,
   );
 }
 
@@ -49,9 +49,9 @@ describe("archive procedures", () => {
       const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.archive.archiveTask({ boardId: board.id, taskId: "nonexistent" })).rejects.toThrow(
-        "NOT_FOUND",
-      );
+      await expect(
+        caller.archive.archiveTask({ boardId: board.id, taskId: "nonexistent" }),
+      ).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -75,9 +75,9 @@ describe("archive procedures", () => {
       const { board } = await seedBoardColumnTask(ctx);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.archive.unarchiveTask({ boardId: board.id, taskId: "nonexistent" })).rejects.toThrow(
-        "NOT_FOUND",
-      );
+      await expect(
+        caller.archive.unarchiveTask({ boardId: board.id, taskId: "nonexistent" }),
+      ).rejects.toThrow("NOT_FOUND");
     });
   });
 
@@ -127,9 +127,7 @@ describe("archive procedures", () => {
       const caller = appRouter.createCaller(ctx);
 
       // Archive a column directly in the DB (there's no archiveColumn procedure yet)
-      ctx.db.run(
-        sql`UPDATE columns SET archived = 1 WHERE board_id = ${board.id}`,
-      );
+      ctx.db.run(sql`UPDATE columns SET archived = 1 WHERE board_id = ${board.id}`);
 
       const archived = await caller.archive.listArchivedColumns({ boardId: board.id });
       expect(archived).toHaveLength(1);
