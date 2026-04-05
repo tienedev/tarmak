@@ -139,6 +139,12 @@ switch (command) {
     break;
   }
 
+  case "uninit": {
+    const { runUninit } = await import("./cli/init.js");
+    await runUninit();
+    break;
+  }
+
   default:
     console.log(`tarmak - Kanban board for AI-assisted development
 
@@ -154,6 +160,7 @@ Commands:
   users list                         List all users
   users reset-password <email> <pw>  Reset a user's password
   init                               Setup MCP + skills in current repo
+  uninit                             Remove Tarmak config from current repo
 `);
     process.exit(1);
 }

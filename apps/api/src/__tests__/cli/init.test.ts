@@ -70,7 +70,7 @@ describe("tarmak init", () => {
     expect(content.plugins).toContain("tarmak");
   });
 
-  it("merges into existing .claude/settings.json without duplicating", async () => {
+  it("merges into existing .claude/settings.json without duplicating tarmak", async () => {
     const claudeDir = path.join(tmpDir, ".claude");
     fs.mkdirSync(claudeDir, { recursive: true });
     fs.writeFileSync(
@@ -85,5 +85,83 @@ describe("tarmak init", () => {
       fs.readFileSync(path.join(claudeDir, "settings.json"), "utf-8"),
     );
     expect(content.plugins).toEqual(["other-plugin", "tarmak"]);
+  });
+});
+
+describe("tarmak uninit", () => {
+  let tmpDir: string;
+  const originalCwd = process.cwd;
+
+  beforeEach(() => {
+    vi.resetModules();
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tarmak-uninit-"));
+    process.cwd = () => tmpDir;
+  });
+
+  afterEach(() => {
+    process.cwd = originalCwd;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("removes tarmak from .mcp.json and keeps other servers", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, ".mcp.json"),
+      JSON.stringify({ mcpServers: { tarmak: { command: "npx" }, other: { command: "other" } } }),
+    );
+
+    const { runUninit } = await import("../../cli/init.js");
+    await runUninit();
+
+    const content = JSON.parse(fs.readFileSync(path.join(tmpDir, ".mcp.json"), "utf-8"));
+    expect(content.mcpServers.tarmak).toBeUndefined();
+    expect(content.mcpServers.other).toEqual({ command: "other" });
+  });
+
+  it("deletes .mcp.json entirely when tarmak is the only server", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, ".mcp.json"),
+      JSON.stringify({ mcpServers: { tarmak: { command: "npx" } } }),
+    );
+
+    const { runUninit } = await import("../../cli/init.js");
+    await runUninit();
+
+    expect(fs.existsSync(path.join(tmpDir, ".mcp.json"))).toBe(false);
+  });
+
+  it("removes tarmak from .claude/settings.json plugins", async () => {
+    const claudeDir = path.join(tmpDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, "settings.json"),
+      JSON.stringify({ plugins: ["other-plugin", "tarmak"], someKey: true }),
+    );
+
+    const { runUninit } = await import("../../cli/init.js");
+    await runUninit();
+
+    const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.json"), "utf-8"));
+    expect(content.plugins).toEqual(["other-plugin"]);
+    expect(content.someKey).toBe(true);
+  });
+
+  it("cleans up empty .claude dir when tarmak is the only plugin", async () => {
+    const claudeDir = path.join(tmpDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, "settings.json"),
+      JSON.stringify({ plugins: ["tarmak"] }),
+    );
+
+    const { runUninit } = await import("../../cli/init.js");
+    await runUninit();
+
+    expect(fs.existsSync(path.join(claudeDir, "settings.json"))).toBe(false);
+    expect(fs.existsSync(claudeDir)).toBe(false);
+  });
+
+  it("handles missing files gracefully", async () => {
+    const { runUninit } = await import("../../cli/init.js");
+    await runUninit(); // should not throw
   });
 });

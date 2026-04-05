@@ -59,6 +59,56 @@ async function checkServer(url: string): Promise<boolean> {
   }
 }
 
+function removeMcpConfig(dir: string): boolean {
+  const mcpPath = path.join(dir, ".mcp.json");
+  if (!fs.existsSync(mcpPath)) return false;
+  const content = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
+  const servers = (content.mcpServers ?? {}) as Record<string, unknown>;
+  if (!("tarmak" in servers)) return false;
+  delete servers.tarmak;
+  if (Object.keys(servers).length === 0 && Object.keys(content).length === 1) {
+    fs.unlinkSync(mcpPath);
+  } else {
+    content.mcpServers = servers;
+    fs.writeFileSync(mcpPath, `${JSON.stringify(content, null, 2)}\n`);
+  }
+  return true;
+}
+
+function removeClaudeSettings(dir: string): boolean {
+  const settingsPath = path.join(dir, ".claude", "settings.json");
+  if (!fs.existsSync(settingsPath)) return false;
+  const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  const plugins = (content.plugins ?? []) as string[];
+  const idx = plugins.indexOf("tarmak");
+  if (idx === -1) return false;
+  plugins.splice(idx, 1);
+  content.plugins = plugins;
+  if (plugins.length === 0 && Object.keys(content).length === 1) {
+    fs.unlinkSync(settingsPath);
+    const claudeDir = path.join(dir, ".claude");
+    if (fs.existsSync(claudeDir) && fs.readdirSync(claudeDir).length === 0) {
+      fs.rmdirSync(claudeDir);
+    }
+  } else {
+    fs.writeFileSync(settingsPath, `${JSON.stringify(content, null, 2)}\n`);
+  }
+  return true;
+}
+
+export async function runUninit(): Promise<void> {
+  const cwd = process.cwd();
+  console.log("\n  Tarmak Uninstall\n");
+
+  const mcpRemoved = removeMcpConfig(cwd);
+  console.log(`  Removing from .mcp.json ... ${mcpRemoved ? "OK" : "skipped (not found)"}`);
+
+  const settingsRemoved = removeClaudeSettings(cwd);
+  console.log(`  Removing from settings ...  ${settingsRemoved ? "OK" : "skipped (not found)"}`);
+
+  console.log("\n  Done! Tarmak config removed.\n");
+}
+
 export async function runInit(args: string[]): Promise<void> {
   const opts = parseFlags(args);
   const cwd = process.cwd();
