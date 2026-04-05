@@ -258,7 +258,7 @@ function handleMutate(db: DB, boardId: string, action: string, data: MutateData)
         db,
         boardId,
         str(data, "name"),
-        str(data, "field_type"),
+        str(data, "field_type") as import("@tarmak/shared").FieldType,
         optStr(data, "config"),
       );
       return `created custom field ${field.id}`;

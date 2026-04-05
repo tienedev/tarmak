@@ -27,7 +27,7 @@ export function requireRole(minimumRole: Role) {
       throw new TRPCError({ code: "FORBIDDEN", message: `Requires ${minimumRole} role` });
     }
 
-    return next({ ctx: { ...ctx, boardRole: role as Role } });
+    return next({ ctx: { ...ctx, user: ctx.user, boardRole: role as Role } });
   });
 }
 

@@ -10,7 +10,7 @@ export const customFieldRouter = router({
       z.object({
         boardId: z.string(),
         name: z.string().min(1).max(100),
-        fieldType: z.string().min(1),
+        fieldType: z.enum(["text", "number", "url", "enum", "date"]),
         config: z.string().optional(),
       }),
     )
