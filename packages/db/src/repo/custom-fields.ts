@@ -1,4 +1,5 @@
 import { eq, and, sql } from "drizzle-orm";
+import type { FieldType } from "@tarmak/shared";
 import type { DB } from "../connection";
 import { customFields, taskCustomFieldValues } from "../schema/index";
 
@@ -6,7 +7,7 @@ export function createCustomField(
   db: DB,
   boardId: string,
   name: string,
-  fieldType: string,
+  fieldType: FieldType,
   config?: string,
 ) {
   const id = crypto.randomUUID();

@@ -40,6 +40,7 @@ export function deleteLabel(db: DB, id: string) {
 export function attachLabel(db: DB, taskId: string, labelId: string) {
   db.insert(taskLabels)
     .values({ task_id: taskId, label_id: labelId })
+    .onConflictDoNothing()
     .run();
 }
 

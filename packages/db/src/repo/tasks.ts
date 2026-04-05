@@ -1,4 +1,5 @@
 import { eq, and, sql, isNull, asc, inArray } from "drizzle-orm";
+import { PRIORITY_ORDER } from "@tarmak/shared";
 import type { DB } from "../connection";
 import {
   tasks,
@@ -170,13 +171,6 @@ export function moveTask(db: DB, id: string, columnId: string, position: number)
   return db.select().from(tasks).where(eq(tasks.id, id)).get()!;
 }
 
-const PRIORITY_ORDER: Record<string, number> = {
-  urgent: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-};
-
 export function claimTask(db: DB, boardId: string, agentId: string) {
   // Find all unlocked ai-ready tasks for this board
   const candidates = db
@@ -198,9 +192,9 @@ export function claimTask(db: DB, boardId: string, agentId: string) {
 
   // Sort by priority order (urgent > high > medium > low), then by due_date ASC (nulls last)
   candidates.sort((a, b) => {
-    const prioA = PRIORITY_ORDER[a.task.priority] ?? 2;
-    const prioB = PRIORITY_ORDER[b.task.priority] ?? 2;
-    if (prioA !== prioB) return prioA - prioB;
+    const prioA = PRIORITY_ORDER[a.task.priority ?? "low"] ?? -1;
+    const prioB = PRIORITY_ORDER[b.task.priority ?? "low"] ?? -1;
+    if (prioA !== prioB) return prioB - prioA;
 
     // due_date ASC, nulls last
     if (a.task.due_date && b.task.due_date) return a.task.due_date.localeCompare(b.task.due_date);

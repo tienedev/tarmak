@@ -11,7 +11,7 @@ import {
 } from "../../repo/labels";
 import { createBoard } from "../../repo/boards";
 import { createColumn } from "../../repo/columns";
-import { createTask } from "../../repo/tasks";
+import { createTask, getTaskWithRelations } from "../../repo/tasks";
 import type { DB } from "../../connection";
 
 function setup() {
@@ -160,13 +160,15 @@ describe("labels repo", () => {
       expect(taskLabels).toHaveLength(2);
     });
 
-    it("throws on duplicate attach (composite PK)", () => {
+    it("attaching same label twice is idempotent", () => {
       const db = setup();
       const { board, task } = seedBoardColumnTask(db);
       const label = createLabel(db, board.id, "Bug", "#f00");
 
       attachLabel(db, task.id, label.id);
-      expect(() => attachLabel(db, task.id, label.id)).toThrow();
+      attachLabel(db, task.id, label.id);
+      const t = getTaskWithRelations(db, task.id);
+      expect(t!.labels.filter((l: any) => l.id === label.id)).toHaveLength(1);
     });
 
     it("detaches a label from a task", () => {

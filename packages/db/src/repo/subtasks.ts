@@ -68,15 +68,18 @@ export function moveSubtask(db: DB, id: string, newPosition: number) {
   return result.changes > 0;
 }
 
-export function getSubtaskCount(db: DB, taskId: string) {
-  const rows = db
-    .select()
+export function getSubtaskCount(db: DB, taskId: string): { completed: number; total: number } {
+  const result = db
+    .select({
+      total: sql<number>`count(*)`,
+      completed: sql<number>`sum(case when ${subtasks.completed} then 1 else 0 end)`,
+    })
     .from(subtasks)
     .where(eq(subtasks.task_id, taskId))
-    .all();
+    .get();
 
   return {
-    completed: rows.filter((r) => r.completed).length,
-    total: rows.length,
+    total: result?.total ?? 0,
+    completed: result?.completed ?? 0,
   };
 }

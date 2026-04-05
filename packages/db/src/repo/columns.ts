@@ -75,29 +75,25 @@ export function moveColumn(db: DB, id: string, newPosition: number) {
 }
 
 export function archiveColumn(db: DB, columnId: string) {
-  // Archive the column
-  db.update(columns).set({ archived: true }).where(eq(columns.id, columnId)).run();
-
-  // Archive all tasks in the column
-  const result = db
-    .update(tasks)
-    .set({ archived: true })
-    .where(eq(tasks.column_id, columnId))
-    .run();
-
-  return result.changes;
+  return db.transaction(() => {
+    db.update(columns).set({ archived: true }).where(eq(columns.id, columnId)).run();
+    const result = db
+      .update(tasks)
+      .set({ archived: true })
+      .where(eq(tasks.column_id, columnId))
+      .run();
+    return result.changes;
+  });
 }
 
 export function unarchiveColumn(db: DB, columnId: string) {
-  // Unarchive the column
-  db.update(columns).set({ archived: false }).where(eq(columns.id, columnId)).run();
-
-  // Unarchive all tasks in the column
-  const result = db
-    .update(tasks)
-    .set({ archived: false })
-    .where(eq(tasks.column_id, columnId))
-    .run();
-
-  return result.changes;
+  return db.transaction(() => {
+    db.update(columns).set({ archived: false }).where(eq(columns.id, columnId)).run();
+    const result = db
+      .update(tasks)
+      .set({ archived: false })
+      .where(eq(tasks.column_id, columnId))
+      .run();
+    return result.changes;
+  });
 }
