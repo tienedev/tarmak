@@ -1,0 +1,20 @@
+import { z } from "zod";
+import { router } from "../context";
+import { protectedProcedure } from "../middleware/auth";
+import { searchRepo } from "@tarmak/db";
+
+export const searchRouter = router({
+  query: protectedProcedure
+    .input(
+      z.object({
+        boardId: z.string(),
+        query: z.string().min(1),
+        includeArchived: z.boolean().optional(),
+      }),
+    )
+    .query(({ ctx, input }) => {
+      return searchRepo.search(ctx.db, input.boardId, input.query, {
+        includeArchived: input.includeArchived,
+      });
+    }),
+});

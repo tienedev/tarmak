@@ -1,5 +1,5 @@
 services:
-  tarmak:
+  web:
     build: .
     restart: unless-stopped
     ports:
@@ -9,7 +9,6 @@ services:
     environment:
       - PORT=${PORT:-4000}
       - DATABASE_PATH=/data/tarmak.db
-      - RUST_LOG=info
       # IMPORTANT: Set this to your domain to avoid CORS errors.
       # - TARMAK_ALLOWED_ORIGINS=https://tarmak.dev
 

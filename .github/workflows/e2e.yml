@@ -15,48 +15,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # Frontend
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Install frontend dependencies
-        run: cd frontend && pnpm install --frozen-lockfile
-      - name: Build frontend
-        run: cd frontend && pnpm build
 
-      # Backend (rust-embed picks up frontend/dist)
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Build backend
-        run: cargo build --release -p tarmak
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
 
       # Playwright
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install Playwright browsers
-        run: cd frontend && npx playwright install --with-deps chromium
+        run: cd apps/web && npx playwright install --with-deps chromium
 
-      # Run
-      - name: Start tarmak
-        run: DATABASE_PATH=/tmp/tarmak-e2e.db RATE_LIMIT_MAX=10000 ./target/release/tarmak &
-      - name: Wait for health
-        run: timeout 30 bash -c 'until curl -sf http://localhost:4000/api/v1/health; do sleep 1; done'
+      # Run — Playwright manages the API server via webServer config
       - name: Run E2E tests
-        run: cd frontend && npx playwright test
+        run: cd apps/web && npx playwright test
         env:
           CI: true
+          DATABASE_PATH: /tmp/tarmak-e2e.db
+          PORT: '4000'
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: apps/web/playwright-report/
           retention-days: 7
