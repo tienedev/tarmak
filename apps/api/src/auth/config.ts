@@ -19,6 +19,8 @@ export function createAuth(db: DB) {
       provider: "sqlite",
     }),
     emailAndPassword: { enabled: true },
-    session: { expiresIn: 30 * 24 * 60 * 60 }, // 30 days
+    session: {
+      expiresIn: Number(process.env.TARMAK_SESSION_DAYS ?? 30) * 24 * 60 * 60,
+    },
   });
 }

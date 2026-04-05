@@ -30,7 +30,8 @@ export function inviteRoutes(db: DB) {
     const id = crypto.randomUUID();
     const token = crypto.randomBytes(32).toString("hex");
     const role = body.role ?? "member";
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const inviteDays = Number(process.env.TARMAK_INVITE_DAYS ?? 7);
+    const expiresAt = new Date(Date.now() + inviteDays * 24 * 60 * 60 * 1000).toISOString();
 
     db.insert(inviteLinks)
       .values({

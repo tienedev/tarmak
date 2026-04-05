@@ -7,7 +7,9 @@ The developer's kanban board — built for humans and AI agents.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/ghcr.io-tarmak-blue)](https://ghcr.io/tienedev/tarmak)
 
-<!-- Screenshot coming soon — board view with an agent session running in the terminal drawer -->
+<p align="center">
+  <img src="docs/screenshot-board.png" alt="Tarmak kanban board with tasks organized across Backlog, In Progress, Review, and Done columns" width="800" />
+</p>
 
 AI-assisted development is powerful but locked behind the terminal. Tarmak gives the whole team — PMs, designers, developers — a kanban interface to pilot AI agents like Claude Code. Click "Run" on a task, watch the agent work in a live terminal, get production-quality code.
 
@@ -33,7 +35,7 @@ AI-assisted development is powerful but locked behind the terminal. Tarmak gives
 
 ### For ops
 
-- **Single binary** — Rust, serves frontend, API, WebSocket, and MCP
+- **TypeScript monorepo** — Turborepo, Hono, tRPC, Drizzle
 - **SQLite** — zero external dependencies, file-based persistence
 - **Docker** — multi-stage build, published to ghcr.io/tienedev/tarmak
 - **Self-hosted** — your data stays on your infrastructure
@@ -64,11 +66,11 @@ Open [http://localhost:4000](http://localhost:4000), create an account, and you'
 git clone https://github.com/tienedev/tarmak.git
 cd tarmak
 cp .env.example .env
-make install  # install frontend dependencies
+make install  # install dependencies
 make dev      # starts backend (4000) + agent (9876) + frontend (3000)
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Requires [rustup](https://rustup.rs/) and [pnpm](https://pnpm.io/).
+Open [http://localhost:3000](http://localhost:3000). Requires [Node.js](https://nodejs.org/) 22+ and [pnpm](https://pnpm.io/).
 
 ### MCP configuration
 
@@ -95,29 +97,30 @@ Add to your Claude Code MCP config:
 ## Architecture
 
 ```
-crates/
-  tarmak/        Kanban server — REST, WebSocket, MCP, agent, CLI
-  kbf/           Kanban Bit Format codec
-frontend/        React 19 + TypeScript + Tailwind + shadcn/ui
-skills/          Claude Code plugin — skills, agents, hooks
+packages/
+  shared/      Types, Zod schemas, constants
+  db/          Drizzle ORM + SQLite schema + repos
+  kbf/         Kanban Bit Format codec
+apps/
+  api/         Hono + tRPC + Better Auth + MCP + WebSocket
+  web/         React 19 + Vite + Tailwind + shadcn/ui
+  agent/       Claude Agent SDK + Hono server
+skills/        Claude Code plugin — skills, agents, hooks
 ```
 
 | Layer | Stack |
 |-------|-------|
-| Backend | Rust, Tokio, Axum, SQLite |
+| Backend | TypeScript, Hono, tRPC, Drizzle, SQLite |
 | Frontend | React 19, TypeScript, Vite, Tailwind, shadcn/ui |
 | Real-time | Yjs (CRDT) over WebSocket |
-| AI | MCP (rmcp), KBF, xterm.js |
-| Agent | Rust, PTY, git worktrees |
+| AI | MCP, KBF, xterm.js |
+| Agent | Claude Agent SDK, Hono |
 
 ## Contributing
 
-### Prerequisites
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
-- [Rust](https://rustup.rs/) (channel set by `rust-toolchain.toml`)
-- [Node.js](https://nodejs.org/) 22+ and [pnpm](https://pnpm.io/)
-
-### Setup
+### Quick setup
 
 ```bash
 cp .env.example .env
@@ -136,16 +139,8 @@ make dev
 | `make build` | Production build |
 | `make clean` | Clean all build artifacts |
 | `make kill` | Kill running dev processes |
-| `cargo test --workspace` | Run all Rust tests |
-| `cargo clippy --workspace -- -D warnings` | Lint Rust |
-| `cd frontend && pnpm test` | Frontend unit tests |
-| `cd frontend && pnpm lint` | Frontend lint |
-
-### Testing
-
-- **Integration tests** — `crates/tarmak/tests/`, uses `Db::in_memory()` for database tests
-- **Frontend unit tests** — Vitest (`cd frontend && pnpm test`)
-- **E2E** — Playwright (`cd frontend && npx playwright test`), requires backend running
+| `make test` | Run all tests |
+| `make lint` | Lint all packages |
 
 See [CLAUDE.md](CLAUDE.md) for detailed codebase patterns and conventions.
 

@@ -66,7 +66,8 @@ export async function runUsers(args: string[]): Promise<void> {
         process.exit(1);
       }
 
-      console.log(`Password reset for ${email}`);
+      console.error(`Password reset for ${email}`);
+      console.error("Change this password after first login.");
       break;
     }
 
