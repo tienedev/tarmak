@@ -22,18 +22,22 @@ test.describe('Dashboard', () => {
 
   test('clicking a board in sidebar navigates to it', async ({ page }) => {
     await registerAndLogin(page, 'dash-nav')
-    await createBoard(page, 'Clickable Board')
+    const board = await createBoard(page, 'Clickable Board')
     await page.goto('/#/')
 
     // Wait for the sidebar to load the board list
-    await expect(sidebarBoard(page, 'Clickable Board')).toBeVisible({ timeout: 10_000 })
+    const boardBtn = sidebarBoard(page, 'Clickable Board')
+    await expect(boardBtn).toBeVisible({ timeout: 10_000 })
 
     // Expand the board in sidebar to reveal the "Board" sub-link
-    await sidebarBoard(page, 'Clickable Board').click()
-    const boardLink = page.locator('aside a', { hasText: 'Board' }).first()
+    await boardBtn.click()
+
+    // The sub-link text is "Board" but the board name also contains "Board",
+    // so target the <a> element specifically inside the expanded sub-items area
+    const boardLink = page.locator('aside .border-l a').filter({ hasText: 'Board' }).first()
     await expect(boardLink).toBeVisible({ timeout: 5_000 })
     await boardLink.click()
-    await expect(page).toHaveURL(/#\/boards\//)
+    await expect(page).toHaveURL(new RegExp(`#/boards/${board.id}`))
     await expect(main(page).getByRole('heading', { name: 'Clickable Board' })).toBeVisible()
   })
 })
