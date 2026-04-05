@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { confirm, input } from "@inquirer/prompts";
 
 interface InitOptions {
   server?: string;
@@ -20,11 +19,20 @@ function parseFlags(args: string[]): InitOptions {
   return opts;
 }
 
+function safeParseJson(filePath: string): Record<string, unknown> {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    console.log(`  Warning: could not parse ${path.basename(filePath)}, starting fresh`);
+    return {};
+  }
+}
+
 function mergeMcpConfig(dir: string, mcpEntry: Record<string, unknown>): void {
   const mcpPath = path.join(dir, ".mcp.json");
   let existing: Record<string, unknown> = {};
   if (fs.existsSync(mcpPath)) {
-    existing = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
+    existing = safeParseJson(mcpPath);
   }
   const servers = (existing.mcpServers ?? {}) as Record<string, unknown>;
   servers.tarmak = mcpEntry;
@@ -40,7 +48,7 @@ function mergeClaudeSettings(dir: string): void {
   const settingsPath = path.join(claudeDir, "settings.json");
   let existing: Record<string, unknown> = {};
   if (fs.existsSync(settingsPath)) {
-    existing = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    existing = safeParseJson(settingsPath);
   }
   const plugins = (existing.plugins ?? []) as string[];
   if (!plugins.includes("tarmak")) {
@@ -62,7 +70,7 @@ async function checkServer(url: string): Promise<boolean> {
 function removeMcpConfig(dir: string): boolean {
   const mcpPath = path.join(dir, ".mcp.json");
   if (!fs.existsSync(mcpPath)) return false;
-  const content = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
+  const content = safeParseJson(mcpPath);
   const servers = (content.mcpServers ?? {}) as Record<string, unknown>;
   if (!("tarmak" in servers)) return false;
   delete servers.tarmak;
@@ -78,7 +86,7 @@ function removeMcpConfig(dir: string): boolean {
 function removeClaudeSettings(dir: string): boolean {
   const settingsPath = path.join(dir, ".claude", "settings.json");
   if (!fs.existsSync(settingsPath)) return false;
-  const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  const content = safeParseJson(settingsPath);
   const plugins = (content.plugins ?? []) as string[];
   const idx = plugins.indexOf("tarmak");
   if (idx === -1) return false;
@@ -88,7 +96,7 @@ function removeClaudeSettings(dir: string): boolean {
     fs.unlinkSync(settingsPath);
     const claudeDir = path.join(dir, ".claude");
     if (fs.existsSync(claudeDir) && fs.readdirSync(claudeDir).length === 0) {
-      fs.rmdirSync(claudeDir);
+      fs.rmSync(claudeDir, { recursive: true });
     }
   } else {
     fs.writeFileSync(settingsPath, `${JSON.stringify(content, null, 2)}\n`);
@@ -115,6 +123,11 @@ export async function runInit(args: string[]): Promise<void> {
 
   console.log("\n  Tarmak Setup\n");
 
+  // Warn if not in a git repo
+  if (!fs.existsSync(path.join(cwd, ".git"))) {
+    console.log("  Warning: not a git repository — proceeding anyway\n");
+  }
+
   let mode: "sse" | "stdio";
   let serverUrl = "";
 
@@ -124,6 +137,7 @@ export async function runInit(args: string[]): Promise<void> {
   } else if (opts.stdio) {
     mode = "stdio";
   } else {
+    const { confirm, input } = await import("@inquirer/prompts");
     const hasServer = await confirm({
       message: "Do you have a running Tarmak server?",
       default: false,

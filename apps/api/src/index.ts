@@ -134,13 +134,13 @@ switch (command) {
   }
 
   case "init": {
-    const { runInit } = await import("./cli/init.js");
+    const { runInit } = await import("./cli/init");
     await runInit(args.slice(1));
     break;
   }
 
   case "uninit": {
-    const { runUninit } = await import("./cli/init.js");
+    const { runUninit } = await import("./cli/init");
     await runUninit();
     break;
   }
