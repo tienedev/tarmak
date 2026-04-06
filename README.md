@@ -109,9 +109,18 @@ make dev      # starts backend (4000) + agent (9876) + frontend (3000)
 
 Open [http://localhost:3000](http://localhost:3000). Requires [Node.js](https://nodejs.org/) 22+ and [pnpm](https://pnpm.io/).
 
+### Quick setup with CLI
+
+```bash
+cd /path/to/your-project
+npx tarmak init
+```
+
+This configures `.mcp.json` and installs the Tarmak skills plugin. Use `--server <url>` for SSE mode or `--stdio` for standalone.
+
 ### MCP configuration
 
-Add to your Claude Code MCP config:
+Or add manually to your Claude Code MCP config:
 
 ```json
 {

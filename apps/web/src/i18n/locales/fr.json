@@ -192,6 +192,8 @@
     "repoUrlPlaceholder": "https://github.com/user/repo.git",
     "repoUrlUpdated": "URL du dépôt mise à jour",
     "repoUrlFailed": "Échec de la mise à jour de l'URL du dépôt",
+    "setupClaudeCode": "Configurer Claude Code",
+    "setupClaudeCodeHint": "Lancez cette commande dans votre répertoire de projet pour configurer MCP et les skills.",
 
     "members": "Membres et rôles",
     "membersDesc": "Gérez les accès à ce tableau",

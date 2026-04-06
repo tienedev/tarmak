@@ -1,8 +1,12 @@
 {
   "name": "@tarmak/api",
   "version": "0.0.1",
-  "private": true,
+  "private": false,
   "type": "module",
+  "bin": {
+    "tarmak": "./dist/index.js"
+  },
+  "files": ["dist/", "skills/", ".claude-plugin/"],
   "exports": {
     ".": {
       "import": "./dist/index.js"
@@ -12,6 +16,7 @@
     }
   },
   "scripts": {
+    "prepack": "rm -rf skills .claude-plugin && cp -r ../../skills/skills skills && cp -r ../../.claude-plugin .claude-plugin",
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js",
@@ -21,6 +26,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
+    "@inquirer/prompts": "^8.3.2",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@tarmak/db": "workspace:*",
     "@tarmak/kbf": "workspace:*",
