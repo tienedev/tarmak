@@ -6,11 +6,7 @@
   "bin": {
     "tarmak": "./dist/index.js"
   },
-  "files": [
-    "dist/",
-    "skills/",
-    ".claude-plugin/"
-  ],
+  "files": ["dist/", "skills/", ".claude-plugin/"],
   "exports": {
     ".": {
       "import": "./dist/index.js"
@@ -20,7 +16,7 @@
     }
   },
   "scripts": {
-    "prebuild": "rm -rf skills .claude-plugin && cp -r ../../skills/skills skills && cp -r ../../.claude-plugin .claude-plugin",
+    "prepack": "rm -rf skills .claude-plugin && cp -r ../../skills/skills skills && cp -r ../../.claude-plugin .claude-plugin",
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js",

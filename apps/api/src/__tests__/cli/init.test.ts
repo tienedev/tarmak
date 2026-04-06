@@ -46,10 +46,7 @@ describe("tarmak init", () => {
 
   it("merges into existing .mcp.json without overwriting other servers", async () => {
     const mcpPath = path.join(tmpDir, ".mcp.json");
-    fs.writeFileSync(
-      mcpPath,
-      JSON.stringify({ mcpServers: { other: { command: "other-mcp" } } }),
-    );
+    fs.writeFileSync(mcpPath, JSON.stringify({ mcpServers: { other: { command: "other-mcp" } } }));
 
     const { runInit } = await import("../../cli/init.js");
     await runInit(["--stdio"]);
@@ -81,9 +78,7 @@ describe("tarmak init", () => {
     const { runInit } = await import("../../cli/init.js");
     await runInit(["--stdio"]);
 
-    const content = JSON.parse(
-      fs.readFileSync(path.join(claudeDir, "settings.json"), "utf-8"),
-    );
+    const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.json"), "utf-8"));
     expect(content.plugins).toEqual(["other-plugin", "tarmak"]);
   });
 });

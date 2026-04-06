@@ -73,11 +73,11 @@ function removeMcpConfig(dir: string): boolean {
   const content = safeParseJson(mcpPath);
   const servers = (content.mcpServers ?? {}) as Record<string, unknown>;
   if (!("tarmak" in servers)) return false;
-  delete servers.tarmak;
-  if (Object.keys(servers).length === 0 && Object.keys(content).length === 1) {
+  const { tarmak: _, ...rest } = servers;
+  if (Object.keys(rest).length === 0 && Object.keys(content).length === 1) {
     fs.unlinkSync(mcpPath);
   } else {
-    content.mcpServers = servers;
+    content.mcpServers = rest;
     fs.writeFileSync(mcpPath, `${JSON.stringify(content, null, 2)}\n`);
   }
   return true;
