@@ -76,7 +76,7 @@ AI-assisted development is powerful but locked behind the terminal. Tarmak gives
 - **SQLite** — zero external dependencies, file-based persistence
 - **Docker** — multi-stage build, published to ghcr.io/tienedev/tarmak
 - **Self-hosted** — your data stays on your infrastructure
-- **CLI** — backup/restore, export/import, user management
+- **CLI** — `tarmak init`/`uninit` for repo setup, backup/restore, export/import, user management
 
 ## Quick Start
 
@@ -116,7 +116,7 @@ cd /path/to/your-project
 npx tarmak init
 ```
 
-This configures `.mcp.json` and installs the Tarmak skills plugin. Use `--server <url>` for SSE mode or `--stdio` for standalone.
+This configures `.mcp.json` and installs the Tarmak skills plugin. Use `--server <url>` for SSE mode or `--stdio` for standalone. To remove: `npx tarmak uninit`.
 
 ### MCP configuration
 
